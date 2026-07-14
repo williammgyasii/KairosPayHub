@@ -66,6 +66,21 @@ data "aws_iam_policy_document" "github_deploy" {
     actions   = ["ecs:UpdateService", "ecs:DescribeServices"]
     resources = [aws_ecs_service.api.id]
   }
+
+  statement {
+    sid     = "FrontendS3Sync"
+    actions = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = [
+      aws_s3_bucket.frontend.arn,
+      "${aws_s3_bucket.frontend.arn}/*",
+    ]
+  }
+
+  statement {
+    sid       = "FrontendCloudFrontInvalidation"
+    actions   = ["cloudfront:CreateInvalidation"]
+    resources = [aws_cloudfront_distribution.main.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "github_deploy" {

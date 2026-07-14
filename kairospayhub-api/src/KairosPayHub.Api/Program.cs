@@ -27,8 +27,9 @@ builder.Services.AddScoped<LeaderInviteService>();
 builder.Services.AddSingleton<IAmazonCognitoIdentityProvider>(
     _ => new AmazonCognitoIdentityProviderClient());
 
-// Cognito access tokens: validate issuer + signature + expiry. Audience is not
-// present on Cognito access tokens, so we validate the client_id claim instead.
+// Cognito ID tokens: validate issuer + signature + expiry + audience. The ID
+// token carries the identity claims we need (sub, email, name); its `aud` is the
+// app client id. We also require token_use=id to reject access tokens.
 var authority = builder.Configuration["Cognito:Authority"];
 var clientId = builder.Configuration["Cognito:ClientId"];
 builder.Services
@@ -37,22 +38,20 @@ builder.Services
     {
         options.Authority = authority;
         options.MapInboundClaims = false;
-        options.TokenValidationParameters.ValidateAudience = false;
         options.TokenValidationParameters.ValidateIssuer = true;
         options.TokenValidationParameters.ValidateLifetime = true;
-        if (!string.IsNullOrEmpty(clientId))
+        options.TokenValidationParameters.ValidateAudience = true;
+        options.TokenValidationParameters.ValidAudience = clientId;
+        options.Events = new JwtBearerEvents
         {
-            options.Events = new JwtBearerEvents
+            OnTokenValidated = ctx =>
             {
-                OnTokenValidated = ctx =>
-                {
-                    var tokenClientId = ctx.Principal?.FindFirst("client_id")?.Value;
-                    if (tokenClientId != clientId)
-                        ctx.Fail("Token was issued for a different client");
-                    return Task.CompletedTask;
-                },
-            };
-        }
+                var tokenUse = ctx.Principal?.FindFirst("token_use")?.Value;
+                if (tokenUse != "id")
+                    ctx.Fail("Expected a Cognito ID token");
+                return Task.CompletedTask;
+            },
+        };
     });
 builder.Services.AddAuthorization();
 

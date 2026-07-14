@@ -16,7 +16,8 @@ function userFor(email: string) {
 
 export interface Session {
   email: string | null
-  accessToken: string
+  // ID token: the API validates this (it carries sub/email/name).
+  token: string
 }
 
 export function signUp(email: string, password: string, name?: string): Promise<void> {
@@ -58,7 +59,7 @@ export function signIn(email: string, password: string): Promise<Session> {
       onSuccess: (result) => {
         resolve({
           email: result.getIdToken().payload.email ?? null,
-          accessToken: result.getAccessToken().getJwtToken(),
+          token: result.getIdToken().getJwtToken(),
         })
       },
       onFailure: reject,
@@ -84,13 +85,13 @@ export function getSession(): Promise<Session | null> {
       if (err || !session || !session.isValid()) return resolve(null)
       resolve({
         email: session.getIdToken().payload.email ?? null,
-        accessToken: session.getAccessToken().getJwtToken(),
+        token: session.getIdToken().getJwtToken(),
       })
     })
   })
 }
 
-export async function getAccessToken(): Promise<string | null> {
+export async function getToken(): Promise<string | null> {
   const session = await getSession()
-  return session?.accessToken ?? null
+  return session?.token ?? null
 }
