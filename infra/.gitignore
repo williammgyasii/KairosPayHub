@@ -1,0 +1,14 @@
+# Local Terraform working dir + provider binaries
+.terraform/
+
+# State is stored remotely (S3); never commit local state
+*.tfstate
+*.tfstate.*
+
+# Saved plans
+tfplan
+*.tfplan
+
+# Crash logs
+crash.log
+crash.*.log

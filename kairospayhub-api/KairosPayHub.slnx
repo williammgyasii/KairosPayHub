@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KairosPayHub.Api/KairosPayHub.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KairosPayHub.Tests/KairosPayHub.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Local env (public VITE config lives in .env.example)
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
