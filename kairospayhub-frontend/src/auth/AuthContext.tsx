@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import * as cognito from './cognito'
+import * as auth from './client'
 
 type Status = 'loading' | 'authed' | 'anon'
 
@@ -18,7 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState<string | null>(null)
 
   useEffect(() => {
-    cognito.getSession().then((session) => {
+    auth.getSession().then((session) => {
       if (session) {
         setEmail(session.email)
         setStatus('authed')
@@ -29,13 +29,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = useCallback(async (e: string, password: string) => {
-    const session = await cognito.signIn(e, password)
-    setEmail(session.email)
+    const session = await auth.signIn(e, password)
+    setEmail(session.email ?? e)
     setStatus('authed')
   }, [])
 
   const signOut = useCallback(() => {
-    cognito.signOut()
+    auth.signOut()
     setEmail(null)
     setStatus('anon')
   }, [])

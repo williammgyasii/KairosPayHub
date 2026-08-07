@@ -36,10 +36,10 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
 
         var org = new Organization { Name = request.OrganizationName.Trim() };
         db.Organizations.Add(org);
-        db.Users.Add(new User
+        db.AppUsers.Add(new User
         {
             OrganizationId = org.Id,
-            CognitoSub = current.Sub,
+            AuthSubject = current.Sub,
             Name = current.Name ?? current.Email ?? "Pastor",
             Email = current.Email ?? string.Empty,
             Role = Role.Pastor,

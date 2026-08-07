@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace KairosPayHub.Tests.Integration;
 
 /// <summary>
-/// Stands in for Cognito JWT validation during tests. A request is
+/// Stands in for JWT validation during integration tests. A request is
 /// "authenticated" if it carries an X-Test-Sub header; email/name are optional.
 /// </summary>
 public class TestAuthHandler(

@@ -24,7 +24,7 @@ public class ReportService(KairosDbContext db, RecordService records)
         var churchNames = await db.Churches
             .Where(c => c.OrganizationId == actor.OrganizationId)
             .ToDictionaryAsync(c => c.Id, c => c.Name, ct);
-        var userNames = await db.Users
+        var userNames = await db.AppUsers
             .Where(u => u.OrganizationId == actor.OrganizationId)
             .ToDictionaryAsync(u => u.Id, u => u.Name, ct);
 

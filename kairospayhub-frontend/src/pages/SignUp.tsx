@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { confirmSignUp, resendConfirmationCode, signUp } from '../auth/cognito'
+import { confirmEmail, register, resendConfirmation } from '../auth/client'
 
 export function SignUp() {
   const { signIn } = useAuth()
@@ -24,7 +24,7 @@ export function SignUp() {
     setBusy(true)
     setError(null)
     try {
-      await signUp(email, password, name || undefined)
+      await register(name || email.split('@')[0], email, password)
       setStep('confirm')
     } catch (err) {
       fail(err, 'Sign up failed')
@@ -38,7 +38,7 @@ export function SignUp() {
     setBusy(true)
     setError(null)
     try {
-      await confirmSignUp(email, code)
+      await confirmEmail(email, code)
       await signIn(email, password)
       navigate('/')
     } catch (err) {
@@ -77,7 +77,7 @@ export function SignUp() {
             <button
               type="button"
               className="link"
-              onClick={() => resendConfirmationCode(email).catch((err) => fail(err, 'Could not resend'))}
+              onClick={() => resendConfirmation(email).catch((err) => fail(err, 'Could not resend'))}
             >
               Resend code
             </button>

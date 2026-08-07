@@ -2,11 +2,7 @@
 # Connect repo at https://dashboard.render.com/blueprints
 #
 # After first sync, set sync:false env vars in the dashboard:
-#   API: Cognito__*, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-#   Frontend: VITE_COGNITO_*
-#
-# Cognito still lives in AWS (infra/). Create an IAM user with
-# cognito-idp:AdminCreateUser on the user pool for leader invites.
+#   API: Jwt__SigningKey, Email__Smtp__*
 #
 # DNS: point app.kairospayhub.com and api.kairospayhub.com to Render
 # (custom domains tab on each service).
@@ -42,18 +38,28 @@ services:
         value: https://app.kairospayhub.com
       - key: Cors__Origins__1
         value: http://localhost:5173
-      - key: AWS_REGION
-        value: us-east-1
-      - key: AWS_ACCESS_KEY_ID
+      - key: Jwt__Issuer
+        value: https://api.kairospayhub.com
+      - key: Jwt__Audience
+        value: kairospayhub
+      - key: Jwt__SigningKey
         sync: false
-      - key: AWS_SECRET_ACCESS_KEY
+      - key: Email__FrontendBaseUrl
+        value: https://app.kairospayhub.com
+      - key: Email__FromAddress
         sync: false
-      - key: Cognito__UserPoolId
+      - key: Email__FromName
+        value: KairosPayHub
+      - key: Email__Smtp__Host
         sync: false
-      - key: Cognito__ClientId
+      - key: Email__Smtp__Port
+        value: "587"
+      - key: Email__Smtp__Username
         sync: false
-      - key: Cognito__Authority
+      - key: Email__Smtp__Password
         sync: false
+      - key: Email__Smtp__UseTls
+        value: "true"
 
   - type: web
     name: kairospayhub-frontend
@@ -77,10 +83,6 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://api.kairospayhub.com
-      - key: VITE_COGNITO_USER_POOL_ID
-        sync: false
-      - key: VITE_COGNITO_CLIENT_ID
-        sync: false
 
 databases:
   - name: kairospayhub-db

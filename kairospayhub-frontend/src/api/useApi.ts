@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { createApiClient } from './client'
-import { getToken } from '../auth/cognito'
+import { getToken } from '../auth/client'
 
 export function useApi() {
   return useMemo(

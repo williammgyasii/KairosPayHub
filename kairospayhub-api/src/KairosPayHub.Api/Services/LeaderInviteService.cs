@@ -1,21 +1,24 @@
-using Amazon.CognitoIdentityProvider;
-using Amazon.CognitoIdentityProvider.Model;
+using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
+using KairosPayHub.Api.Email;
+using KairosPayHub.Api.Services;
+using Microsoft.AspNetCore.Identity;
 using ForbiddenException = KairosPayHub.Api.Domain.ForbiddenException;
 
 namespace KairosPayHub.Api.Services;
 
 /// <summary>
-/// Pastor invites a leader into their own org: creates the Cognito user
-/// (Cognito emails a temporary password) and writes the matching User row.
-/// Role/tenant live in our DB, so no Cognito groups or custom attributes.
+/// Pastor invites a leader: creates an Identity account, app User row, and emails
+/// a set-password link. Role/tenant live in our DB.
 /// </summary>
 public class LeaderInviteService(
-    IAmazonCognitoIdentityProvider cognito,
+    UserManager<ApplicationUser> users,
+    AuthService auth,
     KairosDbContext db,
     ChurchService churches,
-    IConfiguration config)
+    IEmailSender mailSender,
+    Microsoft.Extensions.Options.IOptions<EmailOptions> emailOptions)
 {
     public async Task<User> InviteAsync(
         Actor actor,
@@ -30,35 +33,42 @@ public class LeaderInviteService(
         var church = await churches.FindInOrgAsync(actor, churchId, ct)
             ?? throw new ForbiddenException("Church not found in your organization");
 
-        var userPoolId = config["Cognito:UserPoolId"]
-            ?? throw new InvalidOperationException("Cognito:UserPoolId is not configured");
+        var existingIdentity = await users.FindByEmailAsync(email);
+        if (existingIdentity is not null)
+            throw new AuthException("A user with this email already exists");
 
-        var created = await cognito.AdminCreateUserAsync(new AdminCreateUserRequest
+        var identityUser = new ApplicationUser
         {
-            UserPoolId = userPoolId,
-            Username = email,
-            UserAttributes =
-            [
-                new AttributeType { Name = "email", Value = email },
-                new AttributeType { Name = "email_verified", Value = "true" },
-                new AttributeType { Name = "name", Value = name },
-            ],
-            DesiredDeliveryMediums = [DeliveryMediumType.EMAIL],
-        }, ct);
+            Id = Guid.NewGuid(),
+            UserName = email,
+            Email = email,
+            DisplayName = name,
+            EmailConfirmed = false,
+        };
 
-        var sub = created.User.Attributes.First(a => a.Name == "sub").Value;
+        var createResult = await users.CreateAsync(identityUser);
+        if (!createResult.Succeeded)
+            throw new AuthException(string.Join("; ", createResult.Errors.Select(e => e.Description)));
 
         var user = new User
         {
             OrganizationId = actor.OrganizationId,
             ChurchId = churchId,
-            CognitoSub = sub,
+            AuthSubject = identityUser.Id.ToString(),
             Name = name,
             Email = email,
             Role = Role.Leader,
         };
-        db.Users.Add(user);
+        db.AppUsers.Add(user);
         await db.SaveChangesAsync(ct);
+
+        var token = await auth.CreateSetPasswordTokenAsync(identityUser.Id, ct);
+        var link = $"{emailOptions.Value.FrontendBaseUrl.TrimEnd('/')}/set-password?token={token}";
+        await mailSender.SendAsync(email,
+            "You've been invited to KairosPayHub",
+            $"Hi {name},\n\nSet your password to join your church team:\n\n{link}\n\nThis link expires in 7 days.",
+            ct);
+
         return user;
     }
 }

@@ -36,8 +36,8 @@ public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
         if (_cached is not null) return _cached;
 
         var sub = Sub;
-        var user = await db.Users.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.CognitoSub == sub, ct);
+        var user = await db.AppUsers.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.AuthSubject == sub, ct);
         if (user is null) return null;
 
         _cached = new Actor(user.Id, user.OrganizationId, user.Role, user.ChurchId);

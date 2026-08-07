@@ -19,7 +19,7 @@ public static class Seed
             OrganizationId = org.Id,
             Role = role,
             ChurchId = church?.Id,
-            CognitoSub = "sub-" + Guid.NewGuid(),
+            AuthSubject = "sub-" + Guid.NewGuid(),
             Name = role.ToString(),
             Email = email ?? $"{Guid.NewGuid()}@example.com",
         };

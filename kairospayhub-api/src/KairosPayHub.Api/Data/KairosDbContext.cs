@@ -1,17 +1,26 @@
+using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Domain;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace KairosPayHub.Api.Data;
 
-public class KairosDbContext(DbContextOptions<KairosDbContext> options) : DbContext(options)
+public class KairosDbContext(DbContextOptions<KairosDbContext> options)
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Church> Churches => Set<Church>();
-    public DbSet<User> Users => Set<User>();
+    public DbSet<User> AppUsers => Set<User>();
     public DbSet<Record> Records => Set<Record>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<OneTimeToken> OneTimeTokens => Set<OneTimeToken>();
+    public DbSet<EmailConfirmationCode> EmailConfirmationCodes => Set<EmailConfirmationCode>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        base.OnModelCreating(b);
+
         b.Entity<Organization>(e =>
         {
             e.ToTable("organizations");
@@ -32,12 +41,12 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options) : DbCont
         b.Entity<User>(e =>
         {
             e.ToTable("users");
-            e.Property(x => x.CognitoSub).IsRequired();
+            e.Property(x => x.AuthSubject).IsRequired();
             e.Property(x => x.Name).IsRequired();
             e.Property(x => x.Email).IsRequired();
             e.Property(x => x.Role).HasConversion<string>().IsRequired();
             e.HasIndex(x => x.Email).IsUnique();
-            e.HasIndex(x => x.CognitoSub).IsUnique();
+            e.HasIndex(x => x.AuthSubject).IsUnique();
             e.HasIndex(x => x.OrganizationId);
             e.HasOne(x => x.Organization)
                 .WithMany(o => o.Users)
@@ -77,6 +86,26 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options) : DbCont
                 .WithMany()
                 .HasForeignKey(x => x.VerifiedById)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<RefreshToken>(e =>
+        {
+            e.ToTable("refresh_tokens");
+            e.HasIndex(x => x.TokenHash);
+            e.HasIndex(x => x.UserId);
+        });
+
+        b.Entity<OneTimeToken>(e =>
+        {
+            e.ToTable("one_time_tokens");
+            e.Property(x => x.Purpose).HasConversion<string>();
+            e.HasIndex(x => x.TokenHash);
+        });
+
+        b.Entity<EmailConfirmationCode>(e =>
+        {
+            e.ToTable("email_confirmation_codes");
+            e.HasIndex(x => x.UserId);
         });
     }
 

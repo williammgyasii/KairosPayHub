@@ -90,7 +90,7 @@ public class ApiTests : IAsyncLifetime
         var org = Seed.Org();
         var church = Seed.Church(org);
         var leader = Seed.User(org, Role.Leader, church, "leader@example.com");
-        leader.CognitoSub = "leader-sub";
+        leader.AuthSubject = "leader-sub";
         await using (var db = _fx.CreateContext())
         {
             db.AddRange(org, church, leader);

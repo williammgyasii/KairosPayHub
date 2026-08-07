@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 
 export function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const flash = (location.state as { message?: string } | null)?.message
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +33,7 @@ export function Login() {
         <h1>Welcome back</h1>
         <p className="sub">Sign in to KairosPayHub</p>
 
+        {flash && <p className="sub">{flash}</p>}
         {error && <p className="error">{error}</p>}
 
         <div className="field">
@@ -60,6 +63,10 @@ export function Login() {
         <button className="primary" type="submit" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
+
+        <p className="switch">
+          <Link to="/forgot-password">Forgot password?</Link>
+        </p>
 
         <p className="switch">
           No account? <Link to="/signup">Create one</Link>

@@ -1,0 +1,148 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+
+namespace KairosPayHub.Tests.Integration;
+
+[Collection("postgres")]
+public class AuthTests : IAsyncLifetime
+{
+    private readonly PostgresFixture _fx;
+    private readonly AuthApiFactory _factory;
+
+    public AuthTests(PostgresFixture fx)
+    {
+        _fx = fx;
+        _factory = new AuthApiFactory(fx.ConnectionString);
+    }
+
+    public Task InitializeAsync() => _fx.ResetAsync();
+
+    public async Task DisposeAsync() => await _factory.DisposeAsync();
+
+    [Fact]
+    public async Task Register_confirm_login_and_onboard()
+    {
+        _factory.Email.Clear();
+        var client = _factory.CreateClient();
+
+        var register = await client.PostAsJsonAsync("/auth/register", new
+        {
+            name = "Pastor Joe",
+            email = "pastor@example.com",
+            password = "Password1",
+        });
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+
+        var code = _factory.Email.ExtractConfirmationCode();
+        Assert.NotNull(code);
+
+        var confirm = await client.PostAsJsonAsync("/auth/confirm-email", new
+        {
+            email = "pastor@example.com",
+            code,
+        });
+        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
+
+        var login = await client.PostAsJsonAsync("/auth/login", new
+        {
+            email = "pastor@example.com",
+            password = "Password1",
+        });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        var tokens = await login.Content.ReadFromJsonAsync<JsonElement>();
+        var access = tokens.GetProperty("accessToken").GetString();
+        Assert.False(string.IsNullOrEmpty(access));
+
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access);
+
+        var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        Assert.False(me.GetProperty("onboarded").GetBoolean());
+
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { organizationName = "Grace" });
+        Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
+
+        me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        Assert.True(me.GetProperty("onboarded").GetBoolean());
+        Assert.Equal("Pastor", me.GetProperty("role").GetString());
+    }
+
+    [Fact]
+    public async Task Pastor_invites_leader_set_password_and_submit_record()
+    {
+        _factory.Email.Clear();
+        var client = await LoginPastorAsync();
+
+        var churchResp = await client.PostAsJsonAsync("/api/churches", new { name = "Main" });
+        var churchId = (await churchResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        _factory.Email.Clear();
+        var invite = await client.PostAsJsonAsync("/api/leaders", new
+        {
+            email = "leader@example.com",
+            name = "Leader One",
+            churchId,
+        });
+        Assert.Equal(HttpStatusCode.OK, invite.StatusCode);
+
+        var body = _factory.Email.LastBody ?? throw new InvalidOperationException("No invite email");
+        var token = ExtractQueryToken(body, "token=");
+        Assert.False(string.IsNullOrEmpty(token));
+
+        var leaderClient = _factory.CreateClient();
+        var setPwd = await leaderClient.PostAsJsonAsync("/auth/set-password", new
+        {
+            token,
+            password = "Password1",
+        });
+        Assert.Equal(HttpStatusCode.OK, setPwd.StatusCode);
+
+        var login = await leaderClient.PostAsJsonAsync("/auth/login", new
+        {
+            email = "leader@example.com",
+            password = "Password1",
+        });
+        var access = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
+        leaderClient.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access);
+
+        var submit = await leaderClient.PostAsJsonAsync("/api/records", new
+        {
+            churchId,
+            amount = 50m,
+            dateSent = "2026-07-01T00:00:00Z",
+            method = "Cash",
+        });
+        Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+    }
+
+    private async Task<HttpClient> LoginPastorAsync()
+    {
+        var client = _factory.CreateClient();
+        await client.PostAsJsonAsync("/auth/register", new
+        {
+            name = "Pastor",
+            email = "p@example.com",
+            password = "Password1",
+        });
+        var code = _factory.Email.ExtractConfirmationCode()!;
+        await client.PostAsJsonAsync("/auth/confirm-email", new { email = "p@example.com", code });
+        var login = await client.PostAsJsonAsync("/auth/login", new { email = "p@example.com", password = "Password1" });
+        var access = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access);
+        await client.PostAsJsonAsync("/api/onboarding", new { organizationName = "Org" });
+        return client;
+    }
+
+    private static string ExtractQueryToken(string body, string prefix)
+    {
+        var idx = body.IndexOf(prefix, StringComparison.Ordinal);
+        if (idx < 0) return string.Empty;
+        var start = idx + prefix.Length;
+        var end = start;
+        while (end < body.Length && !char.IsWhiteSpace(body[end])) end++;
+        return body[start..end];
+    }
+}

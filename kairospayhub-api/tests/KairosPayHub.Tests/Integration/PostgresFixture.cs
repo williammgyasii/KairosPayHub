@@ -36,8 +36,13 @@ public sealed class PostgresFixture : IAsyncLifetime
     public async Task ResetAsync()
     {
         await using var db = CreateContext();
-        await db.Database.ExecuteSqlRawAsync(
-            "TRUNCATE records, users, churches, organizations RESTART IDENTITY CASCADE;");
+        await db.Database.ExecuteSqlRawAsync("""
+            TRUNCATE records, users, churches, organizations,
+              refresh_tokens, one_time_tokens, email_confirmation_codes,
+              "AspNetRoleClaims", "AspNetUserClaims", "AspNetUserLogins",
+              "AspNetUserRoles", "AspNetUserTokens", "AspNetUsers", "AspNetRoles"
+            RESTART IDENTITY CASCADE;
+            """);
     }
 }
 
