@@ -1,0 +1,7 @@
+# Cloudflare Wrangler config for KairosPayHub (DNS / Pages / Workers as needed).
+# Auth: source .env before running wrangler commands.
+# Docs: https://developers.cloudflare.com/workers/wrangler/
+
+name = "kairospayhub"
+account_id = "e23518956f08ff35812d9ab001a39880"
+compatibility_date = "2024-08-01"

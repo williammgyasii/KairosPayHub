@@ -33,38 +33,12 @@ internal static partial class DbConnectionString
                 connectionString = connectionString[..q];
 
             var csb = ParsePostgresUri(connectionString);
-            if (csb.Host?.Contains("dpg-", StringComparison.OrdinalIgnoreCase) == true)
-                csb.SslMode = SslMode.Require;
+            ExpandRenderHost(csb);
+            csb.SslMode = SslMode.Require;
             return csb.ConnectionString;
         }
 
         return connectionString;
-    }
-
-    internal static void EnsureDatabaseExists(string connectionString)
-    {
-        var target = new NpgsqlConnectionStringBuilder(connectionString);
-        var dbName = target.Database;
-        if (string.IsNullOrWhiteSpace(dbName))
-            return;
-
-        var admin = new NpgsqlConnectionStringBuilder(connectionString)
-        {
-            Database = "lumencue",
-        };
-
-        using var conn = new NpgsqlConnection(admin.ConnectionString);
-        conn.Open();
-
-        using var exists = conn.CreateCommand();
-        exists.CommandText = "SELECT 1 FROM pg_database WHERE datname = @name";
-        exists.Parameters.AddWithValue("name", dbName);
-        if (exists.ExecuteScalar() is not null)
-            return;
-
-        using var create = conn.CreateCommand();
-        create.CommandText = $"CREATE DATABASE \"{dbName.Replace("\"", "")}\"";
-        create.ExecuteNonQuery();
     }
 
     private static NpgsqlConnectionStringBuilder ParsePostgresUri(string uri)
@@ -85,5 +59,20 @@ internal static partial class DbConnectionString
             csb.Port = int.Parse(match.Groups[4].Value);
 
         return csb;
+    }
+
+    /// <summary>
+    /// Render internal URLs use bare dpg-* ids; those only resolve on-region.
+    /// Use the public hostname so cross-region services (e.g. API in Ohio, DB in Virginia) can connect.
+    /// </summary>
+    private static void ExpandRenderHost(NpgsqlConnectionStringBuilder csb)
+    {
+        if (csb.Host is not { } host)
+            return;
+
+        if (!host.StartsWith("dpg-", StringComparison.OrdinalIgnoreCase) || host.Contains('.'))
+            return;
+
+        csb.Host = host + ".virginia-postgres.render.com";
     }
 }
