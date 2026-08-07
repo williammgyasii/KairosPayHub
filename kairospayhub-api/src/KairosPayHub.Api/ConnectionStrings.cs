@@ -12,11 +12,22 @@ internal static class DbConnectionString
         if (string.IsNullOrWhiteSpace(connectionString))
             return connectionString;
 
-        // Repair a truncated Render env var (e.g. "?sslmode" with no "=require").
+        connectionString = connectionString.Trim();
+
+        // Render env vars can truncate at '='; repair a dangling sslmode query key.
         if (connectionString.EndsWith("?sslmode", StringComparison.OrdinalIgnoreCase) ||
             connectionString.EndsWith("&sslmode", StringComparison.OrdinalIgnoreCase))
         {
             connectionString += "=require";
+        }
+
+        // Strip query string; we set SSL below for Render hosts (avoids '=' in env values).
+        if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            var q = connectionString.IndexOf('?', StringComparison.Ordinal);
+            if (q >= 0)
+                connectionString = connectionString[..q];
         }
 
         if (!connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
@@ -28,8 +39,6 @@ internal static class DbConnectionString
             ConnectionString = connectionString,
         };
 
-        // Render Postgres (managed dpg-* hosts) requires SSL on external strings;
-        // internal network strings still accept explicit sslmode.
         if (csb.Host?.Contains("dpg-", StringComparison.OrdinalIgnoreCase) == true)
             csb.SslMode = SslMode.Require;
 
