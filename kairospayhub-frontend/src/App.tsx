@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
-import { Dashboard } from './pages/Dashboard'
+import { DashboardRoot } from './pages/Dashboard'
+import { ComingSoonPage, OverviewPage, StructurePage } from './pages/DashboardPages'
+import { SettingsPage } from './pages/SettingsPage'
 import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword, SetPassword } from './pages/PasswordPages'
 import { SignUp } from './pages/SignUp'
@@ -17,10 +19,15 @@ export default function App() {
         path="/"
         element={
           <RequireAuth>
-            <Dashboard />
+            <DashboardRoot />
           </RequireAuth>
         }
-      />
+      >
+        <Route index element={<OverviewPage />} />
+        <Route path="structure" element={<StructurePage />} />
+        <Route path="programs" element={<ComingSoonPage feature="Programs" />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

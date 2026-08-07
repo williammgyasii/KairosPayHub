@@ -288,6 +288,188 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.ToTable("records", (string)null);
                 });
 
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Cell", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FellowshipId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FellowshipId");
+
+                    b.HasIndex("ChurchId", "FellowshipId");
+
+                    b.ToTable("structure_cells", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Church", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("church_tenants", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Fellowship", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("PfccId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChurchId");
+
+                    b.HasIndex("PfccId");
+
+                    b.ToTable("structure_fellowships", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Member", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CellId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CellId");
+
+                    b.HasIndex("ChurchId");
+
+                    b.HasIndex("ChurchId", "CellId");
+
+                    b.ToTable("church_members", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Pfcc", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChurchId");
+
+                    b.ToTable("pfccs", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.RoleAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ScopeCellId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ScopeFellowshipId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ScopePfccId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthUserId");
+
+                    b.HasIndex("ChurchId");
+
+                    b.HasIndex("ScopeCellId");
+
+                    b.HasIndex("ScopeFellowshipId");
+
+                    b.HasIndex("ScopePfccId");
+
+                    b.ToTable("role_assignments", (string)null);
+                });
+
             modelBuilder.Entity("KairosPayHub.Api.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -501,6 +683,107 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Navigation("VerifiedBy");
                 });
 
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Cell", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithMany("Cells")
+                        .HasForeignKey("ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Fellowship", "Fellowship")
+                        .WithMany("Cells")
+                        .HasForeignKey("ChurchId", "FellowshipId")
+                        .HasPrincipalKey("ChurchId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Church");
+
+                    b.Navigation("Fellowship");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Fellowship", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithMany("Fellowships")
+                        .HasForeignKey("ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Pfcc", "Pfcc")
+                        .WithMany("Fellowships")
+                        .HasForeignKey("PfccId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Church");
+
+                    b.Navigation("Pfcc");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Member", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithMany("Members")
+                        .HasForeignKey("ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Cell", "Cell")
+                        .WithMany("Members")
+                        .HasForeignKey("ChurchId", "CellId")
+                        .HasPrincipalKey("ChurchId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cell");
+
+                    b.Navigation("Church");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Pfcc", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithMany("Pfccs")
+                        .HasForeignKey("ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Church");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.RoleAssignment", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithMany("RoleAssignments")
+                        .HasForeignKey("ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Cell", "ScopeCell")
+                        .WithMany()
+                        .HasForeignKey("ScopeCellId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Fellowship", "ScopeFellowship")
+                        .WithMany()
+                        .HasForeignKey("ScopeFellowshipId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Pfcc", "ScopePfcc")
+                        .WithMany()
+                        .HasForeignKey("ScopePfccId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Church");
+
+                    b.Navigation("ScopeCell");
+
+                    b.Navigation("ScopeFellowship");
+
+                    b.Navigation("ScopePfcc");
+                });
+
             modelBuilder.Entity("KairosPayHub.Api.Domain.User", b =>
                 {
                     b.HasOne("KairosPayHub.Api.Domain.Church", "Church")
@@ -575,6 +858,34 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Navigation("Churches");
 
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Cell", b =>
+                {
+                    b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Church", b =>
+                {
+                    b.Navigation("Cells");
+
+                    b.Navigation("Fellowships");
+
+                    b.Navigation("Members");
+
+                    b.Navigation("Pfccs");
+
+                    b.Navigation("RoleAssignments");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Fellowship", b =>
+                {
+                    b.Navigation("Cells");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Pfcc", b =>
+                {
+                    b.Navigation("Fellowships");
                 });
 #pragma warning restore 612, 618
         }

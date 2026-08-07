@@ -2,7 +2,7 @@ using KairosPayHub.Api.Domain;
 
 namespace KairosPayHub.Api.Web;
 
-public record OnboardRequest(string OrganizationName);
+public record OnboardRequest(string? OrganizationName, string? ChurchName);
 
 public record CreateChurchRequest(string Name);
 
@@ -17,6 +17,30 @@ public record SubmitRecordRequest(
     string? Currency);
 
 public record ChurchDto(Guid Id, string Name);
+
+public record PfccDto(Guid Id, string Name);
+
+public record FellowshipDto(Guid Id, string Name, Guid? PfccId);
+
+public record CellDto(Guid Id, string Name, Guid FellowshipId);
+
+public record MemberDto(Guid Id, string Name, Guid CellId, string? Email, string? Phone);
+
+public record StructureTreeDto(
+    Guid ChurchId,
+    string ChurchName,
+    IReadOnlyList<PfccDto> Pfccs,
+    IReadOnlyList<FellowshipDto> Fellowships,
+    IReadOnlyList<CellDto> Cells,
+    IReadOnlyList<MemberDto> Members);
+
+public record CreatePfccRequest(string Name);
+
+public record CreateFellowshipRequest(string Name, Guid? PfccId);
+
+public record CreateCellRequest(string Name, Guid FellowshipId);
+
+public record CreateMemberRequest(string Name, Guid CellId, string? Email, string? Phone);
 
 public record RecordDto(
     Guid Id,

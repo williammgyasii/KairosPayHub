@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
-import { useApi } from '../api/useApi'
-import { displayName, needsOnboarding, type Me } from '../api/me'
-import { useAuth } from '../auth/AuthContext'
+import { useApi } from '@/api/useApi'
+import { needsOnboarding, type Me } from '@/api/me'
+import { DashboardLayout } from '@/components/layout/dashboard-layout'
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 
-export function Dashboard() {
+export function DashboardRoot() {
   const api = useApi()
-  const { email, signOut } = useAuth()
   const [me, setMe] = useState<Me | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [orgName, setOrgName] = useState('')
-  const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -22,85 +19,35 @@ export function Dashboard() {
   }, [api])
 
   useEffect(() => {
-    // Fetch the current user on mount; state updates happen after the await.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
   }, [load])
 
-  async function onOnboard(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      await api.post('/api/onboarding', { organizationName: orgName })
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Onboarding failed')
-    } finally {
-      setBusy(false)
-    }
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <p className="text-sm text-destructive">{error}</p>
+      </div>
+    )
   }
 
-  return (
-    <>
-      <div className="topbar">
-        <span className="brand">KairosPayHub</span>
-        <span>
-          <span className="muted" style={{ marginRight: 12 }}>
-            {email}
-          </span>
-          <button className="link" onClick={signOut}>
-            Sign out
-          </button>
-        </span>
+  if (!me) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
+    )
+  }
 
-      <div className="page">
-        {error && <p className="error">{error}</p>}
-        {!me && !error && <p className="muted">Loading…</p>}
+  if (needsOnboarding(me)) {
+    if (me.onboarded) return null
+    return <OnboardingWizard me={me} onComplete={setMe} />
+  }
 
-        {me && needsOnboarding(me) && (
-          <form className="card" onSubmit={onOnboard} style={{ maxWidth: 420 }}>
-            <h1>Set up your organization</h1>
-            <p className="sub">Name your church or ministry to get started.</p>
-            <div className="field">
-              <label htmlFor="org">Organization name</label>
-              <input
-                id="org"
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                required
-              />
-            </div>
-            <button className="primary" type="submit" disabled={busy}>
-              {busy ? 'Creating…' : 'Create organization'}
-            </button>
-          </form>
-        )}
+  if (!me.onboarded) return null
 
-        {me && me.onboarded && (
-          <>
-            <h1>Welcome, {displayName(me, email)}</h1>
-            <p className="muted">You’re all set up. Feature building starts here.</p>
-            <div style={{ marginTop: 24 }}>
-              <div className="row">
-                <span className="muted">Role</span>
-                <span className="badge">{me.role}</span>
-              </div>
-              <div className="row">
-                <span className="muted">Organization ID</span>
-                <span>{me.organizationId}</span>
-              </div>
-              {me.churchId && (
-                <div className="row">
-                  <span className="muted">Church ID</span>
-                  <span>{me.churchId}</span>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  )
+  return <DashboardLayout me={me} reloadMe={load} />
 }
+
+// Backwards-compatible export for any imports
+export const Dashboard = DashboardRoot

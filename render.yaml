@@ -60,6 +60,16 @@ services:
         sync: false
       - key: Email__Smtp__UseTls
         value: "true"
+      - key: R2__BucketName
+        sync: false
+      - key: R2__PublicBaseUrl
+        sync: false
+      - key: R2__AccessKeyId
+        sync: false
+      - key: R2__SecretAccessKey
+        sync: false
+      - key: R2__Endpoint
+        sync: false
 
   - type: web
     name: kairospayhub-frontend

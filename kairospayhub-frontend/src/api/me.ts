@@ -1,13 +1,21 @@
-export type Role = 'Pastor' | 'Leader'
+export type ChurchRole =
+  | 'Pastor'
+  | 'PFCCManager'
+  | 'FellowshipLeader'
+  | 'CellLeader'
+  | 'Member'
 
 export type Me =
   | { onboarded: false; email: string | null; name: string | null }
   | {
       onboarded: true
       id: string
-      organizationId: string
-      role: Role
       churchId: string | null
+      churchName: string | null
+      churchLogoUrl: string | null
+      organizationId: string
+      role: ChurchRole | 'Leader'
+      legacyChurchId: string | null
       email: string | null
       name: string | null
     }

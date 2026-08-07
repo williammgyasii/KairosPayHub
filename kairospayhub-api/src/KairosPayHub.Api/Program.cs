@@ -4,6 +4,7 @@ using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
 using KairosPayHub.Api.Email;
 using KairosPayHub.Api.Services;
+using KairosPayHub.Api.Storage;
 using KairosPayHub.Api.Web;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -44,12 +45,22 @@ builder.Services
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+builder.Services.Configure<R2Options>(builder.Configuration.GetSection(R2Options.SectionName));
+builder.Services.PostConfigure<R2Options>(o =>
+{
+    o.AccessKeyId ??= builder.Configuration["CLOUDFLARE_R2_ACCESS_KEY_ID"];
+    o.SecretAccessKey ??= builder.Configuration["CLOUDFLARE_R2_SECRET_ACCESS_KEY"];
+    o.Endpoint ??= builder.Configuration["CLOUDFLARE_R2_ENDPOINT"];
+});
+builder.Services.AddSingleton<IObjectStorage, R2ObjectStorage>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 builder.Services.AddScoped<CurrentActor>();
 builder.Services.AddScoped<ChurchService>();
+builder.Services.AddScoped<StructureService>();
+builder.Services.AddScoped<ChurchBrandingService>();
 builder.Services.AddScoped<RecordService>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<LeaderInviteService>();

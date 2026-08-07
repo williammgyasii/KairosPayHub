@@ -1,3 +1,5 @@
+using KairosPayHub.Api.Domain.Structure;
+
 namespace KairosPayHub.Api.Domain;
 
 /// <summary>
@@ -5,7 +7,13 @@ namespace KairosPayHub.Api.Domain;
 /// plus the leader's church. Derived from the verified JWT + DB row, never
 /// from client-supplied input.
 /// </summary>
-public sealed record Actor(Guid Id, Guid OrganizationId, Role Role, Guid? ChurchId = null);
+public sealed record Actor(
+    Guid Id,
+    Guid OrganizationId,
+    Role Role,
+    Guid? ChurchId = null,
+    Guid StructureChurchId = default,
+    ChurchRole? StructureRole = null);
 
 /// <summary>Minimal record projection needed to make an authorization decision.</summary>
 public sealed record RecordForAuthz(

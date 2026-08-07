@@ -105,8 +105,12 @@ export async function getSession(): Promise<Session | null> {
   return refreshSession()
 }
 
+export function getAccessToken(): string | null {
+  return sessionStorage.getItem(ACCESS_KEY)
+}
+
 export async function getToken(): Promise<string | null> {
-  const access = sessionStorage.getItem(ACCESS_KEY)
+  const access = getAccessToken()
   if (access) return access
 
   const session = await refreshSession()

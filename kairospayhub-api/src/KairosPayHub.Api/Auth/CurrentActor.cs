@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
+using KairosPayHub.Api.Domain.Structure;
 using Microsoft.EntityFrameworkCore;
 
 namespace KairosPayHub.Api.Auth;
@@ -10,8 +11,7 @@ public class NotOnboardedException(string message = "User has not completed onbo
 
 /// <summary>
 /// Request-scoped resolver that turns the validated JWT into an app Actor by
-/// looking up the DB user (the authoritative source of org + role). Identity
-/// comes from the token's `sub`; everything else comes from our database.
+/// looking up role assignments and legacy app users.
 /// </summary>
 public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
 {
@@ -36,14 +36,46 @@ public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
         if (_cached is not null) return _cached;
 
         var sub = Sub;
-        var user = await db.AppUsers.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.AuthSubject == sub, ct);
-        if (user is null) return null;
+        Guid? authUserId = Guid.TryParse(sub, out var parsed) ? parsed : null;
 
-        _cached = new Actor(user.Id, user.OrganizationId, user.Role, user.ChurchId);
+        RoleAssignment? assignment = authUserId is not null
+            ? await db.RoleAssignments.AsNoTracking()
+                .FirstOrDefaultAsync(r => r.AuthUserId == authUserId, ct)
+            : null;
+
+        var legacyUser = await db.AppUsers.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.AuthSubject == sub, ct);
+
+        if (assignment is null && legacyUser is null)
+            return null;
+
+        if (assignment is not null)
+        {
+            _cached = new Actor(
+                legacyUser?.Id ?? assignment.Id,
+                legacyUser?.OrganizationId ?? assignment.ChurchId,
+                MapLegacyRole(assignment.Role),
+                legacyUser?.ChurchId,
+                assignment.ChurchId,
+                assignment.Role);
+            return _cached;
+        }
+
+        _cached = new Actor(
+            legacyUser!.Id,
+            legacyUser.OrganizationId,
+            legacyUser.Role,
+            legacyUser.ChurchId);
         return _cached;
     }
 
     public async Task<Actor> RequireAsync(CancellationToken ct = default) =>
         await TryGetAsync(ct) ?? throw new NotOnboardedException();
+
+    private static Role MapLegacyRole(ChurchRole role) =>
+        role switch
+        {
+            ChurchRole.Pastor => Role.Pastor,
+            _ => Role.Leader,
+        };
 }

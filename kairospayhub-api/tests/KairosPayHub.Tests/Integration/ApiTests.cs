@@ -41,7 +41,7 @@ public class ApiTests : IAsyncLifetime
     [Fact]
     public async Task New_user_is_not_onboarded()
     {
-        var client = AuthedClient("brand-new-sub");
+        var client = AuthedClient(Guid.NewGuid().ToString());
         var json = await client.GetFromJsonAsync<JsonElement>("/api/me");
         Assert.False(json.GetProperty("onboarded").GetBoolean());
     }
@@ -49,22 +49,24 @@ public class ApiTests : IAsyncLifetime
     [Fact]
     public async Task Pastor_onboards_then_me_shows_pastor()
     {
-        var client = AuthedClient("pastor-sub", "pastor@example.com", "Pastor Joe");
+        var sub = Guid.NewGuid().ToString();
+        var client = AuthedClient(sub, "pastor@example.com", "Pastor Joe");
 
         var onboard = await client.PostAsJsonAsync(
-            "/api/onboarding", new { organizationName = "Grace Church" });
+            "/api/onboarding", new { churchName = "Grace Church" });
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
 
         var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
         Assert.True(me.GetProperty("onboarded").GetBoolean());
         Assert.Equal("Pastor", me.GetProperty("role").GetString());
+        Assert.Equal("Grace Church", me.GetProperty("churchName").GetString());
     }
 
     [Fact]
     public async Task Pastor_creates_church_submits_and_lists_record()
     {
-        var client = AuthedClient("pastor-2", "p2@example.com", "Pastor Two");
-        await client.PostAsJsonAsync("/api/onboarding", new { organizationName = "Org Two" });
+        var client = AuthedClient(Guid.NewGuid().ToString(), "p2@example.com", "Pastor Two");
+        await client.PostAsJsonAsync("/api/onboarding", new { churchName = "Org Two" });
 
         var churchResp = await client.PostAsJsonAsync("/api/churches", new { name = "Avenue" });
         var church = await churchResp.Content.ReadFromJsonAsync<JsonElement>();

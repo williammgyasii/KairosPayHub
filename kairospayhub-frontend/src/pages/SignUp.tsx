@@ -1,8 +1,13 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/AuthContext'
-import { confirmEmail, register, resendConfirmation } from '../auth/client'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/auth/AuthContext'
+import { confirmEmail, register, resendConfirmation } from '@/auth/client'
+import { AuthFooterLink, AuthLayout } from '@/components/layout/AuthLayout'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export function SignUp() {
   const { signIn } = useAuth()
@@ -50,91 +55,98 @@ export function SignUp() {
 
   if (step === 'confirm') {
     return (
-      <div className="center-screen">
-        <form className="card" onSubmit={onConfirm}>
-          <h1>Check your email</h1>
-          <p className="sub">We sent a 6-digit code to {email}</p>
+      <AuthLayout
+        title="Check your email"
+        subtitle={`We sent a 6-digit code to ${email}. In local dev, open MailHog at localhost:8025.`}
+      >
+        <Card className="border-none shadow-lg">
+          <CardContent className="pt-6">
+            <form onSubmit={onConfirm} className="space-y-4">
+              {error && <p className="text-sm text-destructive">{error}</p>}
 
-          {error && <p className="error">{error}</p>}
+              <div className="space-y-2">
+                <Label htmlFor="code">Confirmation code</Label>
+                <Input
+                  id="code"
+                  inputMode="numeric"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                />
+              </div>
 
-          <div className="field">
-            <label htmlFor="code">Confirmation code</label>
-            <input
-              id="code"
-              inputMode="numeric"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-            />
-          </div>
+              <Button className="w-full" type="submit" disabled={busy}>
+                {busy ? 'Confirming…' : 'Confirm & continue'}
+              </Button>
 
-          <button className="primary" type="submit" disabled={busy}>
-            {busy ? 'Confirming…' : 'Confirm & continue'}
-          </button>
-
-          <p className="switch">
-            Didn’t get it?{' '}
-            <button
-              type="button"
-              className="link"
-              onClick={() => resendConfirmation(email).catch((err) => fail(err, 'Could not resend'))}
-            >
-              Resend code
-            </button>
-          </p>
-        </form>
-      </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => resendConfirmation(email).catch((err) => fail(err, 'Could not resend'))}
+              >
+                Resend code
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </AuthLayout>
     )
   }
 
   return (
-    <div className="center-screen">
-      <form className="card" onSubmit={onCreate}>
-        <h1>Create your account</h1>
-        <p className="sub">Start tracking your church records</p>
+    <AuthLayout
+      title="Create your account"
+      subtitle="Pastors sign up first, then set up their church."
+      footer={
+        <>
+          Already have an account? <AuthFooterLink to="/login">Sign in</AuthFooterLink>
+        </>
+      }
+    >
+      <Card className="border-none shadow-lg">
+        <CardContent className="pt-6">
+          <form onSubmit={onCreate} className="space-y-4">
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {error && <p className="error">{error}</p>}
+            <div className="space-y-2">
+              <Label htmlFor="name">Full name</Label>
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
 
-        <div className="field">
-          <label htmlFor="name">Full name</label>
-          <input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
 
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                8+ characters with upper, lower, and a number
+              </p>
+            </div>
 
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <span className="muted" style={{ fontSize: '0.75rem' }}>
-            8+ chars with upper, lower &amp; a number
-          </span>
-        </div>
-
-        <button className="primary" type="submit" disabled={busy}>
-          {busy ? 'Creating…' : 'Create account'}
-        </button>
-
-        <p className="switch">
-          Already have an account? <Link to="/login">Sign in</Link>
-        </p>
-      </form>
-    </div>
+            <Button className="w-full" type="submit" disabled={busy}>
+              {busy ? 'Creating…' : 'Create account'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </AuthLayout>
   )
 }

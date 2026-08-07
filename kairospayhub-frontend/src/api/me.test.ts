@@ -6,9 +6,12 @@ const notOnboarded: Me = { onboarded: false, email: 'p@example.com', name: null 
 const onboarded: Me = {
   onboarded: true,
   id: 'u1',
+  churchId: 'c1',
+  churchName: 'Grace Assembly',
+  churchLogoUrl: null,
   organizationId: 'o1',
   role: 'Pastor',
-  churchId: null,
+  legacyChurchId: null,
   email: 'p@example.com',
   name: 'Pastor Paul',
 }
