@@ -1,0 +1,89 @@
+# KairosPayHub on Render
+# Connect repo at https://dashboard.render.com/blueprints
+#
+# After first sync, set sync:false env vars in the dashboard:
+#   API: Cognito__*, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   Frontend: VITE_COGNITO_*
+#
+# Cognito still lives in AWS (infra/). Create an IAM user with
+# cognito-idp:AdminCreateUser on the user pool for leader invites.
+#
+# DNS: point app.kairospayhub.com and api.kairospayhub.com to Render
+# (custom domains tab on each service).
+
+services:
+  - type: web
+    name: kairospayhub-api
+    runtime: docker
+    plan: starter
+    region: ohio
+    repo: https://github.com/williammgyasii/KairosPayHub
+    branch: main
+    rootDir: kairospayhub-api
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    domains:
+      - api.kairospayhub.com
+    buildFilter:
+      paths:
+        - kairospayhub-api/**
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__Default
+        fromDatabase:
+          name: kairospayhub-db
+          property: connectionString
+      - key: Database__MigrateOnStartup
+        value: "true"
+      - key: Cors__Origins__0
+        value: https://app.kairospayhub.com
+      - key: Cors__Origins__1
+        value: http://localhost:5173
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: Cognito__UserPoolId
+        sync: false
+      - key: Cognito__ClientId
+        sync: false
+      - key: Cognito__Authority
+        sync: false
+
+  - type: web
+    name: kairospayhub-frontend
+    runtime: static
+    plan: free
+    region: ohio
+    repo: https://github.com/williammgyasii/KairosPayHub
+    branch: main
+    rootDir: kairospayhub-frontend
+    buildCommand: npm ci && npm test && npm run build
+    staticPublishPath: ./dist
+    domains:
+      - app.kairospayhub.com
+    buildFilter:
+      paths:
+        - kairospayhub-frontend/**
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://api.kairospayhub.com
+      - key: VITE_COGNITO_USER_POOL_ID
+        sync: false
+      - key: VITE_COGNITO_CLIENT_ID
+        sync: false
+
+databases:
+  - name: kairospayhub-db
+    plan: basic-256mb
+    region: ohio
+    postgresMajorVersion: "16"
+    databaseName: kairospayhub
+    user: kairos
