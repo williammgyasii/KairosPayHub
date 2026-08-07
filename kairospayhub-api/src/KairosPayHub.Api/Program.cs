@@ -65,6 +65,7 @@ var app = builder.Build();
 
 if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
 {
+    DbConnectionString.EnsureDatabaseExists(connectionString);
     using var scope = app.Services.CreateScope();
     scope.ServiceProvider.GetRequiredService<KairosDbContext>().Database.Migrate();
 }

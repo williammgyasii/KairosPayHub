@@ -35,4 +35,34 @@ internal static class DbConnectionString
 
         return csb.ConnectionString;
     }
+
+    /// <summary>
+    /// On Render free Postgres, create the app database once by connecting to the
+    /// instance default DB (same user, CREATEDB).
+    /// </summary>
+    internal static void EnsureDatabaseExists(string connectionString)
+    {
+        var target = new NpgsqlConnectionStringBuilder(connectionString);
+        var dbName = target.Database;
+        if (string.IsNullOrWhiteSpace(dbName))
+            return;
+
+        var admin = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Database = "lumencue",
+        };
+
+        using var conn = new NpgsqlConnection(admin.ConnectionString);
+        conn.Open();
+
+        using var exists = conn.CreateCommand();
+        exists.CommandText = "SELECT 1 FROM pg_database WHERE datname = @name";
+        exists.Parameters.AddWithValue("name", dbName);
+        if (exists.ExecuteScalar() is not null)
+            return;
+
+        using var create = conn.CreateCommand();
+        create.CommandText = $"CREATE DATABASE \"{dbName.Replace("\"", "")}\"";
+        create.ExecuteNonQuery();
+    }
 }
