@@ -1,9 +1,14 @@
+using System.Text.RegularExpressions;
 using Npgsql;
 
 namespace KairosPayHub.Api;
 
-internal static class DbConnectionString
+internal static partial class DbConnectionString
 {
+    // postgresql://user:pass@host[:port]/database
+    [GeneratedRegex(@"^postgres(?:ql)?://([^:/]+):([^@]+)@([^:/]+)(?::(\d+))?/([^?]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex PostgresUriRegex();
+
     /// <summary>
     /// Render injects postgres:// URIs; local dev uses key=value. Normalize for Npgsql.
     /// </summary>
@@ -14,41 +19,28 @@ internal static class DbConnectionString
 
         connectionString = connectionString.Trim();
 
-        // Render env vars can truncate at '='; repair a dangling sslmode query key.
         if (connectionString.EndsWith("?sslmode", StringComparison.OrdinalIgnoreCase) ||
             connectionString.EndsWith("&sslmode", StringComparison.OrdinalIgnoreCase))
         {
             connectionString += "=require";
         }
 
-        // Strip query string; we set SSL below for Render hosts (avoids '=' in env values).
         if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
             var q = connectionString.IndexOf('?', StringComparison.Ordinal);
             if (q >= 0)
                 connectionString = connectionString[..q];
+
+            var csb = ParsePostgresUri(connectionString);
+            if (csb.Host?.Contains("dpg-", StringComparison.OrdinalIgnoreCase) == true)
+                csb.SslMode = SslMode.Require;
+            return csb.ConnectionString;
         }
 
-        if (!connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
-            !connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
-            return connectionString;
-
-        var csb = new NpgsqlConnectionStringBuilder
-        {
-            ConnectionString = connectionString,
-        };
-
-        if (csb.Host?.Contains("dpg-", StringComparison.OrdinalIgnoreCase) == true)
-            csb.SslMode = SslMode.Require;
-
-        return csb.ConnectionString;
+        return connectionString;
     }
 
-    /// <summary>
-    /// On Render free Postgres, create the app database once by connecting to the
-    /// instance default DB (same user, CREATEDB).
-    /// </summary>
     internal static void EnsureDatabaseExists(string connectionString)
     {
         var target = new NpgsqlConnectionStringBuilder(connectionString);
@@ -73,5 +65,25 @@ internal static class DbConnectionString
         using var create = conn.CreateCommand();
         create.CommandText = $"CREATE DATABASE \"{dbName.Replace("\"", "")}\"";
         create.ExecuteNonQuery();
+    }
+
+    private static NpgsqlConnectionStringBuilder ParsePostgresUri(string uri)
+    {
+        var match = PostgresUriRegex().Match(uri);
+        if (!match.Success)
+            throw new ArgumentException("Invalid PostgreSQL URI.", nameof(uri));
+
+        var csb = new NpgsqlConnectionStringBuilder
+        {
+            Username = Uri.UnescapeDataString(match.Groups[1].Value),
+            Password = Uri.UnescapeDataString(match.Groups[2].Value),
+            Host = match.Groups[3].Value,
+            Database = match.Groups[5].Value,
+        };
+
+        if (match.Groups[4].Success)
+            csb.Port = int.Parse(match.Groups[4].Value);
+
+        return csb;
     }
 }
