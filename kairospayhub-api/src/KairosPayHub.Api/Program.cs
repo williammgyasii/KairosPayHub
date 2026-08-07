@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Amazon.CognitoIdentityProvider;
+using KairosPayHub.Api;
 using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Services;
@@ -15,8 +16,9 @@ builder.Services
 
 builder.Services.AddHttpContextAccessor();
 
-var connectionString = builder.Configuration.GetConnectionString("Default")
-    ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured");
+var connectionString = DbConnectionString.Normalize(
+    builder.Configuration.GetConnectionString("Default")
+    ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured"));
 builder.Services.AddDbContext<KairosDbContext>(o => o.UseNpgsql(connectionString));
 
 builder.Services.AddScoped<CurrentActor>();
