@@ -8,6 +8,9 @@ using KairosPayHub.Api.Web;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 
+// Render starter containers hit Linux inotify limits when appsettings reload is enabled.
+Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services

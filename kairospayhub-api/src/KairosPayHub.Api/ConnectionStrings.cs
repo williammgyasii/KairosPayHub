@@ -33,12 +33,13 @@ internal static partial class DbConnectionString
                 connectionString = connectionString[..q];
 
             var csb = ParsePostgresUri(connectionString);
-            ExpandRenderHost(csb);
-            csb.SslMode = SslMode.Require;
+            ApplyRenderSettings(csb);
             return csb.ConnectionString;
         }
 
-        return connectionString;
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        ApplyRenderSettings(builder);
+        return builder.ConnectionString;
     }
 
     private static NpgsqlConnectionStringBuilder ParsePostgresUri(string uri)
@@ -61,18 +62,25 @@ internal static partial class DbConnectionString
         return csb;
     }
 
-    /// <summary>
-    /// Render internal URLs use bare dpg-* ids; those only resolve on-region.
-    /// Use the public hostname so cross-region services (e.g. API in Ohio, DB in Virginia) can connect.
-    /// </summary>
-    private static void ExpandRenderHost(NpgsqlConnectionStringBuilder csb)
+    private static void ApplyRenderSettings(NpgsqlConnectionStringBuilder csb)
     {
+        csb.GssEncryptionMode = GssEncryptionMode.Disable;
+
         if (csb.Host is not { } host)
             return;
 
-        if (!host.StartsWith("dpg-", StringComparison.OrdinalIgnoreCase) || host.Contains('.'))
+        var isRenderInternal = host.StartsWith("dpg-", StringComparison.OrdinalIgnoreCase) && !host.Contains('.');
+        if (isRenderInternal)
+        {
+            // Same-region private network (API + DB on Render).
+            csb.SslMode = SslMode.Disable;
             return;
+        }
 
-        csb.Host = host + ".virginia-postgres.render.com";
+        if (host.Contains("-postgres.render.com", StringComparison.OrdinalIgnoreCase))
+        {
+            csb.SslMode = SslMode.Require;
+            csb.TrustServerCertificate = true;
+        }
     }
 }

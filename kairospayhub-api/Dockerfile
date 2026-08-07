@@ -13,5 +13,7 @@ WORKDIR /app
 COPY --from=build /app ./
 
 ENV ASPNETCORE_URLS=http://+:8080
+# Render starter instances hit Linux inotify limits if appsettings reload is enabled.
+ENV DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "KairosPayHub.Api.dll"]

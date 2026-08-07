@@ -30,6 +30,8 @@ services:
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
+      - key: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
+        value: "false"
       - key: ConnectionStrings__Default
         fromDatabase:
           name: kairospayhub-db
