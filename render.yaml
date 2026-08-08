@@ -6,6 +6,8 @@
 #   git tag v*       → Production (GitHub Actions release.yml + autoDeploy off)
 #
 # DNS (Cloudflare CNAME): app / api / dev.app / dev.api → Render hostnames
+# Custom domains are already on the existing services; omit here so Blueprint
+# adoption by service name does not fail with "domain already taken".
 # Set sync:false secrets in dashboard after first sync: Jwt__SigningKey, Email__Smtp__*, R2__*
 
 projects:
@@ -24,8 +26,6 @@ projects:
             dockerfilePath: ./Dockerfile
             healthCheckPath: /health
             autoDeployTrigger: checksPass
-            domains:
-              - dev.api.kairospayhub.com
             buildFilter:
               paths:
                 - kairospayhub-api/**
@@ -80,15 +80,12 @@ projects:
           - type: web
             name: kairospayhub-frontend-dev
             runtime: static
-            plan: free
             repo: https://github.com/williammgyasii/KairosPayHub
             branch: main
             rootDir: kairospayhub-frontend
             buildCommand: npm ci && npm test && npm run build
             staticPublishPath: ./dist
             autoDeployTrigger: checksPass
-            domains:
-              - dev.app.kairospayhub.com
             buildFilter:
               paths:
                 - kairospayhub-frontend/**
@@ -123,8 +120,6 @@ projects:
             dockerfilePath: ./Dockerfile
             healthCheckPath: /health
             autoDeployTrigger: "off"
-            domains:
-              - api.kairospayhub.com
             buildFilter:
               paths:
                 - kairospayhub-api/**
@@ -179,15 +174,12 @@ projects:
           - type: web
             name: kairospayhub-frontend
             runtime: static
-            plan: free
             repo: https://github.com/williammgyasii/KairosPayHub
             branch: main
             rootDir: kairospayhub-frontend
             buildCommand: npm ci && npm test && npm run build
             staticPublishPath: ./dist
             autoDeployTrigger: "off"
-            domains:
-              - app.kairospayhub.com
             buildFilter:
               paths:
                 - kairospayhub-frontend/**
