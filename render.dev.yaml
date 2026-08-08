@@ -1,27 +1,25 @@
-# KairosPayHub PRODUCTION on Render
-# Connect repo at https://dashboard.render.com/blueprints
+# KairosPayHub DEV on Render
+# Connect as a second Blueprint: https://dashboard.render.com/blueprints
 #
-# Dev stack: render.dev.yaml (branch develop → dev.app / dev.api)
+# Deploys from `develop` branch (create it from main if missing).
+# DNS (Cloudflare): dev.app.kairospayhub.com, dev.api.kairospayhub.com
 #
 # After first sync, set sync:false env vars in the Render dashboard:
 #   Jwt__SigningKey, Email__Smtp__*, R2__*
-#
-# DNS (Cloudflare CNAME, proxied): app.kairospayhub.com, api.kairospayhub.com
-# Point each record at the Render custom-domain hostname for that service.
 
 services:
   - type: web
-    name: kairospayhub-api
+    name: kairospayhub-api-dev
     runtime: docker
     plan: starter
     region: ohio
     repo: https://github.com/williammgyasii/KairosPayHub
-    branch: main
+    branch: develop
     rootDir: kairospayhub-api
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     domains:
-      - api.kairospayhub.com
+      - dev.api.kairospayhub.com
     buildFilter:
       paths:
         - kairospayhub-api/**
@@ -32,26 +30,26 @@ services:
         value: "false"
       - key: ConnectionStrings__Default
         fromDatabase:
-          name: kairospayhub-db
+          name: kairospayhub-db-dev
           property: connectionString
       - key: Database__MigrateOnStartup
         value: "true"
       - key: Cors__Origins__0
-        value: https://app.kairospayhub.com
+        value: https://dev.app.kairospayhub.com
       - key: Cors__Origins__1
-        value: http://localhost:5173
+        value: http://127.0.0.1:5173
       - key: Jwt__Issuer
-        value: https://api.kairospayhub.com
+        value: https://dev.api.kairospayhub.com
       - key: Jwt__Audience
-        value: kairospayhub
+        value: kairospayhub-dev
       - key: Jwt__SigningKey
         sync: false
       - key: Email__FrontendBaseUrl
-        value: https://app.kairospayhub.com
+        value: https://dev.app.kairospayhub.com
       - key: Email__FromAddress
         sync: false
       - key: Email__FromName
-        value: KairosPayHub
+        value: KairosPayHub (Dev)
       - key: Email__Smtp__Host
         sync: false
       - key: Email__Smtp__Port
@@ -63,7 +61,7 @@ services:
       - key: Email__Smtp__UseTls
         value: "true"
       - key: R2__BucketName
-        value: kairospayhub-assets
+        value: kairospayhub-assets-dev
       - key: R2__PublicBaseUrl
         sync: false
       - key: R2__AccessKeyId
@@ -74,17 +72,17 @@ services:
         sync: false
 
   - type: web
-    name: kairospayhub-frontend
+    name: kairospayhub-frontend-dev
     runtime: static
     plan: free
     region: ohio
     repo: https://github.com/williammgyasii/KairosPayHub
-    branch: main
+    branch: develop
     rootDir: kairospayhub-frontend
     buildCommand: npm ci && npm test && npm run build
     staticPublishPath: ./dist
     domains:
-      - app.kairospayhub.com
+      - dev.app.kairospayhub.com
     buildFilter:
       paths:
         - kairospayhub-frontend/**
@@ -94,12 +92,12 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://api.kairospayhub.com
+        value: https://dev.api.kairospayhub.com
 
 databases:
-  - name: kairospayhub-db
+  - name: kairospayhub-db-dev
     plan: basic-256mb
     region: ohio
     postgresMajorVersion: "16"
-    databaseName: kairospayhub
-    user: kairos
+    databaseName: kairospayhub_dev
+    user: kairos_dev

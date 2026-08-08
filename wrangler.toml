@@ -1,9 +1,13 @@
-# Cloudflare Wrangler config for KairosPayHub (DNS / Pages / Workers as needed).
+# Cloudflare Wrangler config for KairosPayHub (DNS / R2).
 # Auth: source .env before running wrangler commands.
 # Docs: https://developers.cloudflare.com/workers/wrangler/
+#
+# R2 buckets:
+#   kairospayhub-assets      → production (Render prod API)
+#   kairospayhub-assets-dev  → development + local dev
 
 name = "kairospayhub"
 account_id = "e23518956f08ff35812d9ab001a39880"
 compatibility_date = "2024-08-01"
 
-# R2 bucket: kairospayhub-assets (public r2.dev URL enabled via wrangler)
+# R2 bucket: kairospayhub-assets (prod). Create kairospayhub-assets-dev separately.

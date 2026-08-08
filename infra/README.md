@@ -1,11 +1,15 @@
-# AWS infrastructure (removed)
+# Infrastructure
 
-KairosPayHub no longer uses AWS. Authentication is handled by the .NET API on Render (ASP.NET Identity + JWT).
+KairosPayHub runs on **Render** (API, frontend, Postgres) and **Cloudflare** (DNS, R2).
 
-If a Cognito user pool still exists in your AWS account from an earlier deploy, delete it manually in the AWS Console (Cognito → User pools → `kairospayhub-users`) or run:
+| Doc | Purpose |
+|-----|---------|
+| [`environments.md`](./environments.md) | Operator runbook — URLs, DNS, secrets, smoke tests |
+| [`../docs/superpowers/specs/2026-08-08-environments-design.md`](../docs/superpowers/specs/2026-08-08-environments-design.md) | Full environment design spec |
 
-```bash
-aws cognito-idp delete-user-pool --user-pool-id <pool-id>
-```
+| Blueprint | Environment |
+|-----------|-------------|
+| `render.yaml` | Production (`main`) |
+| `render.dev.yaml` | Development (`develop`) |
 
-Also remove the Cognito hosted UI domain if present.
+AWS/Cognito infrastructure was removed; see git history if you need to clean up orphaned AWS resources.
