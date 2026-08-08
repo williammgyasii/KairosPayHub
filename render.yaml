@@ -81,7 +81,6 @@ projects:
             name: kairospayhub-frontend-dev
             runtime: static
             plan: free
-            region: ohio
             repo: https://github.com/williammgyasii/KairosPayHub
             branch: main
             rootDir: kairospayhub-frontend
@@ -181,7 +180,6 @@ projects:
             name: kairospayhub-frontend
             runtime: static
             plan: free
-            region: ohio
             repo: https://github.com/williammgyasii/KairosPayHub
             branch: main
             rootDir: kairospayhub-frontend

@@ -246,7 +246,7 @@ public class StructureService(
 
         ValidateLayerInputs(proposedLayers);
 
-        var nodes = await db.StructureNodes
+        var nodes = await db.StructureNodes.AsNoTracking()
             .Where(n => n.ChurchId == churchId)
             .ToListAsync(ct);
 
@@ -276,10 +276,21 @@ public class StructureService(
         template.Layers.Add(newLayer);
         await db.SaveChangesAsync(ct);
 
-        var childLayer = orderedLayers[insertAt];
+        foreach (var layer in orderedLayers)
+        {
+            var entry = db.Entry(layer);
+            if (entry.State != EntityState.Detached)
+                entry.State = EntityState.Detached;
+        }
 
+        var newLayerEntry = db.Entry(newLayer);
+        if (newLayerEntry.State != EntityState.Detached)
+            newLayerEntry.State = EntityState.Detached;
+
+        var childLayer = orderedLayers[insertAt];
         var bridgeNodesCreated = 0;
         var nodesReparented = 0;
+        var nodeReparentings = new List<(Guid NodeId, Guid BridgeId)>();
 
         if (insertAt == 0)
         {
@@ -298,14 +309,14 @@ public class StructureService(
                     UnitNumber = await NextUnitNumberAsync(churchId, newLayer.Id, null, ct),
                 };
                 db.StructureNodes.Add(bridge);
-                root.ParentNodeId = bridge.Id;
+                nodeReparentings.Add((root.Id, bridge.Id));
                 bridgeNodesCreated += 1;
                 nodesReparented += 1;
             }
         }
         else
         {
-            var parentLayer = orderedLayers.First(l => l.SortOrder == insertAt - 1);
+            var parentLayer = orderedLayers[insertAt - 1];
             var parentNodes = nodes.Where(n => n.LayerId == parentLayer.Id).ToList();
 
             foreach (var parent in parentNodes)
@@ -329,7 +340,7 @@ public class StructureService(
 
                 foreach (var child in children)
                 {
-                    child.ParentNodeId = bridge.Id;
+                    nodeReparentings.Add((child.Id, bridge.Id));
                     nodesReparented += 1;
                 }
             }
@@ -338,7 +349,16 @@ public class StructureService(
         if (request.Name is not null)
             template.Name = NormalizeTemplateName(request.Name);
 
+        DetachNonAddedStructureLayers(newLayer.Id);
         await db.SaveChangesAsync(ct);
+
+        foreach (var (nodeId, bridgeId) in nodeReparentings)
+        {
+            await db.StructureNodes
+                .Where(n => n.Id == nodeId && n.ChurchId == churchId)
+                .ExecuteUpdateAsync(s => s.SetProperty(n => n.ParentNodeId, bridgeId), ct);
+        }
+
         await tx.CommitAsync(ct);
 
         var loaded = await db.StructureTemplates.AsNoTracking()
