@@ -39,6 +39,30 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
 
         var role = actor.StructureRole?.ToString() ?? actor.Role.ToString();
 
+        Guid? scopeNodeId = null;
+        string? scopeUnitName = null;
+        if (actor.StructureRole is not null
+            && actor.StructureChurchId != default
+            && Guid.TryParse(current.Sub, out var authUserId))
+        {
+            var scopedNodeId = await db.RoleAssignments.AsNoTracking()
+                .Where(r =>
+                    r.ChurchId == actor.StructureChurchId
+                    && r.AuthUserId == authUserId
+                    && r.Role == actor.StructureRole)
+                .Select(r => r.ScopeNodeId)
+                .FirstOrDefaultAsync(ct);
+
+            if (scopedNodeId is Guid nodeId)
+            {
+                scopeNodeId = nodeId;
+                scopeUnitName = await db.StructureNodes.AsNoTracking()
+                    .Where(n => n.Id == nodeId && n.ChurchId == actor.StructureChurchId)
+                    .Select(n => n.Name)
+                    .FirstOrDefaultAsync(ct);
+            }
+        }
+
         return Ok(new
         {
             onboarded = true,
@@ -48,6 +72,8 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
             churchLogoUrl,
             organizationId = actor.OrganizationId,
             role,
+            scopeNodeId,
+            scopeUnitName,
             legacyChurchId = actor.ChurchId,
             email = current.Email,
             name = current.Name,

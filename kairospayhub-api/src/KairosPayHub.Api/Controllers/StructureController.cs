@@ -15,7 +15,10 @@ public class StructureController(CurrentActor current, StructureService structur
     public async Task<IActionResult> GetTree([FromQuery] bool includeMembers = true, CancellationToken ct = default)
     {
         var actor = await current.RequireAsync(ct);
-        return Ok(await structure.GetTreeAsync(actor, includeMembers, ct));
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        return Ok(await structure.GetTreeAsync(actor, authUserId, includeMembers, ct));
     }
 
     [HttpGet("template")]
@@ -127,8 +130,12 @@ public class StructureController(CurrentActor current, StructureService structur
         CancellationToken ct = default)
     {
         var actor = await current.RequireAsync(ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
         return Ok(await structure.ListMembersAsync(
             actor,
+            authUserId,
             page,
             pageSize,
             sortBy,

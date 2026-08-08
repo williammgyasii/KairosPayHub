@@ -22,6 +22,13 @@ public enum ProgramStatus
     Closed,
 }
 
+public enum ProgramApprovalStatus
+{
+    Approved,
+    PendingPastorApproval,
+    Rejected,
+}
+
 public enum ContributionStatus
 {
     PendingApproval,
@@ -43,6 +50,11 @@ public class GivingProgram
     public ProgramScopeKind ScopeKind { get; set; }
     public Guid? ScopeNodeId { get; set; }
     public ProgramStatus Status { get; set; } = ProgramStatus.Open;
+    public ProgramApprovalStatus ApprovalStatus { get; set; } = ProgramApprovalStatus.Approved;
+    public Domain.Structure.ChurchRole? CreatedByRole { get; set; }
+    public Guid? ReviewedByAuthUserId { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
+    public string? RejectionReason { get; set; }
     public Guid CreatedByAuthUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public int SortOrder { get; set; }

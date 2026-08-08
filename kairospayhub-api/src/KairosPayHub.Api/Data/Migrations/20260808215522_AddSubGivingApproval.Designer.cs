@@ -3,6 +3,7 @@ using System;
 using KairosPayHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace KairosPayHub.Api.Data.Migrations
 {
     [DbContext(typeof(KairosDbContext))]
-    partial class KairosDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260808215522_AddSubGivingApproval")]
+    partial class AddSubGivingApproval
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -371,57 +374,6 @@ namespace KairosPayHub.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("giving_program_scope_nodes", (string)null);
-                });
-
-            modelBuilder.Entity("KairosPayHub.Api.Domain.Notifications.Notification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("ChurchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("LinkPath")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<Guid?>("ProgramId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("ReadAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RecipientAuthUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("RelatedEntityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChurchId", "RecipientAuthUserId");
-
-                    b.HasIndex("RecipientAuthUserId", "ReadAt", "CreatedAt");
-
-                    b.ToTable("notifications", (string)null);
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.Organization", b =>

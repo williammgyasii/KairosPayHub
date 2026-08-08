@@ -3,6 +3,7 @@ using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
 using KairosPayHub.Api.Email;
+using KairosPayHub.Api.Hubs;
 using KairosPayHub.Api.Services;
 using KairosPayHub.Api.Storage;
 using KairosPayHub.Api.Web;
@@ -23,6 +24,7 @@ builder.Services
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR();
 
 var connectionString = DbConnectionString.Normalize(
     builder.Configuration.GetConnectionString("Default")
@@ -65,6 +67,8 @@ builder.Services.AddScoped<StructureService>();
 builder.Services.AddScoped<GivingProgramService>();
 builder.Services.AddScoped<GivingScopeService>();
 builder.Services.AddScoped<ContributionService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<INotificationPublisher, SignalRNotificationPublisher>();
 builder.Services.AddScoped<ChurchBrandingService>();
 builder.Services.AddScoped<LeaderInviteService>();
 
@@ -89,12 +93,27 @@ builder.Services
             ValidAudience = jwt.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken)
+                    && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            },
+        };
     });
 builder.Services.AddAuthorization();
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod()));
+    p.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 var app = builder.Build();
 
@@ -118,6 +137,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();
 

@@ -303,6 +303,187 @@ public class GivingScopeService(KairosDbContext db)
     public bool IsPastor(Actor actor) =>
         actor.StructureRole == ChurchRole.Pastor || actor.Role == Role.Pastor;
 
+    public bool IsScopedStructureLeader(Actor actor) =>
+        actor.StructureRole is ChurchRole.PFCCManager or ChurchRole.FellowshipLeader;
+
+    public async Task<bool> ProgramVisibleToActorAsync(
+        GivingProgram program,
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        if (IsPastor(actor))
+            return true;
+
+        if (actor.StructureRole is not (
+            ChurchRole.PFCCManager
+            or ChurchRole.FellowshipLeader
+            or ChurchRole.CellLeader))
+        {
+            return false;
+        }
+
+        if (program.ScopeKind == ProgramScopeKind.ChurchWide)
+            return true;
+
+        var visibleNodes = await GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
+        if (visibleNodes.Count == 0)
+            return false;
+
+        var programScope = await GetProgramScopeNodeIdsAsync(program, ct);
+        if (programScope.Count == 0)
+            return true;
+
+        return programScope.Overlaps(visibleNodes);
+    }
+
+    public async Task<bool> RootProgramVisibleToActorAsync(
+        GivingProgram root,
+        IReadOnlyDictionary<Guid, List<Guid>> childrenByParent,
+        IReadOnlyDictionary<Guid, GivingProgram> programsById,
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        if (await ProgramVisibleToActorAsync(root, actor, authUserId, ct))
+            return true;
+
+        foreach (var childId in CollectDescendantProgramIds(root.Id, childrenByParent))
+        {
+            if (!programsById.TryGetValue(childId, out var child))
+                continue;
+
+            if (await ProgramVisibleToActorAsync(child, actor, authUserId, ct))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<Guid> CollectDescendantProgramIds(
+        Guid rootId,
+        IReadOnlyDictionary<Guid, List<Guid>> childrenByParent)
+    {
+        if (!childrenByParent.TryGetValue(rootId, out var children))
+            yield break;
+
+        foreach (var childId in children)
+        {
+            yield return childId;
+            foreach (var descendantId in CollectDescendantProgramIds(childId, childrenByParent))
+                yield return descendantId;
+        }
+    }
+
+    public async Task<bool> CanAccessProgramAsync(
+        GivingProgram program,
+        IReadOnlyDictionary<Guid, List<Guid>> childrenByParent,
+        IReadOnlyDictionary<Guid, GivingProgram> programsById,
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        if (IsPastor(actor))
+            return true;
+
+        if (program.ParentProgramId is null)
+        {
+            return await RootProgramVisibleToActorAsync(
+                program,
+                childrenByParent,
+                programsById,
+                actor,
+                authUserId,
+                ct);
+        }
+
+        if (!programsById.TryGetValue(program.ParentProgramId.Value, out var parent))
+            return false;
+
+        return await CanAccessProgramAsync(
+            parent,
+            childrenByParent,
+            programsById,
+            actor,
+            authUserId,
+            ct);
+    }
+
+    public async Task<bool> CanAccessProgramByIdAsync(
+        Guid churchId,
+        Guid programId,
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        var programs = await db.GivingPrograms.AsNoTracking()
+            .Where(p => p.ChurchId == churchId)
+            .ToListAsync(ct);
+
+        var programsById = programs.ToDictionary(p => p.Id);
+        var childrenByParent = programs
+            .Where(p => p.ParentProgramId != null)
+            .GroupBy(p => p.ParentProgramId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
+
+        if (!programsById.TryGetValue(programId, out var program))
+            return false;
+
+        return await CanAccessProgramAsync(
+            program,
+            childrenByParent,
+            programsById,
+            actor,
+            authUserId,
+            ct);
+    }
+
+    public async Task<HashSet<Guid>> GetActorStructureSubtreeNodeIdsAsync(
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        if (IsPastor(actor))
+            return [];
+
+        var scopeNodeId = await GetActorScopeNodeIdAsync(actor, authUserId, ct);
+        if (scopeNodeId is not Guid rootId)
+            return [];
+
+        return (await CollectSubtreeNodeIdsAsync(actor.StructureChurchId, rootId, ct)).ToHashSet();
+    }
+
+    public async Task CanAccessStructureReadAsync(
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        if (IsPastor(actor))
+            return;
+
+        if (!IsScopedStructureLeader(actor))
+            throw new ForbiddenException("Structure is not available for your role");
+
+        _ = await GetActorScopeNodeIdAsync(actor, authUserId, ct)
+            ?? throw new ForbiddenException("You do not have a scope assignment");
+    }
+
+    public async Task CanAccessStructureNodeAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid nodeId,
+        CancellationToken ct)
+    {
+        if (IsPastor(actor))
+            return;
+
+        if (!IsScopedStructureLeader(actor))
+            throw new ForbiddenException("Structure is not available for your role");
+
+        if (!await IsNodeAccessibleViaAssignmentsAsync(actor.StructureChurchId, authUserId, nodeId, ct))
+            throw new ForbiddenException("Unit is outside your scope");
+    }
+
     public async Task<bool> CanEnterContributionAsync(
         Actor actor,
         Guid authUserId,
@@ -311,6 +492,8 @@ public class GivingScopeService(KairosDbContext db)
         CancellationToken ct)
     {
         if (program.Status != ProgramStatus.Open)
+            return false;
+        if (program.ApprovalStatus != ProgramApprovalStatus.Approved)
             return false;
         if (program.ChurchId != actor.StructureChurchId)
             return false;

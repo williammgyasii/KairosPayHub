@@ -29,6 +29,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
     public DbSet<Domain.Giving.GivingProgramScopeNode> GivingProgramScopeNodes =>
         Set<Domain.Giving.GivingProgramScopeNode>();
     public DbSet<Domain.Giving.Contribution> Contributions => Set<Domain.Giving.Contribution>();
+    public DbSet<Domain.Notifications.Notification> Notifications => Set<Domain.Notifications.Notification>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -98,6 +99,21 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
 
         ConfigureStructure(b);
         ConfigureGiving(b);
+        ConfigureNotifications(b);
+    }
+
+    private static void ConfigureNotifications(ModelBuilder b)
+    {
+        b.Entity<Domain.Notifications.Notification>(e =>
+        {
+            e.ToTable("notifications");
+            e.Property(x => x.Kind).HasConversion<string>().IsRequired();
+            e.Property(x => x.Title).IsRequired().HasMaxLength(200);
+            e.Property(x => x.Body).IsRequired().HasMaxLength(500);
+            e.Property(x => x.LinkPath).HasMaxLength(300);
+            e.HasIndex(x => new { x.RecipientAuthUserId, x.ReadAt, x.CreatedAt });
+            e.HasIndex(x => new { x.ChurchId, x.RecipientAuthUserId });
+        });
     }
 
     private static void ConfigureGiving(ModelBuilder b)

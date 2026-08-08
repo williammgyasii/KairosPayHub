@@ -13,7 +13,8 @@ public class StructureService(
     KairosDbContext db,
     StructureLeaderAccountService leaderAccounts,
     IEmailSender email,
-    IOptions<EmailOptions> emailOptions)
+    IOptions<EmailOptions> emailOptions,
+    GivingScopeService givingScope)
 {
     public async Task<StructureTemplateDto?> GetTemplateAsync(Actor actor, CancellationToken ct = default)
     {
@@ -27,6 +28,7 @@ public class StructureService(
 
     public async Task<StructureTreeDto> GetTreeAsync(
         Actor actor,
+        Guid authUserId,
         bool includeMembers = true,
         CancellationToken ct = default)
     {
@@ -45,6 +47,19 @@ public class StructureService(
             .OrderBy(n => n.Name)
             .ToListAsync(ct);
 
+        if (!givingScope.IsPastor(actor))
+        {
+            var subtreeIds = await givingScope.GetActorStructureSubtreeNodeIdsAsync(actor, authUserId, ct);
+            if (subtreeIds.Count == 0)
+            {
+                nodeEntities = [];
+            }
+            else
+            {
+                nodeEntities = nodeEntities.Where(n => subtreeIds.Contains(n.Id)).ToList();
+            }
+        }
+
         var memberDtos = Array.Empty<StructureMemberDto>();
         if (includeMembers)
         {
@@ -52,6 +67,15 @@ public class StructureService(
                 .Where(m => m.ChurchId == churchId)
                 .OrderBy(m => m.Name)
                 .ToListAsync(ct);
+
+            if (!givingScope.IsPastor(actor))
+            {
+                var subtreeIds = await givingScope.GetActorStructureSubtreeNodeIdsAsync(actor, authUserId, ct);
+                members = subtreeIds.Count == 0
+                    ? []
+                    : members.Where(m => subtreeIds.Contains(m.ParentNodeId)).ToList();
+            }
+
             memberDtos = members.Select(ToMemberDto).ToArray();
         }
 
@@ -70,6 +94,7 @@ public class StructureService(
 
     public async Task<StructureMemberListResponse> ListMembersAsync(
         Actor actor,
+        Guid authUserId,
         int page,
         int pageSize,
         string? sortBy,
@@ -80,12 +105,29 @@ public class StructureService(
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
+        await givingScope.CanAccessStructureReadAsync(actor, authUserId, ct);
 
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
         var query = db.ChurchMembers.AsNoTracking()
             .Where(m => m.ChurchId == churchId);
+
+        if (!givingScope.IsPastor(actor))
+        {
+            var scopeNodeId = await givingScope.GetActorScopeNodeIdAsync(actor, authUserId, ct)
+                ?? throw new ForbiddenException("You do not have a scope assignment");
+
+            if (parentNodeId is null)
+            {
+                parentNodeId = scopeNodeId;
+                includeDescendants = true;
+            }
+            else
+            {
+                await givingScope.CanAccessStructureNodeAsync(actor, authUserId, parentNodeId.Value, ct);
+            }
+        }
 
         if (parentNodeId is not null)
         {

@@ -95,6 +95,8 @@ public record GivingProgramDto(
     string ScopeKind,
     Guid? ScopeNodeId,
     string Status,
+    string ApprovalStatus,
+    string? CreatedByRole,
     DateTimeOffset CreatedAt,
     bool HasChildren,
     bool AcceptsContributions);
@@ -110,6 +112,8 @@ public record CreateContributionRequest(
     string? Notes);
 
 public record RejectContributionRequest(string? Reason);
+
+public record RejectSubGivingRequest(string? Reason);
 
 public record ContributionDto(
     Guid Id,
@@ -155,7 +159,13 @@ public record GivingDashboardCampaignDto(
 
 public record GivingDashboardDto(
     int OpenCampaignCount,
-    IReadOnlyList<GivingDashboardCampaignDto> Campaigns);
+    IReadOnlyList<GivingDashboardCampaignDto> Campaigns,
+    string? ScopeUnitName = null,
+    int FellowshipCount = 0,
+    int CellCount = 0,
+    int MemberCount = 0,
+    int PendingApprovalCount = 0,
+    decimal ScopedApprovedTotal = 0);
 
 public record CreateStructureNodeRequest(
     Guid LayerId,
@@ -224,6 +234,22 @@ public record FellowshipDto(Guid Id, string Name, Guid? PfccId);
 public record CellDto(Guid Id, string Name, Guid FellowshipId);
 
 public record MemberDto(Guid Id, string Name, Guid ParentNodeId, string? Email, string? Phone);
+
+public record NotificationDto(
+    Guid Id,
+    string Kind,
+    string Title,
+    string Body,
+    string? LinkPath,
+    Guid? ProgramId,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ReadAt);
+
+public record NotificationListResponse(
+    IReadOnlyList<NotificationDto> Notifications,
+    int UnreadCount);
+
+public record NotificationUnreadCountResponse(int UnreadCount);
 
 public static class Mapping
 {

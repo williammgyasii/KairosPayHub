@@ -20,7 +20,10 @@ public class GivingController(
     public async Task<IActionResult> ListPrograms(CancellationToken ct)
     {
         var actor = await current.RequireAsync(ct);
-        var list = await programs.ListAsync(actor, ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        var list = await programs.ListAsync(actor, authUserId, ct);
         return Ok(new GivingProgramListResponse(list));
     }
 
@@ -28,7 +31,10 @@ public class GivingController(
     public async Task<IActionResult> GetProgram(Guid programId, CancellationToken ct)
     {
         var actor = await current.RequireAsync(ct);
-        var program = await programs.GetAsync(actor, programId, ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        var program = await programs.GetAsync(actor, authUserId, programId, ct);
         return Ok(program);
     }
 
@@ -36,7 +42,10 @@ public class GivingController(
     public async Task<IActionResult> ListChildPrograms(Guid programId, CancellationToken ct)
     {
         var actor = await current.RequireAsync(ct);
-        var list = await programs.ListChildrenAsync(actor, programId, ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        var list = await programs.ListChildrenAsync(actor, authUserId, programId, ct);
         return Ok(new GivingProgramListResponse(list));
     }
 
@@ -44,7 +53,10 @@ public class GivingController(
     public async Task<IActionResult> GetDashboard(CancellationToken ct)
     {
         var actor = await current.RequireAsync(ct);
-        var dashboard = await programs.GetDashboardAsync(actor, ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        var dashboard = await programs.GetDashboardAsync(actor, authUserId, ct);
         return Ok(dashboard);
     }
 
@@ -68,6 +80,36 @@ public class GivingController(
                 request.ScopeNodeId,
                 request.ScopeNodeIds,
                 request.ParentProgramId),
+            ct);
+        return Ok(program);
+    }
+
+    [HttpPost("programs/{programId:guid}/approve")]
+    public async Task<IActionResult> ApproveSubGiving(Guid programId, CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var program = await programs.ApproveSubGivingAsync(actor, authUserId, programId, ct);
+        return Ok(program);
+    }
+
+    [HttpPost("programs/{programId:guid}/reject")]
+    public async Task<IActionResult> RejectSubGiving(
+        Guid programId,
+        [FromBody] RejectSubGivingRequest request,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var program = await programs.RejectSubGivingAsync(
+            actor,
+            authUserId,
+            programId,
+            request.Reason,
             ct);
         return Ok(program);
     }
@@ -183,7 +225,10 @@ public class GivingController(
     public async Task<IActionResult> GetRollup(Guid programId, CancellationToken ct)
     {
         var actor = await current.RequireAsync(ct);
-        var rollup = await contributions.GetRollupAsync(actor, programId, ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        var rollup = await contributions.GetRollupAsync(actor, authUserId, programId, ct);
         return Ok(rollup);
     }
 

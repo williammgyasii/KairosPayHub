@@ -12,6 +12,7 @@ namespace KairosPayHub.Api.Services;
 public class ContributionService(
     KairosDbContext db,
     GivingScopeService scope,
+    NotificationService notifications,
     IObjectStorage storage)
 {
     private static readonly HashSet<string> AllowedAttachmentTypes =
@@ -74,6 +75,9 @@ public class ContributionService(
         if (input.Amount <= 0)
             throw new BadRequestException("Amount must be greater than zero");
 
+        if (program.ApprovalStatus != ProgramApprovalStatus.Approved)
+            throw new BadRequestException("Contributions can only be logged on approved sub-givings");
+
         if (!await scope.CanEnterContributionAsync(actor, authUserId, program, member, ct))
             throw new ForbiddenException("You cannot log contributions for this member");
 
@@ -96,6 +100,13 @@ public class ContributionService(
 
         db.Contributions.Add(contribution);
         await db.SaveChangesAsync(ct);
+
+        await notifications.NotifyContributionPendingAsync(
+            contribution,
+            program,
+            member.Name,
+            ct);
+
         return await ToDtoAsync(contribution, ct);
     }
 
@@ -111,8 +122,16 @@ public class ContributionService(
             .SingleOrDefaultAsync(p => p.Id == programId && p.ChurchId == churchId, ct)
             ?? throw new ForbiddenException("Program not found");
 
+        if (!scope.IsPastor(actor)
+            && !await scope.CanAccessProgramByIdAsync(churchId, programId, actor, authUserId, ct))
+        {
+            throw new ForbiddenException("Program not found");
+        }
+
+        var programIds = await scope.CollectDescendantProgramIdsIncludingSelfAsync(churchId, programId, ct);
+
         var query = db.Contributions.AsNoTracking()
-            .Where(c => c.ProgramId == programId);
+            .Where(c => programIds.Contains(c.ProgramId));
 
         if (status is not null)
             query = query.Where(c => c.Status == status);
@@ -153,6 +172,18 @@ public class ContributionService(
         contribution.ApprovedAt = DateTimeOffset.UtcNow;
         contribution.RejectedReason = null;
         await db.SaveChangesAsync(ct);
+
+        var memberName = await db.ChurchMembers.AsNoTracking()
+            .Where(m => m.Id == contribution.MemberId)
+            .Select(m => m.Name)
+            .FirstOrDefaultAsync(ct) ?? "Member";
+        await notifications.NotifyContributionReviewedAsync(
+            contribution,
+            program,
+            memberName,
+            approved: true,
+            ct);
+
         return await ToDtoAsync(contribution, ct);
     }
 
@@ -178,21 +209,40 @@ public class ContributionService(
         contribution.ApprovedAt = DateTimeOffset.UtcNow;
         contribution.RejectedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         await db.SaveChangesAsync(ct);
+
+        var memberName = await db.ChurchMembers.AsNoTracking()
+            .Where(m => m.Id == contribution.MemberId)
+            .Select(m => m.Name)
+            .FirstOrDefaultAsync(ct) ?? "Member";
+        await notifications.NotifyContributionReviewedAsync(
+            contribution,
+            program,
+            memberName,
+            approved: false,
+            ct);
+
         return await ToDtoAsync(contribution, ct);
     }
 
     public async Task<GivingProgramRollupDto> GetRollupAsync(
         Actor actor,
+        Guid authUserId,
         Guid programId,
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
-        if (!scope.IsPastor(actor))
-            throw new ForbiddenException("Only a pastor can view program rollups");
-
         var program = await db.GivingPrograms.AsNoTracking()
             .SingleOrDefaultAsync(p => p.Id == programId && p.ChurchId == churchId, ct)
             ?? throw new ForbiddenException("Program not found");
+
+        if (!scope.IsPastor(actor))
+        {
+            if (actor.StructureRole is not (ChurchRole.PFCCManager or ChurchRole.FellowshipLeader))
+                throw new ForbiddenException("Rollup is not available for your role");
+
+            if (!await scope.CanAccessProgramByIdAsync(churchId, programId, actor, authUserId, ct))
+                throw new ForbiddenException("Program not found");
+        }
 
         var programIds = await scope.CollectDescendantProgramIdsIncludingSelfAsync(churchId, programId, ct);
         var includesDescendants = programIds.Count > 1;
@@ -201,6 +251,12 @@ public class ContributionService(
             .Where(c => programIds.Contains(c.ProgramId) && c.Status == ContributionStatus.Approved)
             .Select(c => new { c.Amount, c.MemberParentNodeId })
             .ToListAsync(ct);
+
+        if (!scope.IsPastor(actor))
+        {
+            var visibleNodes = await scope.GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
+            approved = approved.Where(a => visibleNodes.Contains(a.MemberParentNodeId)).ToList();
+        }
 
         var nodes = await db.StructureNodes.AsNoTracking()
             .Include(n => n.Layer)
@@ -226,14 +282,27 @@ public class ContributionService(
             }
         }
 
+        var rollupRows = buckets.Values
+            .OrderBy(b => b.LayerType)
+            .ThenBy(b => b.NodeName)
+            .ToList();
+
+        if (!scope.IsPastor(actor))
+        {
+            var subtreeIds = await scope.GetActorStructureSubtreeNodeIdsAsync(actor, authUserId, ct);
+            rollupRows = rollupRows.Where(b => subtreeIds.Contains(b.NodeId)).ToList();
+
+            var scopeNodeId = await scope.GetActorScopeNodeIdAsync(actor, authUserId, ct);
+            if (scopeNodeId is Guid leaderScopeNodeId)
+                rollupRows = rollupRows.Where(b => b.NodeId != leaderScopeNodeId).ToList();
+        }
+
         return new GivingProgramRollupDto(
             program.Id,
             approved.Sum(a => a.Amount),
             approved.Count,
             includesDescendants,
-            buckets.Values
-                .OrderBy(b => b.LayerType)
-                .ThenBy(b => b.NodeName)
+            rollupRows
                 .Select(b => new GivingRollupRowDto(b.NodeId, b.NodeName, b.LayerType, b.Total, b.Count))
                 .ToList());
     }
