@@ -61,6 +61,9 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
             {
                 name = "Jane Fellowship",
                 email = "jane.fellowship@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
             },
         });
         var fellowshipId = (await fellowshipResp.Content.ReadFromJsonAsync<JsonElement>())
@@ -75,6 +78,9 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
             {
                 name = "Bob Cell",
                 email = "bob.cell@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
             },
         });
         var cellId = (await cellResp.Content.ReadFromJsonAsync<JsonElement>())
@@ -167,14 +173,28 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
         {
             layerId = fellowshipLayerId,
             name = "F1",
-            newLeader = new { name = "Leader F1", email = "f1@example.com" },
+            newLeader = new
+            {
+                name = "Leader F1",
+                email = "f1@example.com",
+                phone = "+233241111111",
+                dateOfBirth = "1992-01-10",
+                leaderIsCellLeader = true,
+            },
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         var f2 = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
         {
             layerId = fellowshipLayerId,
             name = "F2",
-            newLeader = new { name = "Leader F2", email = "f2@example.com" },
+            newLeader = new
+            {
+                name = "Leader F2",
+                email = "f2@example.com",
+                phone = "+233242222222",
+                dateOfBirth = "1993-02-11",
+                leaderIsCellLeader = true,
+            },
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         var cellInF2 = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
@@ -182,7 +202,14 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
             layerId = cellLayerId,
             parentNodeId = f2,
             name = "Cell F2",
-            newLeader = new { name = "Cell L", email = "cell@example.com" },
+            newLeader = new
+            {
+                name = "Cell L",
+                email = "cell@example.com",
+                phone = "+233243333333",
+                dateOfBirth = "1994-03-12",
+                leaderIsCellLeader = true,
+            },
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new

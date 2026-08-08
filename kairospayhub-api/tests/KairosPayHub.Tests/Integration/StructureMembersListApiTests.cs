@@ -47,8 +47,7 @@ public class StructureMembersListApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task ListMembers_sorts_by_name_asc_and_desc()
     {
         var client = PastorClient();
-        await SeedFlatCellAsync(client, memberCount: 0);
-        var cellId = await GetOnlyCellIdAsync(client);
+        var cellId = await SeedFlatCellAsync(client, memberCount: 0);
 
         foreach (var name in new[] { "Zara Ok", "Alice Bee", "Mike Chen" })
         {
@@ -173,15 +172,6 @@ public class StructureMembersListApiTests(PostgresFixture fx) : IAsyncLifetime
         }
 
         return cellId;
-    }
-
-    private static async Task<Guid> GetOnlyCellIdAsync(HttpClient client)
-    {
-        var tree = await client.GetFromJsonAsync<JsonElement>("/api/structure");
-        return tree.GetProperty("nodes").EnumerateArray()
-            .Last()
-            .GetProperty("id")
-            .GetGuid();
     }
 
     private static async Task<Guid> CreateNodeAsync(

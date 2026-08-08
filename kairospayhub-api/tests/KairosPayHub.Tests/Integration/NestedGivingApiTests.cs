@@ -56,7 +56,14 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
         {
             layerId = fellowshipLayerId,
             name = "Titans",
-            newLeader = new { name = "Jane", email = "jane@example.com" },
+            newLeader = new
+            {
+                name = "Jane",
+                email = "jane@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
@@ -64,7 +71,14 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
             layerId = cellLayerId,
             parentNodeId = fellowshipId,
             name = "Cell A",
-            newLeader = new { name = "Bob", email = "bob@example.com" },
+            newLeader = new
+            {
+                name = "Bob",
+                email = "bob@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
