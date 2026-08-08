@@ -13,11 +13,13 @@ export function useStructureTree() {
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { includeMembers?: boolean }) => {
     setError(null)
     setLoading(true)
     try {
-      setTree(await api.get<StructureTree>('/api/structure'))
+      const qs =
+        options?.includeMembers === false ? '?includeMembers=false' : ''
+      setTree(await api.get<StructureTree>(`/api/structure${qs}`))
     } catch (err) {
       setError(formatApiError(err))
       setTree(null)

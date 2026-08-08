@@ -22,8 +22,8 @@ export function Login() {
     setBusy(true)
     setError(null)
     try {
-      await signIn(email, password)
-      navigate('/')
+      const { emailConfirmed } = await signIn(email, password)
+      navigate(emailConfirmed ? '/' : '/confirm-email')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed')
     } finally {

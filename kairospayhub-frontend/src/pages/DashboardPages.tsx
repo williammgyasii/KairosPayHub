@@ -317,7 +317,7 @@ export function MembershipPage() {
   const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => {
-    void load()
+    void load({ includeMembers: false })
   }, [load])
 
   if (loading && !tree) {

@@ -8,14 +8,6 @@ public record CreateChurchRequest(string Name);
 
 public record InviteLeaderRequest(string Email, string Name, Guid ChurchId);
 
-public record SubmitRecordRequest(
-    Guid ChurchId,
-    decimal Amount,
-    DateTimeOffset DateSent,
-    PaymentMethod Method,
-    string? Reference,
-    string? Currency);
-
 public record ChurchDto(Guid Id, string Name);
 
 public record StructureLayerDto(
@@ -48,6 +40,12 @@ public record StructureMemberDto(
     string? SchoolOrWorkplace,
     string Position);
 
+public record StructureMemberListResponse(
+    IReadOnlyList<StructureMemberDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize);
+
 public record StructureTreeDto(
     Guid ChurchId,
     string ChurchName,
@@ -78,6 +76,86 @@ public record EvolveStructureTemplateResponse(
     StructureTemplateDto? Template,
     StructureEvolvePreviewDto Preview,
     bool Applied);
+
+public record CreateGivingProgramRequest(
+    string? GivingType,
+    string? Title,
+    string? PeriodLabel,
+    string? ScopeKind,
+    Guid? ScopeNodeId,
+    IReadOnlyList<Guid>? ScopeNodeIds = null,
+    Guid? ParentProgramId = null);
+
+public record GivingProgramDto(
+    Guid Id,
+    Guid? ParentProgramId,
+    string GivingType,
+    string Title,
+    string PeriodLabel,
+    string ScopeKind,
+    Guid? ScopeNodeId,
+    string Status,
+    DateTimeOffset CreatedAt,
+    bool HasChildren,
+    bool AcceptsContributions);
+
+public record GivingProgramListResponse(IReadOnlyList<GivingProgramDto> Programs);
+
+public record CreateContributionRequest(
+    Guid MemberId,
+    decimal Amount,
+    string? Currency,
+    DateTimeOffset DateSent,
+    string AttachmentKey,
+    string? Notes);
+
+public record RejectContributionRequest(string? Reason);
+
+public record ContributionDto(
+    Guid Id,
+    Guid ProgramId,
+    Guid MemberId,
+    string MemberName,
+    decimal Amount,
+    string Currency,
+    DateTimeOffset DateSent,
+    string AttachmentKey,
+    string? Notes,
+    Guid MemberParentNodeId,
+    string Status,
+    DateTimeOffset? ApprovedAt,
+    string? RejectedReason,
+    DateTimeOffset CreatedAt);
+
+public record ContributionListResponse(IReadOnlyList<ContributionDto> Contributions);
+
+public record GivingAttachmentDto(string AttachmentKey, string Url);
+
+public record GivingRollupRowDto(
+    Guid NodeId,
+    string NodeName,
+    string LayerType,
+    decimal TotalAmount,
+    int ContributionCount);
+
+public record GivingProgramRollupDto(
+    Guid ProgramId,
+    decimal TotalApprovedAmount,
+    int TotalApprovedCount,
+    bool IncludesDescendants,
+    IReadOnlyList<GivingRollupRowDto> Rows);
+
+public record GivingDashboardCampaignDto(
+    Guid Id,
+    string GivingType,
+    string Title,
+    string PeriodLabel,
+    decimal TotalApprovedAmount,
+    int SubPeriodCount);
+
+public record GivingDashboardDto(
+    int OpenCampaignCount,
+    IReadOnlyList<GivingDashboardCampaignDto> Campaigns);
 
 public record CreateStructureNodeRequest(
     Guid LayerId,
@@ -147,33 +225,7 @@ public record CellDto(Guid Id, string Name, Guid FellowshipId);
 
 public record MemberDto(Guid Id, string Name, Guid ParentNodeId, string? Email, string? Phone);
 
-public record RecordDto(
-    Guid Id,
-    Guid ChurchId,
-    Guid SubmittedById,
-    decimal Amount,
-    string Currency,
-    DateTimeOffset DateSent,
-    PaymentMethod Method,
-    string? Reference,
-    RecordStatus Status,
-    Guid? VerifiedById,
-    DateTimeOffset? VerifiedAt);
-
 public static class Mapping
 {
     public static ChurchDto ToDto(this Church c) => new(c.Id, c.Name);
-
-    public static RecordDto ToDto(this Record r) => new(
-        r.Id,
-        r.ChurchId,
-        r.SubmittedById,
-        r.Amount,
-        r.Currency,
-        r.DateSent,
-        r.Method,
-        r.Reference,
-        r.Status,
-        r.VerifiedById,
-        r.VerifiedAt);
 }

@@ -100,6 +100,36 @@ public class AuthTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Login_unconfirmed_issues_tokens_and_sends_new_code()
+    {
+        _factory.Email.Clear();
+        var client = _factory.CreateClient();
+
+        await client.PostAsJsonAsync("/auth/register", new
+        {
+            name = "Unconfirmed User",
+            email = "unconfirmed@example.com",
+            password = "Password1",
+        });
+        _factory.Email.ExtractConfirmationCode();
+        _factory.Email.Clear();
+
+        var login = await client.PostAsJsonAsync("/auth/login", new
+        {
+            email = "unconfirmed@example.com",
+            password = "Password1",
+        });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+
+        var body = await login.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(body.GetProperty("emailConfirmed").GetBoolean());
+        Assert.False(string.IsNullOrEmpty(body.GetProperty("accessToken").GetString()));
+
+        var newCode = _factory.Email.ExtractConfirmationCode();
+        Assert.NotNull(newCode);
+    }
+
+    [Fact]
     public async Task Register_confirm_login_and_onboard()
     {
         _factory.Email.Clear();
@@ -136,6 +166,10 @@ public class AuthTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access);
 
+        var authMe = await client.GetFromJsonAsync<JsonElement>("/auth/me");
+        Assert.Equal("pastor@example.com", authMe.GetProperty("email").GetString());
+        Assert.True(authMe.GetProperty("emailConfirmed").GetBoolean());
+
         var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
         Assert.False(me.GetProperty("onboarded").GetBoolean());
 
@@ -148,7 +182,7 @@ public class AuthTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Pastor_invites_leader_set_password_and_submit_record()
+    public async Task Pastor_invites_leader_set_password_and_logs_in()
     {
         _factory.Email.Clear();
         var client = await LoginPastorAsync();
@@ -186,14 +220,9 @@ public class AuthTests : IAsyncLifetime
         leaderClient.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access);
 
-        var submit = await leaderClient.PostAsJsonAsync("/api/records", new
-        {
-            churchId,
-            amount = 50m,
-            dateSent = "2026-07-01T00:00:00Z",
-            method = "Cash",
-        });
-        Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+        var me = await leaderClient.GetFromJsonAsync<JsonElement>("/api/me");
+        Assert.True(me.GetProperty("onboarded").GetBoolean());
+        Assert.Equal("Leader", me.GetProperty("role").GetString());
     }
 
     private async Task<HttpClient> LoginPastorAsync()

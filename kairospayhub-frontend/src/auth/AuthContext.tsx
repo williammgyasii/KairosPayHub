@@ -7,7 +7,9 @@ type Status = 'loading' | 'authed' | 'anon'
 interface AuthValue {
   status: Status
   email: string | null
-  signIn: (email: string, password: string) => Promise<void>
+  emailConfirmed: boolean
+  signIn: (email: string, password: string) => Promise<{ emailConfirmed: boolean }>
+  markEmailConfirmed: () => void
   signOut: () => void
 }
 
@@ -16,11 +18,13 @@ const AuthContext = createContext<AuthValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading')
   const [email, setEmail] = useState<string | null>(null)
+  const [emailConfirmed, setEmailConfirmed] = useState(true)
 
   useEffect(() => {
     auth.getSession().then((session) => {
       if (session) {
         setEmail(session.email)
+        setEmailConfirmed(session.emailConfirmed)
         setStatus('authed')
       } else {
         setStatus('anon')
@@ -31,18 +35,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (e: string, password: string) => {
     const session = await auth.signIn(e, password)
     setEmail(session.email ?? e)
+    setEmailConfirmed(session.emailConfirmed)
     setStatus('authed')
+    return { emailConfirmed: session.emailConfirmed }
+  }, [])
+
+  const markEmailConfirmed = useCallback(() => {
+    setEmailConfirmed(true)
   }, [])
 
   const signOut = useCallback(() => {
     auth.signOut()
     setEmail(null)
+    setEmailConfirmed(true)
     setStatus('anon')
   }, [])
 
   const value = useMemo<AuthValue>(
-    () => ({ status, email, signIn, signOut }),
-    [status, email, signIn, signOut],
+    () => ({ status, email, emailConfirmed, signIn, markEmailConfirmed, signOut }),
+    [status, email, emailConfirmed, signIn, markEmailConfirmed, signOut],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>

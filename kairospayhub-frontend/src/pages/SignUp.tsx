@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { confirmEmail, register, resendConfirmation } from '@/auth/client'
+import { EmailOtpForm } from '@/components/auth/email-otp-form'
 import { AuthFooterLink, AuthFormCard, AuthLayout } from '@/components/layout/AuthLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +16,6 @@ export function SignUp() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -37,55 +37,23 @@ export function SignUp() {
     }
   }
 
-  async function onConfirm(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      await confirmEmail(email, code)
-      await signIn(email, password)
-      navigate('/')
-    } catch (err) {
-      fail(err, 'Confirmation failed')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   if (step === 'confirm') {
     return (
       <AuthLayout
-        title="Check your email"
-        subtitle={`We sent a 6-digit code to ${email}. Check your inbox — in local dev, see the API terminal if email isn't configured.`}
+        title="Almost there"
+        subtitle="Confirm your email to activate your account."
       >
         <AuthFormCard>
-          <form onSubmit={onConfirm} className="space-y-4">
-              {error && <p className="text-sm text-destructive">{error}</p>}
-
-              <div className="space-y-2">
-                <Label htmlFor="code">Confirmation code</Label>
-                <Input
-                  id="code"
-                  inputMode="numeric"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  required
-                />
-              </div>
-
-              <Button className="w-full" type="submit" disabled={busy}>
-                {busy ? 'Confirming…' : 'Confirm & continue'}
-              </Button>
-
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => resendConfirmation(email).catch((err) => fail(err, 'Could not resend'))}
-              >
-                Resend code
-              </Button>
-            </form>
+          <EmailOtpForm
+            email={email}
+            confirmLabel="Confirm & continue"
+            onConfirm={async (code) => {
+              await confirmEmail(email, code)
+              await signIn(email, password)
+              navigate('/')
+            }}
+            onResend={() => resendConfirmation(email)}
+          />
         </AuthFormCard>
       </AuthLayout>
     )

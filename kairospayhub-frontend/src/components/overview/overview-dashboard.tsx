@@ -38,9 +38,9 @@ const UPDATES = [
     when: 'New',
   },
   {
-    title: 'Giving programs',
-    body: 'Campaigns and cell-leader contribution entry are up next.',
-    when: 'Roadmap',
+    title: 'Givings',
+    body: 'Open campaigns, log payments, and approve contributions from the Givings page.',
+    when: 'New',
   },
   {
     title: 'Church branding',

@@ -79,6 +79,15 @@ public static class StructureSeed
             Role = ChurchRole.Pastor,
         };
 
+    public static RoleAssignment FellowshipLeaderRole(Church church, Guid authUserId, StructureNode node) =>
+        new()
+        {
+            ChurchId = church.Id,
+            AuthUserId = authUserId,
+            Role = ChurchRole.FellowshipLeader,
+            ScopeNodeId = node.Id,
+        };
+
     public static RoleAssignment CellLeaderRole(Church church, Guid authUserId, StructureNode cellNode) =>
         new()
         {

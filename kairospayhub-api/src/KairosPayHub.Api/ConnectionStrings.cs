@@ -78,9 +78,6 @@ internal static partial class DbConnectionString
         }
 
         if (host.Contains("-postgres.render.com", StringComparison.OrdinalIgnoreCase))
-        {
             csb.SslMode = SslMode.Require;
-            csb.TrustServerCertificate = true;
-        }
     }
 }

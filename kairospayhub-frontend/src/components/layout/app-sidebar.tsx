@@ -47,7 +47,7 @@ const NAV: NavEntry[] = [
       { to: 'roster/membership', label: 'Membership', end: true },
     ],
   },
-  { kind: 'item', to: 'programs', label: 'Programs', icon: Gift, disabled: true, end: true },
+  { kind: 'item', to: 'givings', label: 'Givings', icon: Gift, end: true },
   { kind: 'item', to: 'settings', label: 'Settings', icon: Settings, end: true },
 ]
 

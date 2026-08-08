@@ -25,7 +25,10 @@ public class StructureService(
         return template is null ? null : ToTemplateDto(template);
     }
 
-    public async Task<StructureTreeDto> GetTreeAsync(Actor actor, CancellationToken ct = default)
+    public async Task<StructureTreeDto> GetTreeAsync(
+        Actor actor,
+        bool includeMembers = true,
+        CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
 
@@ -42,11 +45,15 @@ public class StructureService(
             .OrderBy(n => n.Name)
             .ToListAsync(ct);
 
-        var members = await db.ChurchMembers.AsNoTracking()
-            .Where(m => m.ChurchId == churchId)
-            .OrderBy(m => m.Name)
-            .ToListAsync(ct);
-        var memberDtos = members.Select(ToMemberDto).ToList();
+        var memberDtos = Array.Empty<StructureMemberDto>();
+        if (includeMembers)
+        {
+            var members = await db.ChurchMembers.AsNoTracking()
+                .Where(m => m.ChurchId == churchId)
+                .OrderBy(m => m.Name)
+                .ToListAsync(ct);
+            memberDtos = members.Select(ToMemberDto).ToArray();
+        }
 
         var memberNames = memberDtos.ToDictionary(m => m.Id, m => m.Name);
         var nodes = nodeEntities
@@ -59,6 +66,65 @@ public class StructureService(
             template is null ? null : ToTemplateDto(template),
             nodes,
             memberDtos);
+    }
+
+    public async Task<StructureMemberListResponse> ListMembersAsync(
+        Actor actor,
+        int page,
+        int pageSize,
+        string? sortBy,
+        string? sortDir,
+        string? search,
+        Guid? parentNodeId,
+        bool includeDescendants,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = db.ChurchMembers.AsNoTracking()
+            .Where(m => m.ChurchId == churchId);
+
+        if (parentNodeId is not null)
+        {
+            var nodeExists = await db.StructureNodes.AnyAsync(
+                n => n.Id == parentNodeId && n.ChurchId == churchId, ct);
+            if (!nodeExists)
+                throw new ForbiddenException("Parent node not found in your church");
+
+            if (includeDescendants)
+            {
+                var nodeIds = await CollectSubtreeNodeIdsAsync(churchId, parentNodeId.Value, ct);
+                query = query.Where(m => nodeIds.Contains(m.ParentNodeId));
+            }
+            else
+            {
+                query = query.Where(m => m.ParentNodeId == parentNodeId);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = $"%{search.Trim()}%";
+            query = query.Where(m =>
+                EF.Functions.ILike(m.Name, term)
+                || (m.Email != null && EF.Functions.ILike(m.Email, term))
+                || (m.Phone != null && EF.Functions.ILike(m.Phone, term)));
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        var items = await ApplyMemberSort(query, sortBy, sortDir)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return new StructureMemberListResponse(
+            items.Select(ToMemberDto).ToList(),
+            totalCount,
+            page,
+            pageSize);
     }
 
     public async Task<StructureTemplateDto> SetTemplateAsync(
@@ -847,6 +913,29 @@ public class StructureService(
             member.OccupationStatus?.ToString(),
             member.SchoolOrWorkplace,
             member.Position.ToString());
+
+    private static IQueryable<Member> ApplyMemberSort(
+        IQueryable<Member> query,
+        string? sortBy,
+        string? sortDir)
+    {
+        var desc = sortDir?.Equals("desc", StringComparison.OrdinalIgnoreCase) == true;
+        return (sortBy?.Trim().ToLowerInvariant(), desc) switch
+        {
+            ("email", false) => query.OrderBy(m => m.Email).ThenBy(m => m.Name),
+            ("email", true) => query.OrderByDescending(m => m.Email).ThenBy(m => m.Name),
+            ("phone", false) => query.OrderBy(m => m.Phone).ThenBy(m => m.Name),
+            ("phone", true) => query.OrderByDescending(m => m.Phone).ThenBy(m => m.Name),
+            ("age", false) => query.OrderBy(m => m.Age).ThenBy(m => m.Name),
+            ("age", true) => query.OrderByDescending(m => m.Age).ThenBy(m => m.Name),
+            ("position", false) => query.OrderBy(m => m.Position).ThenBy(m => m.Name),
+            ("position", true) => query.OrderByDescending(m => m.Position).ThenBy(m => m.Name),
+            ("createdat", false) => query.OrderBy(m => m.CreatedAt).ThenBy(m => m.Name),
+            ("createdat", true) => query.OrderByDescending(m => m.CreatedAt).ThenBy(m => m.Name),
+            ("name", true) => query.OrderByDescending(m => m.Name),
+            _ => query.OrderBy(m => m.Name),
+        };
+    }
 
     public static MemberOccupationStatus? ParseMemberOccupationStatus(string? value)
     {

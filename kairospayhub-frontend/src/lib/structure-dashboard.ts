@@ -110,7 +110,7 @@ export function dashboardRecommendations(tree: StructureTree | null): string[] {
   }
 
   if (tips.length === 0) {
-    tips.push('Structure looks good. Giving programs are coming in the next phase.')
+    tips.push('Open Givings to start a campaign and track money collected.')
     tips.push('Upload your church logo in Settings for a branded sidebar.')
   }
 

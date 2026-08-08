@@ -62,9 +62,10 @@ builder.Services.AddScoped<CurrentActor>();
 builder.Services.AddScoped<ChurchService>();
 builder.Services.AddScoped<StructureLeaderAccountService>();
 builder.Services.AddScoped<StructureService>();
+builder.Services.AddScoped<GivingProgramService>();
+builder.Services.AddScoped<GivingScopeService>();
+builder.Services.AddScoped<ContributionService>();
 builder.Services.AddScoped<ChurchBrandingService>();
-builder.Services.AddScoped<RecordService>();
-builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<LeaderInviteService>();
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()

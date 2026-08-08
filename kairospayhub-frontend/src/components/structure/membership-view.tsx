@@ -1,6 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { Link } from 'react-router-dom'
-import type { StructureTree } from '@/api/structure'
+import type {
+  StructureMemberListParams,
+  StructureMemberListResponse,
+  StructureTree,
+} from '@/api/structure'
+import { buildMembersQuery } from '@/api/structure'
+import { useApi } from '@/api/useApi'
 import { MemberCreateWizard } from '@/components/structure/member-create-wizard'
 import { MemberDetailSheet } from '@/components/structure/member-detail-sheet'
 import { MemberFormSheet, type MemberSheetState } from '@/components/structure/member-form-sheet'
@@ -8,13 +15,15 @@ import { MemberTableToolbar } from '@/components/structure/member-table-toolbar'
 import { StructureMemberTable } from '@/components/structure/structure-member-table'
 import {
   applyMemberFilterRules,
-  applyMemberSearch,
   type MemberFilterField,
   type MemberFilterRule,
 } from '@/lib/member-filters'
 import { buildMemberRows } from '@/lib/structure-table-rows'
 import { getLayers } from '@/lib/structure-tree'
+import { formatApiError } from '@/lib/structure-tree'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
+import { TablePagination } from '@/components/ui/table-pagination'
 
 interface MembershipViewProps {
   tree: StructureTree
@@ -25,6 +34,42 @@ interface MembershipViewProps {
   onWizardOpenChange?: (open: boolean) => void
 }
 
+function sortFieldFromColumn(columnId: string): StructureMemberListParams['sortBy'] {
+  switch (columnId) {
+    case 'member':
+      return 'name'
+    case 'email':
+      return 'email'
+    case 'phone':
+      return 'phone'
+    case 'age':
+      return 'age'
+    case 'role':
+      return 'position'
+    default:
+      return 'name'
+  }
+}
+
+function sortingToParams(sorting: SortingState): Pick<StructureMemberListParams, 'sortBy' | 'sortDir'> {
+  const active = sorting[0]
+  if (!active) return { sortBy: 'name', sortDir: 'asc' }
+  return {
+    sortBy: sortFieldFromColumn(active.id),
+    sortDir: active.desc ? 'desc' : 'asc',
+  }
+}
+
+function paramsToSorting(sortBy: string, sortDir: 'asc' | 'desc'): SortingState {
+  const columnId =
+    sortBy === 'name'
+      ? 'member'
+      : sortBy === 'position'
+        ? 'role'
+        : sortBy
+  return [{ id: columnId, desc: sortDir === 'desc' }]
+}
+
 export function MembershipView({
   tree,
   error,
@@ -33,6 +78,7 @@ export function MembershipView({
   wizardOpen: wizardOpenProp,
   onWizardOpenChange,
 }: MembershipViewProps) {
+  const api = useApi()
   const [wizardOpenInternal, setWizardOpenInternal] = useState(false)
   const wizardOpen = wizardOpenProp ?? wizardOpenInternal
   const setWizardOpen = onWizardOpenChange ?? setWizardOpenInternal
@@ -42,20 +88,82 @@ export function MembershipView({
   )
   const [filterRules, setFilterRules] = useState<MemberFilterRule[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [searchField, setSearchField] = useState<MemberFilterField | 'all'>('all')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [sortBy, setSortBy] = useState<StructureMemberListParams['sortBy']>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [list, setList] = useState<StructureMemberListResponse | null>(null)
+  const [listError, setListError] = useState<string | null>(null)
+  const [listLoading, setListLoading] = useState(true)
 
-  const rows = useMemo(() => buildMemberRows(tree), [tree])
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300)
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, pageSize])
+
+  const loadMembers = useCallback(async () => {
+    setListLoading(true)
+    setListError(null)
+    try {
+      const query = buildMembersQuery({
+        page,
+        pageSize,
+        sortBy,
+        sortDir,
+        search: debouncedSearch || undefined,
+      })
+      setList(await api.get<StructureMemberListResponse>(`/api/structure/members${query}`))
+    } catch (err) {
+      setListError(formatApiError(err))
+      setList(null)
+    } finally {
+      setListLoading(false)
+    }
+  }, [api, page, pageSize, sortBy, sortDir, debouncedSearch])
+
+  useEffect(() => {
+    void loadMembers()
+  }, [loadMembers])
+
+  const listTree = useMemo(
+    (): StructureTree => ({ ...tree, members: list?.items ?? [] }),
+    [tree, list?.items],
+  )
+  const rows = useMemo(() => buildMemberRows(listTree), [listTree])
   const structureLayers = getLayers(tree)
   const filteredRows = useMemo(() => {
-    const byRules = applyMemberFilterRules(rows, filterRules)
-    return applyMemberSearch(byRules, searchQuery, searchField)
-  }, [rows, filterRules, searchQuery, searchField])
+    if (filterRules.length === 0) return rows
+    return applyMemberFilterRules(rows, filterRules)
+  }, [rows, filterRules])
+
+  const sorting = useMemo(() => paramsToSorting(sortBy ?? 'name', sortDir), [sortBy, sortDir])
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    const next = typeof updater === 'function' ? updater(sorting) : updater
+    const params = sortingToParams(next)
+    setSortBy(params.sortBy ?? 'name')
+    setSortDir(params.sortDir ?? 'asc')
+    setPage(1)
+  }
+
+  async function submitAndRefresh(action: () => Promise<void>) {
+    await submit(action)
+    await loadMembers()
+  }
+
+  const totalCount = list?.totalCount ?? 0
 
   return (
     <div className="min-w-0 space-y-4">
-      {error && (
+      {(error || listError) && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {error}
+          {error ?? listError}
         </p>
       )}
 
@@ -64,14 +172,17 @@ export function MembershipView({
         structureLayers={structureLayers}
         title="All members"
         extendedColumns
-        totalCount={rows.length}
+        totalCount={totalCount}
         emptyMessage={
-          rows.length === 0
+          totalCount === 0
             ? 'No members yet. Click Add member above.'
-            : 'No members match your search or filters.'
+            : 'No members match your filters on this page.'
         }
         showSearch={false}
         hideHeader
+        serverSorting
+        sorting={sorting}
+        onSortingChange={handleSortingChange}
         toolbar={
           <MemberTableToolbar
             rows={rows}
@@ -83,8 +194,23 @@ export function MembershipView({
             searchField={searchField}
             onSearchFieldChange={setSearchField}
             filteredCount={filteredRows.length}
-            totalCount={rows.length}
+            totalCount={totalCount}
           />
+        }
+        footer={
+          listLoading ? (
+            <div className="border-t border-border/60 px-5 py-4">
+              <Spinner label="Loading members…" />
+            </div>
+          ) : (
+            <TablePagination
+              page={list?.page ?? page}
+              pageSize={list?.pageSize ?? pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          )
         }
         onView={(member) => setDetailMember(member)}
         onEdit={(member) => setSheet({ mode: 'edit', member })}
@@ -94,7 +220,7 @@ export function MembershipView({
         <MemberCreateWizard
           tree={tree}
           busy={busy}
-          submit={submit}
+          submit={submitAndRefresh}
           onClose={() => setWizardOpen(false)}
         />
       )}
@@ -103,7 +229,7 @@ export function MembershipView({
         <MemberFormSheet
           tree={tree}
           busy={busy}
-          submit={submit}
+          submit={submitAndRefresh}
           sheet={sheet}
           onClose={() => setSheet(null)}
         />
@@ -112,7 +238,7 @@ export function MembershipView({
       {detailMember && (
         <MemberDetailSheet
           member={detailMember}
-          tree={tree}
+          tree={listTree}
           open
           onOpenChange={(open) => !open && setDetailMember(null)}
           onEdit={(member) => setSheet({ mode: 'edit', member })}

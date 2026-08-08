@@ -21,7 +21,6 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
-    <Using Include="KairosPayHub.Api.Domain.Record" Alias="Record" />
   </ItemGroup>
 
   <ItemGroup>

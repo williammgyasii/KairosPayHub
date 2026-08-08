@@ -3,6 +3,7 @@ using KairosPayHub.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace KairosPayHub.Api.Controllers;
 
@@ -139,7 +140,12 @@ public class AuthController(AuthService auth, UserManager<ApplicationUser> users
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
-        var user = await users.GetUserAsync(User);
+        var sub = User.FindFirstValue("sub")
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (sub is null || !Guid.TryParse(sub, out var userId))
+            return Unauthorized();
+
+        var user = await users.FindByIdAsync(userId.ToString());
         if (user is null) return Unauthorized();
 
         return Ok(new
@@ -155,6 +161,7 @@ public class AuthController(AuthService auth, UserManager<ApplicationUser> users
         accessToken = tokens.AccessToken,
         refreshToken = tokens.RefreshToken,
         expiresIn = tokens.ExpiresInSeconds,
+        emailConfirmed = tokens.EmailConfirmed,
     };
 }
 

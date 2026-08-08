@@ -69,6 +69,38 @@ export type StructureTree = {
   members: StructureMember[]
 }
 
+export type StructureMemberListParams = {
+  page?: number
+  pageSize?: number
+  sortBy?: 'name' | 'email' | 'phone' | 'age' | 'position' | 'createdAt'
+  sortDir?: 'asc' | 'desc'
+  search?: string
+  parentNodeId?: string
+  includeDescendants?: boolean
+}
+
+export type StructureMemberListResponse = {
+  items: StructureMember[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+export function buildMembersQuery(params: StructureMemberListParams): string {
+  const qs = new URLSearchParams()
+  if (params.page != null) qs.set('page', String(params.page))
+  if (params.pageSize != null) qs.set('pageSize', String(params.pageSize))
+  if (params.sortBy) qs.set('sortBy', params.sortBy)
+  if (params.sortDir) qs.set('sortDir', params.sortDir)
+  if (params.search) qs.set('search', params.search)
+  if (params.parentNodeId) qs.set('parentNodeId', params.parentNodeId)
+  if (params.includeDescendants != null) {
+    qs.set('includeDescendants', String(params.includeDescendants))
+  }
+  const query = qs.toString()
+  return query ? `?${query}` : ''
+}
+
 export type GeneratedLeaderLogin = {
   email: string
   temporaryPassword: string

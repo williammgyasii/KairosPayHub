@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace KairosPayHub.Api.Services;
 
-public record AuthTokens(string AccessToken, string RefreshToken, int ExpiresInSeconds);
+public record AuthTokens(string AccessToken, string RefreshToken, int ExpiresInSeconds, bool EmailConfirmed);
 
 public class AuthService(
     UserManager<ApplicationUser> users,
@@ -70,11 +70,11 @@ public class AuthService(
         var user = await users.FindByEmailAsync(emailAddress)
             ?? throw new AuthException("Invalid email or password");
 
-        if (!user.EmailConfirmed)
-            throw new AuthException("Email not confirmed");
-
         if (!await users.CheckPasswordAsync(user, password))
             throw new AuthException("Invalid email or password");
+
+        if (!user.EmailConfirmed)
+            await SendConfirmationCodeAsync(user, ct);
 
         return await IssueTokensAsync(user, ct);
     }
@@ -191,7 +191,7 @@ public class AuthService(
         });
         await db.SaveChangesAsync(ct);
 
-        return new AuthTokens(access, refresh, cfg.AccessTokenMinutes * 60);
+        return new AuthTokens(access, refresh, cfg.AccessTokenMinutes * 60, user.EmailConfirmed);
     }
 
     private async Task<string> CreateOneTimeTokenAsync(

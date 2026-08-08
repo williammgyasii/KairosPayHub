@@ -1,4 +1,5 @@
 using KairosPayHub.Api.Email;
+using KairosPayHub.Api.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -26,6 +27,9 @@ public class ApiFactory(string connectionString) : WebApplicationFactory<Program
         {
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Email);
+
+            services.RemoveAll<IObjectStorage>();
+            services.AddSingleton<IObjectStorage, FakeObjectStorage>();
 
             services.AddSingleton<IPostConfigureOptions<AuthenticationOptions>, TestAuthDefaults>();
             services

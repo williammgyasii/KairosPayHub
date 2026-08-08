@@ -6,6 +6,7 @@ import { formatOccupationStatus } from '@/lib/member-filters'
 import type { StructureMemberRow } from '@/lib/structure-table-rows'
 import { StructureChain } from '@/components/structure/structure-chain'
 import { RoleBadge, StructureSegmentBadge } from '@/components/structure/structure-badges'
+import { MemberGivingTab } from '@/components/giving/member-giving-tab'
 import { SideSheet } from '@/components/ui/side-sheet'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -94,13 +95,7 @@ export function MemberDetailSheet({
             description="Attendance sheets, follow-ups, and pastoral notes will live here."
           />
         )}
-        {tab === 'giving' && (
-          <ComingSoonTab
-            icon={Coins}
-            title="Giving"
-            description="Tithes, offerings, and pledge history will connect to KairosPayHub payments."
-          />
-        )}
+        {tab === 'giving' && <MemberGivingTab memberId={member.id} />}
         {tab === 'activity' && (
           <ComingSoonTab
             icon={Activity}

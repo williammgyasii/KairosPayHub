@@ -12,10 +12,10 @@ namespace KairosPayHub.Api.Controllers;
 public class StructureController(CurrentActor current, StructureService structure) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetTree(CancellationToken ct)
+    public async Task<IActionResult> GetTree([FromQuery] bool includeMembers = true, CancellationToken ct = default)
     {
         var actor = await current.RequireAsync(ct);
-        return Ok(await structure.GetTreeAsync(actor, ct));
+        return Ok(await structure.GetTreeAsync(actor, includeMembers, ct));
     }
 
     [HttpGet("template")]
@@ -113,6 +113,30 @@ public class StructureController(CurrentActor current, StructureService structur
     {
         var actor = await current.RequireAsync(ct);
         return Ok(await structure.LinkNodeAsync(actor, nodeId, request.ParentNodeId, ct));
+    }
+
+    [HttpGet("members")]
+    public async Task<IActionResult> ListMembers(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? sortBy = "name",
+        [FromQuery] string? sortDir = "asc",
+        [FromQuery] string? search = null,
+        [FromQuery] Guid? parentNodeId = null,
+        [FromQuery] bool includeDescendants = true,
+        CancellationToken ct = default)
+    {
+        var actor = await current.RequireAsync(ct);
+        return Ok(await structure.ListMembersAsync(
+            actor,
+            page,
+            pageSize,
+            sortBy,
+            sortDir,
+            search,
+            parentNodeId,
+            includeDescendants,
+            ct));
     }
 
     [HttpPost("members")]

@@ -23,19 +23,4 @@ public static class Seed
             Name = role.ToString(),
             Email = email ?? $"{Guid.NewGuid()}@example.com",
         };
-
-    public static Record Record(
-        Organization org,
-        Church church,
-        User submitter,
-        decimal amount = 500.00m) =>
-        new()
-        {
-            OrganizationId = org.Id,
-            ChurchId = church.Id,
-            SubmittedById = submitter.Id,
-            Amount = amount,
-            DateSent = DefaultDate,
-            Method = PaymentMethod.MobileMoney,
-        };
 }

@@ -12,7 +12,6 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Church> Churches => Set<Church>();
     public DbSet<User> AppUsers => Set<User>();
-    public DbSet<Record> Records => Set<Record>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<OneTimeToken> OneTimeTokens => Set<OneTimeToken>();
     public DbSet<EmailConfirmationCode> EmailConfirmationCodes => Set<EmailConfirmationCode>();
@@ -26,6 +25,10 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
     public DbSet<Domain.Structure.StructureTemplate> StructureTemplates => Set<Domain.Structure.StructureTemplate>();
     public DbSet<Domain.Structure.StructureLayer> StructureLayers => Set<Domain.Structure.StructureLayer>();
     public DbSet<Domain.Structure.StructureNode> StructureNodes => Set<Domain.Structure.StructureNode>();
+    public DbSet<Domain.Giving.GivingProgram> GivingPrograms => Set<Domain.Giving.GivingProgram>();
+    public DbSet<Domain.Giving.GivingProgramScopeNode> GivingProgramScopeNodes =>
+        Set<Domain.Giving.GivingProgramScopeNode>();
+    public DbSet<Domain.Giving.Contribution> Contributions => Set<Domain.Giving.Contribution>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -68,39 +71,6 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
-        b.Entity<Record>(e =>
-        {
-            e.ToTable("records");
-            e.Property(x => x.Amount).HasPrecision(14, 2);
-            e.Property(x => x.Currency).IsRequired().HasDefaultValue("GHS");
-            e.Property(x => x.Method).HasConversion<string>().IsRequired();
-            e.Property(x => x.Source)
-                .HasConversion<string>()
-                .IsRequired()
-                .HasDefaultValue(RecordSource.Manual);
-            e.Property(x => x.Status)
-                .HasConversion<string>()
-                .IsRequired()
-                .HasDefaultValue(RecordStatus.Submitted);
-            e.HasIndex(x => x.OrganizationId);
-            e.HasIndex(x => x.ChurchId);
-            e.HasIndex(x => new { x.OrganizationId, x.ChurchId });
-            e.HasIndex(x => new { x.ChurchId, x.Status });
-            e.HasIndex(x => new { x.OrganizationId, x.DateSent });
-            e.HasOne(x => x.Church)
-                .WithMany()
-                .HasForeignKey(x => x.ChurchId)
-                .OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.SubmittedBy)
-                .WithMany()
-                .HasForeignKey(x => x.SubmittedById)
-                .OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.VerifiedBy)
-                .WithMany()
-                .HasForeignKey(x => x.VerifiedById)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
         b.Entity<RefreshToken>(e =>
         {
             e.ToTable("refresh_tokens");
@@ -127,6 +97,66 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         });
 
         ConfigureStructure(b);
+        ConfigureGiving(b);
+    }
+
+    private static void ConfigureGiving(ModelBuilder b)
+    {
+        b.Entity<Domain.Giving.GivingProgram>(e =>
+        {
+            e.ToTable("giving_programs");
+            e.Property(x => x.GivingType).HasConversion<string>().IsRequired();
+            e.Property(x => x.Title).IsRequired().HasMaxLength(200);
+            e.Property(x => x.PeriodLabel).IsRequired().HasMaxLength(80);
+            e.Property(x => x.ScopeKind).HasConversion<string>().IsRequired();
+            e.Property(x => x.Status).HasConversion<string>().IsRequired();
+            e.HasIndex(x => x.ChurchId);
+            e.HasIndex(x => new { x.ChurchId, x.Status });
+            e.HasIndex(x => x.ParentProgramId);
+            e.HasIndex(x => new { x.ChurchId, x.GivingType, x.PeriodLabel, x.ScopeKind })
+                .IsUnique()
+                .HasFilter("\"ScopeKind\" = 'ChurchWide' AND \"ParentProgramId\" IS NULL");
+            e.HasOne(x => x.Church)
+                .WithMany()
+                .HasForeignKey(x => x.ChurchId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.ParentProgram)
+                .WithMany(p => p.ChildPrograms)
+                .HasForeignKey(x => x.ParentProgramId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<Domain.Giving.GivingProgramScopeNode>(e =>
+        {
+            e.ToTable("giving_program_scope_nodes");
+            e.HasIndex(x => x.ProgramId);
+            e.HasIndex(x => new { x.ProgramId, x.StructureNodeId }).IsUnique();
+            e.HasOne(x => x.Program)
+                .WithMany(p => p.ScopeNodes)
+                .HasForeignKey(x => x.ProgramId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Giving.Contribution>(e =>
+        {
+            e.ToTable("contributions");
+            e.Property(x => x.Amount).HasPrecision(14, 2);
+            e.Property(x => x.Currency).IsRequired().HasDefaultValue("GHS");
+            e.Property(x => x.AttachmentKey).IsRequired().HasMaxLength(500);
+            e.Property(x => x.Status).HasConversion<string>().IsRequired();
+            e.HasIndex(x => x.ProgramId);
+            e.HasIndex(x => x.MemberId);
+            e.HasIndex(x => new { x.ProgramId, x.Status });
+            e.HasIndex(x => x.MemberParentNodeId);
+            e.HasOne(x => x.Program)
+                .WithMany(p => p.Contributions)
+                .HasForeignKey(x => x.ProgramId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Member)
+                .WithMany()
+                .HasForeignKey(x => x.MemberId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     private static void ConfigureStructure(ModelBuilder b)
@@ -306,19 +336,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         var now = DateTimeOffset.UtcNow;
         foreach (var entry in ChangeTracker.Entries())
         {
-            if (entry.Entity is Record rec)
-            {
-                if (entry.State == EntityState.Added)
-                {
-                    rec.CreatedAt = now;
-                    rec.UpdatedAt = now;
-                }
-                else if (entry.State == EntityState.Modified)
-                {
-                    rec.UpdatedAt = now;
-                }
-            }
-            else if (entry.State == EntityState.Added
+            if (entry.State == EntityState.Added
                 && entry.Metadata.FindProperty("CreatedAt") is not null)
             {
                 entry.Property("CreatedAt").CurrentValue = now;

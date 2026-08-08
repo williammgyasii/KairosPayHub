@@ -4,6 +4,18 @@ const REFRESH_KEY = 'kairospayhub_refresh'
 export interface Session {
   email: string | null
   token: string
+  emailConfirmed: boolean
+}
+
+interface TokenResponse {
+  accessToken: string
+  refreshToken: string
+  emailConfirmed?: boolean
+}
+
+interface ProfileResponse {
+  email?: string
+  emailConfirmed?: boolean
 }
 
 function apiBase(): string {
@@ -34,6 +46,21 @@ function clearTokens() {
   localStorage.removeItem(REFRESH_KEY)
 }
 
+async function fetchProfile(
+  token: string,
+): Promise<Pick<Session, 'email' | 'emailConfirmed'> | null> {
+  const me = await fetch(`${apiBase()}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (me.status === 401) return null
+  if (!me.ok) return { email: null, emailConfirmed: true }
+  const profile = (await me.json()) as ProfileResponse
+  return {
+    email: profile.email ?? null,
+    emailConfirmed: profile.emailConfirmed ?? true,
+  }
+}
+
 export async function register(name: string, email: string, password: string): Promise<void> {
   await authPost('/auth/register', { name, email, password })
 }
@@ -47,12 +74,13 @@ export async function resendConfirmation(email: string): Promise<void> {
 }
 
 export async function signIn(email: string, password: string): Promise<Session> {
-  const data = await authPost<{ accessToken: string; refreshToken: string }>('/auth/login', {
-    email,
-    password,
-  })
+  const data = await authPost<TokenResponse>('/auth/login', { email, password })
   storeTokens(data.accessToken, data.refreshToken)
-  return { email, token: data.accessToken }
+  return {
+    email,
+    token: data.accessToken,
+    emailConfirmed: data.emailConfirmed ?? true,
+  }
 }
 
 export async function setPassword(token: string, password: string): Promise<void> {
@@ -80,17 +108,18 @@ async function refreshSession(): Promise<Session | null> {
   if (!refresh) return null
 
   try {
-    const data = await authPost<{ accessToken: string; refreshToken: string }>('/auth/refresh', {
-      refreshToken: refresh,
-    })
+    const data = await authPost<TokenResponse>('/auth/refresh', { refreshToken: refresh })
     storeTokens(data.accessToken, data.refreshToken)
-
-    const me = await fetch(`${apiBase()}/auth/me`, {
-      headers: { Authorization: `Bearer ${data.accessToken}` },
-    })
-    if (!me.ok) return { email: null, token: data.accessToken }
-    const profile = (await me.json()) as { email?: string }
-    return { email: profile.email ?? null, token: data.accessToken }
+    const profile = await fetchProfile(data.accessToken)
+    if (!profile) {
+      clearTokens()
+      return null
+    }
+    return {
+      email: profile.email,
+      token: data.accessToken,
+      emailConfirmed: data.emailConfirmed ?? profile.emailConfirmed,
+    }
   } catch {
     clearTokens()
     return null
@@ -100,7 +129,11 @@ async function refreshSession(): Promise<Session | null> {
 export async function getSession(): Promise<Session | null> {
   const access = sessionStorage.getItem(ACCESS_KEY)
   if (access) {
-    return { email: null, token: access }
+    const profile = await fetchProfile(access)
+    if (profile) {
+      return { email: profile.email, token: access, emailConfirmed: profile.emailConfirmed }
+    }
+    sessionStorage.removeItem(ACCESS_KEY)
   }
   return refreshSession()
 }

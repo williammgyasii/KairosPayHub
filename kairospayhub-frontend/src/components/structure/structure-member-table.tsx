@@ -6,6 +6,7 @@ import {
   getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
+  type OnChangeFn,
   type SortingState,
 } from '@tanstack/react-table'
 import { ArrowUpDown, Eye, MoreHorizontal, Pencil } from 'lucide-react'
@@ -35,9 +36,13 @@ interface StructureMemberTableProps {
   extendedColumns?: boolean
   hideHeader?: boolean
   toolbar?: ReactNode
+  footer?: ReactNode
   totalCount?: number
   embedded?: boolean
   className?: string
+  serverSorting?: boolean
+  sorting?: SortingState
+  onSortingChange?: OnChangeFn<SortingState>
 }
 
 export function StructureMemberTable({
@@ -52,12 +57,18 @@ export function StructureMemberTable({
   extendedColumns = false,
   hideHeader = false,
   toolbar,
+  footer,
   totalCount,
   embedded = false,
   className,
+  serverSorting = false,
+  sorting: sortingProp,
+  onSortingChange: onSortingChangeProp,
 }: StructureMemberTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([])
+  const [localSorting, setLocalSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
+  const sorting = sortingProp ?? localSorting
+  const setSorting = onSortingChangeProp ?? setLocalSorting
 
   const columns = useMemo(
     () => createMemberColumns(structureLayers, onEdit, onView, extendedColumns),
@@ -70,9 +81,10 @@ export function StructureMemberTable({
     state: { sorting, globalFilter: filter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setFilter,
+    manualSorting: serverSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: serverSorting ? undefined : getSortedRowModel(),
+    getFilteredRowModel: serverSorting ? undefined : getFilteredRowModel(),
     globalFilterFn: (row, _columnId, filterValue) => {
       const q = String(filterValue).toLowerCase()
       if (!q) return true
@@ -177,6 +189,8 @@ export function StructureMemberTable({
           </tbody>
         </table>
       </div>
+
+      {footer}
     </section>
   )
 }
