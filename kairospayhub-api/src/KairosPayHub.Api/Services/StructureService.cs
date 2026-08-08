@@ -263,8 +263,21 @@ public class StructureService(
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        foreach (var layer in orderedLayers.Where(l => l.SortOrder >= insertAt))
-            layer.SortOrder += 1;
+        // Bump highest sort orders first to avoid (TemplateId, SortOrder) unique index collisions.
+        foreach (var layer in orderedLayers.Where(l => l.SortOrder >= insertAt).OrderByDescending(l => l.SortOrder))
+        {
+            var nextSort = layer.SortOrder + 1;
+            await db.StructureLayers
+                .Where(l => l.Id == layer.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.SortOrder, nextSort), ct);
+        }
+
+        foreach (var layer in orderedLayers)
+        {
+            var entry = db.Entry(layer);
+            if (entry.State != EntityState.Detached)
+                entry.State = EntityState.Detached;
+        }
 
         var newLayer = new StructureLayer
         {
@@ -273,15 +286,8 @@ public class StructureService(
             StandardType = ParseLayerType(layerInput.StandardType),
             DisplayName = layerInput.DisplayName.Trim(),
         };
-        template.Layers.Add(newLayer);
+        db.StructureLayers.Add(newLayer);
         await db.SaveChangesAsync(ct);
-
-        foreach (var layer in orderedLayers)
-        {
-            var entry = db.Entry(layer);
-            if (entry.State != EntityState.Detached)
-                entry.State = EntityState.Detached;
-        }
 
         var newLayerEntry = db.Entry(newLayer);
         if (newLayerEntry.State != EntityState.Detached)
