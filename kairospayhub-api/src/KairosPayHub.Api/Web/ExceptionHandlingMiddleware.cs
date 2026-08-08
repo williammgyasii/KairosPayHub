@@ -19,6 +19,7 @@ public class ExceptionHandlingMiddleware(
             var (status, message) = ex switch
             {
                 ForbiddenException => (StatusCodes.Status403Forbidden, ex.Message),
+                BadRequestException => (StatusCodes.Status400BadRequest, ex.Message),
                 NotOnboardedException => (StatusCodes.Status409Conflict, ex.Message),
                 UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, ex.Message),
                 _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred"),

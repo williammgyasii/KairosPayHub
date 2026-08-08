@@ -55,10 +55,12 @@ builder.Services.PostConfigure<R2Options>(o =>
 builder.Services.AddSingleton<IObjectStorage, R2ObjectStorage>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<AuthService>();
-builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<SmtpEmailSender>();
+builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 
 builder.Services.AddScoped<CurrentActor>();
 builder.Services.AddScoped<ChurchService>();
+builder.Services.AddScoped<StructureLeaderAccountService>();
 builder.Services.AddScoped<StructureService>();
 builder.Services.AddScoped<ChurchBrandingService>();
 builder.Services.AddScoped<RecordService>();
@@ -103,6 +105,13 @@ if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+app.MapGet("/", () => Results.Ok(new
+{
+    name = "KairosPayHub API",
+    status = "running",
+    health = "/health",
+    hint = "Use the React app at http://127.0.0.1:5173 — this URL is the API only.",
+}));
 
 app.UseCors();
 app.UseAuthentication();

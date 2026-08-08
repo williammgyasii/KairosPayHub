@@ -15,7 +15,8 @@ public class AuthService(
     JwtTokenService jwt,
     IEmailSender email,
     IOptions<JwtOptions> jwtOptions,
-    IOptions<EmailOptions> emailOptions)
+    IOptions<EmailOptions> emailOptions,
+    IHostEnvironment environment)
 {
     public async Task RegisterAsync(string name, string emailAddress, string password, CancellationToken ct = default)
     {
@@ -106,10 +107,10 @@ public class AuthService(
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task ForgotPasswordAsync(string emailAddress, CancellationToken ct = default)
+    public async Task<string?> ForgotPasswordAsync(string emailAddress, CancellationToken ct = default)
     {
         var user = await users.FindByEmailAsync(emailAddress);
-        if (user is null) return;
+        if (user is null) return null;
 
         var token = await CreateOneTimeTokenAsync(user.Id, OneTimeTokenPurpose.PasswordReset, TimeSpan.FromHours(1), ct);
         var link = $"{emailOptions.Value.FrontendBaseUrl.TrimEnd('/')}/reset-password?token={token}";
@@ -117,6 +118,8 @@ public class AuthService(
             "Reset your KairosPayHub password",
             $"Use this link to reset your password (expires in 1 hour):\n\n{link}",
             ct);
+
+        return environment.IsDevelopment() ? link : null;
     }
 
     public async Task ResetPasswordAsync(string token, string newPassword, CancellationToken ct = default)

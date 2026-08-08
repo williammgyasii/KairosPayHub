@@ -136,7 +136,7 @@ export function OnboardingWizard({ me, onComplete }: OnboardingWizardProps) {
               <CardTitle>You&apos;re all set</CardTitle>
               <CardDescription>
                 <span className="font-medium text-foreground">{churchName}</span> is ready.
-                You can add fellowships, cells, and members from your dashboard.
+                Head to your dashboard to set up structure when you&apos;re ready.
               </CardDescription>
             </CardHeader>
             <CardContent>

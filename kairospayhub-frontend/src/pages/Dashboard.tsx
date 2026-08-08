@@ -3,6 +3,7 @@ import { useApi } from '@/api/useApi'
 import { needsOnboarding, type Me } from '@/api/me'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
+import { Spinner } from '@/components/ui/spinner'
 
 export function DashboardRoot() {
   const api = useApi()
@@ -34,7 +35,7 @@ export function DashboardRoot() {
   if (!me) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <Spinner label="Loading your dashboard…" />
       </div>
     )
   }

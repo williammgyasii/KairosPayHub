@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
 import { DashboardRoot } from './pages/Dashboard'
-import { ComingSoonPage, OverviewPage, StructurePage } from './pages/DashboardPages'
+import { ComingSoonPage, MembershipPage, OverviewPage, RosterPage, RosterUnitPage, StructurePage } from './pages/DashboardPages'
 import { SettingsPage } from './pages/SettingsPage'
 import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword, SetPassword } from './pages/PasswordPages'
@@ -25,6 +25,10 @@ export default function App() {
       >
         <Route index element={<OverviewPage />} />
         <Route path="structure" element={<StructurePage />} />
+        <Route path="roster" element={<RosterPage />} />
+        <Route path="roster/units/:nodeId" element={<RosterUnitPage />} />
+        <Route path="roster/membership" element={<MembershipPage />} />
+        <Route path="membership" element={<Navigate to="/roster/membership" replace />} />
         <Route path="programs" element={<ComingSoonPage feature="Programs" />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

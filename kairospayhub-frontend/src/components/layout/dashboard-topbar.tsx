@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LogOut, Menu, Settings } from 'lucide-react'
 import { displayName, type Me } from '@/api/me'
 import { useAuth } from '@/auth/AuthContext'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -13,85 +13,65 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Separator } from '@/components/ui/separator'
 import { useSidebar } from '@/components/layout/sidebar-context'
-import { initials } from '@/lib/utils'
+import { cn, initials } from '@/lib/utils'
 
 interface DashboardTopbarProps {
   me: Me & { onboarded: true }
-  title: string
-  description?: string
 }
 
-export function DashboardTopbar({ me, title, description }: DashboardTopbarProps) {
+export function DashboardTopbar({ me }: DashboardTopbarProps) {
   const { email, signOut } = useAuth()
-  const { collapsed, toggleCollapsed, toggleMobile } = useSidebar()
+  const { toggleMobile } = useSidebar()
   const name = displayName(me, email)
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-end gap-3 border-b border-border/50 bg-background/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/60 sm:px-6">
       <Button
-        variant="outline"
+        variant="ghost"
         size="icon"
-        className="lg:hidden"
+        className="mr-auto h-9 w-9 text-muted-foreground lg:hidden"
         onClick={toggleMobile}
         aria-label="Open menu"
       >
-        <Menu className="h-4 w-4" />
+        <Menu className="h-[18px] w-[18px]" />
       </Button>
 
-      <Button
-        variant="outline"
-        size="icon"
-        className="hidden lg:inline-flex"
-        onClick={toggleCollapsed}
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-      </Button>
-
-      <Separator orientation="vertical" className="hidden h-6 sm:block" />
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-foreground">
-            Dashboard
-          </Link>
-          <ChevronRight className="h-3 w-3" />
-          <span className="text-foreground">{title}</span>
-        </div>
-        <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-        {description && (
-          <p className="hidden truncate text-sm text-muted-foreground sm:block">{description}</p>
-        )}
-      </div>
-
-      <Badge variant="secondary" className="hidden sm:inline-flex">
+      <Badge variant="secondary" className="hidden shrink-0 sm:inline-flex">
         {me.role}
       </Badge>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-10 gap-2 px-2">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback>{initials(me.name, me.email)}</AvatarFallback>
+          <Button
+            variant="ghost"
+            className={cn(
+              'h-9 shrink-0 gap-2 rounded-full px-1.5 text-muted-foreground hover:text-foreground',
+              'md:rounded-lg md:px-2',
+            )}
+          >
+            <Avatar className="h-7 w-7">
+              <AvatarFallback className="text-[11px]">{initials(me.name, me.email)}</AvatarFallback>
             </Avatar>
-            <span className="hidden max-w-[120px] truncate text-sm font-medium md:inline">{name}</span>
+            <span className="hidden max-w-[140px] truncate text-sm font-medium text-foreground md:inline">
+              {name}
+            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>
-            <div className="flex flex-col gap-1">
-              <span>{name}</span>
-              <span className="text-xs font-normal text-muted-foreground">{email}</span>
+          <DropdownMenuLabel className="font-normal">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-medium text-foreground">{name}</span>
+              <span className="text-xs text-muted-foreground">{email}</span>
+              <span className="text-xs capitalize text-muted-foreground">{me.role.toLowerCase()}</span>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link to="/">Overview</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to="/structure">Structure</Link>
+            <Link to="/settings">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">

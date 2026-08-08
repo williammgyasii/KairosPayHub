@@ -27,6 +27,8 @@ public sealed record VerifyResult(RecordStatus Status, Guid VerifiedById, DateTi
 
 public sealed class ForbiddenException(string message = "Forbidden") : Exception(message);
 
+public sealed class BadRequestException(string message) : Exception(message);
+
 public static class RecordAuthorization
 {
     /// <summary>

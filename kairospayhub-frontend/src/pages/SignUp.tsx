@@ -3,9 +3,8 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { confirmEmail, register, resendConfirmation } from '@/auth/client'
-import { AuthFooterLink, AuthLayout } from '@/components/layout/AuthLayout'
+import { AuthFooterLink, AuthFormCard, AuthLayout } from '@/components/layout/AuthLayout'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -57,11 +56,10 @@ export function SignUp() {
     return (
       <AuthLayout
         title="Check your email"
-        subtitle={`We sent a 6-digit code to ${email}. In local dev, open MailHog at localhost:8025.`}
+        subtitle={`We sent a 6-digit code to ${email}. Check your inbox — in local dev, see the API terminal if email isn't configured.`}
       >
-        <Card className="border-none shadow-lg">
-          <CardContent className="pt-6">
-            <form onSubmit={onConfirm} className="space-y-4">
+        <AuthFormCard>
+          <form onSubmit={onConfirm} className="space-y-4">
               {error && <p className="text-sm text-destructive">{error}</p>}
 
               <div className="space-y-2">
@@ -88,8 +86,7 @@ export function SignUp() {
                 Resend code
               </Button>
             </form>
-          </CardContent>
-        </Card>
+        </AuthFormCard>
       </AuthLayout>
     )
   }
@@ -104,9 +101,8 @@ export function SignUp() {
         </>
       }
     >
-      <Card className="border-none shadow-lg">
-        <CardContent className="pt-6">
-          <form onSubmit={onCreate} className="space-y-4">
+      <AuthFormCard>
+        <form onSubmit={onCreate} className="space-y-4">
             {error && <p className="text-sm text-destructive">{error}</p>}
 
             <div className="space-y-2">
@@ -144,9 +140,8 @@ export function SignUp() {
             <Button className="w-full" type="submit" disabled={busy}>
               {busy ? 'Creating…' : 'Create account'}
             </Button>
-          </form>
-        </CardContent>
-      </Card>
+        </form>
+      </AuthFormCard>
     </AuthLayout>
   )
 }

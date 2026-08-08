@@ -90,8 +90,19 @@ public class AuthController(AuthService auth, UserManager<ApplicationUser> users
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
     {
-        await auth.ForgotPasswordAsync(request.Email, ct);
-        return Ok(new { message = "If that email is registered, a reset link was sent" });
+        try
+        {
+            var devLink = await auth.ForgotPasswordAsync(request.Email, ct);
+            return Ok(new
+            {
+                message = "If that email is registered, a reset link was sent",
+                devResetLink = devLink,
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = ex.Message });
+        }
     }
 
     [AllowAnonymous]

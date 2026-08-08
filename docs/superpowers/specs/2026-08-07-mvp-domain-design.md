@@ -12,7 +12,7 @@ Churches (especially within networks like CEYC) track partnership giving (Rhapso
 
 1. **Stop re-passing records** — enter once at the cell, roll up automatically.
 2. **Keep money offline** — screenshots + amounts as proof; payment gateway later.
-3. **Give the pastor a top-level view** with drill-down: PFCC → fellowship → cell → member.
+3. **Give the pastor a top-level view** with drill-down following **that church’s defined layer chain** down to member.
 4. **Let members log in** to view their own giving history (not create records).
 
 ---
@@ -22,7 +22,8 @@ Churches (especially within networks like CEYC) track partnership giving (Rhapso
 | Concept | Description |
 |---------|-------------|
 | **Church** | One local church (e.g. Naana’s church). Top tenant for MVP. |
-| **Structure tree** | PFCC (optional) → Fellowship → Cell → Member placement. |
+| **Structure template** | Pastor-defined ordered chain of org layers under Church (e.g. PFCC → Fellowship → Cell, or Group → PFCC → Fellowship → Cell). **Member is always the leaf** — not part of the template. |
+| **Structure tree** | Instances of each layer + members placed on the deepest org layer. |
 | **Giving program** | A container/campaign (e.g. “Rhapsody 2026”, “Sunday Service January”). |
 | **Contribution** | One member’s gift inside a program (amount, date, screenshot). |
 | **Scope** | Who may contribute into a program (church-wide vs fellowship vs PFCC vs selected fellowships). |
@@ -33,17 +34,137 @@ Churches (especially within networks like CEYC) track partnership giving (Rhapso
 
 ## Hierarchy (real world → model)
 
+**Church is always the root.** Before adding fellowships, cells, or people, the **pastor defines the org layer chain** for that church. Everything else hangs under that chain.
+
+### Two churches, two chains
+
 ```text
-Church
- └── PFCC (optional — some churches skip this)
-      └── Fellowship (Wally)
-           └── Cell (Josh)
-                └── Member (Kay)
+Church A template:  PFCC → Fellowship → Cell → Member (leaf)
+Church B template:  Group → PFCC → Fellowship → Cell → Member (leaf)
 ```
 
-- **Member** belongs to exactly **one cell** (MVP).
+- **Member** is always the **last** level — people, not an org layer in the template.
+- **Member** belongs to exactly **one parent node** on the **deepest org layer** (usually “Cell”) (MVP).
+- Layers use **standard types** from a fixed vocabulary and/or **custom display names** (e.g. standard `Group` labeled “Sect”).
+- After the template is saved, the pastor **creates instances** under each layer (e.g. three PFCCs, then fellowships under each PFCC).
+
+### Standard layer vocabulary (MVP)
+
+| Standard type | Typical role scope (later) |
+|---------------|----------------------------|
+| `Group` | Group leader (future) |
+| `PFCC` | PFCC manager |
+| `Fellowship` | Fellowship leader |
+| `Cell` | Cell leader |
+
+Pastor picks an **ordered subset** of these (and order matters). Custom **labels** are allowed per layer (e.g. display “Sect” while standard type remains `Group` for permissions).
+
+**Presets (shortcuts, not separate products):**
+
+| Preset | Layers (org only, before Member) |
+|--------|----------------------------------|
+| Standard | PFCC → Fellowship → Cell |
+| With groups | Group → PFCC → Fellowship → Cell |
+| Flat | Fellowship → Cell |
+
+### Conceptual model
+
+```text
+Church
+ └── StructureTemplate (one per church; pastor sets once)
+      └── StructureLayer[]   ordered; standard_type + display_name
+ └── StructureNode[]        instances; parent → child follows template order
+      └── Member[]          always leaf; parent = node on deepest org layer
+```
+
+Example instances for Church A:
+
+```text
+Church (Naana’s)
+ └── PFCC · North
+      └── Fellowship · Wally
+           └── Cell · Josh
+                └── Member · Kay
+```
+
 - **Department** (one per member): out of MVP; add later.
 - **Network (CEYC)** / partnership manager: out of MVP; add in phase 2.
+
+### Setup flow (UX)
+
+1. **Define chain** — pastor chooses preset or builds ordered layers (fixed types + optional custom labels).
+2. **Populate tree** — add nodes layer by layer (PFCCs, then fellowships under each PFCC, etc.). **Every org unit has a head** (leader) when created — see [Evolvable structure](#evolvable-structure).
+3. **Add members** — always on the deepest org layer only.
+
+Dashboard drill-down and giving roll-ups follow **that church’s layer order**, not a hard-coded PFCC-first path.
+
+### One-way chain (MVP)
+
+Structure is **one-way**: Church → layer₀ → layer₁ → … → deepest layer → Member (leaf).
+
+- Parent links always follow **template sort order** (a node’s parent is on the previous layer, or church for layer₀).
+- **Members never parent org nodes**; org nodes never parent church.
+- Wizards, roster tabs, and roll-ups derive steps/columns from `getLayers(template)` — not hard-coded PFCC/Fellowship/Cell names.
+
+**Later version (not MVP):** “two-way” structure editing — remove or reorder layers, collapse subtrees, undo migrations. MVP only supports **append** and **insert** with an explicit migration preview.
+
+---
+
+## Evolvable structure
+
+Pastors may need to **append** or **insert** org layers after roster data exists (e.g. add `Group` on top, or insert `Zone` between PFCC and Fellowship). The system must adapt wizards, roster, and membership without a full reset.
+
+### Allowed template changes (with roster present)
+
+| Change | MVP | Migration |
+|--------|-----|-----------|
+| Edit template / layer **display names** | Yes | None |
+| **Append** layer at top (new layer₀; old layer₀ becomes layer₁) | Yes | Re-parent: each old layer₀ node becomes child of a new auto-created layer₀ node under church |
+| **Append** layer before Member (new deepest layer) | Yes | Re-parent: each member’s current parent becomes child of a new deepest node; member attaches to new deepest |
+| **Insert** layer between existing layers | Yes | Auto-bridge (default) — see below |
+| Remove layer | No | Deferred (two-way / later version) |
+| Reorder layers | No | Deferred (two-way / later version) |
+
+### Insert-in-middle — auto-bridge (default)
+
+When pastor inserts layer **B** between **A** and **C**:
+
+```text
+Before:  A (PFCC 1) → C (Fellowship X) → …
+After:   A (PFCC 1) → B (Zone 1) → C (Fellowship X) → …
+```
+
+**Default migration:** for each node on layer **A**, create one new **B** node (e.g. “Zone 1” under PFCC 1) and re-parent all former **A→C** children to that **B** node. Pastor renames or splits zones afterward.
+
+Pastor must confirm a **dry-run preview** before apply (counts: nodes created, nodes re-parented, members unchanged).
+
+Optional later: manual mapping wizard when auto-bridge is wrong (one PFCC, many fellowships, pastor wants several zones).
+
+### Every org unit has a head
+
+**Rule:** every `StructureNode` has exactly one **head** (leader member) once the unit is fully set up.
+
+- Stored as `leader_member_id` on the node; role derived from layer `standard_type` (PFCC manager, fellowship leader, cell leader, etc.).
+- Create wizards: **unit details → head (leader)** at minimum; deeper layers may add “first child unit” steps when the next layer exists below.
+- “No leader yet” is not a long-term state — only allowed as a transient draft before the wizard completes (remove “optional no leader” from roster create flows over time).
+
+Members are not “heads” of org layers; they are leaves. A person may be head of a cell **and** a member on that same cell.
+
+### UI / API principles (implementation)
+
+1. **Never hard-code layer count or names** in wizards — use template order and `displayName`.
+2. **Deepest layer** = member placement layer (`getDeepestLayer`).
+3. **Child layer** = `sortOrder + 1`; **parent layer** = `sortOrder - 1`.
+4. Template mutation runs in a **single transaction** with validation: no orphan nodes, no members on non-deepest layers after migration.
+5. Current MVP lock (`Structure template cannot change after nodes exist`) is **temporary** until insert/append migration API ships.
+
+### Suggested delivery order
+
+1. Spec + integration tests for `POST /api/structure/template/evolve` (dry-run + apply).
+2. Unlock safe edits (display names).
+3. Append-top + insert-middle with auto-bridge preview UI.
+4. Refactor fellowship/cell wizards → generic layer-position wizards.
+5. Require head on all create flows; dashboard uses deepest layer, not `standardType === 'Cell'`.
 
 ---
 
@@ -150,33 +271,49 @@ Contribution
 
 ## Structure and membership
 
+**Replaces fixed `Pfcc` / `Fellowship` / `Cell` tables** with template + generic nodes (migration from current Phase 1 schema).
+
 ```text
-StructureNode (optional explicit tree) OR fixed levels:
+StructureTemplate
+  id, church_id
+  created_at, locked_at          optional — lock after first population
 
-Pfcc
-  id, church_id, name
+StructureLayer
+  id, template_id
+  sort_order                     0 = first layer under church
+  standard_type                  Group | PFCC | Fellowship | Cell
+  display_name                   e.g. "PFCC", "Sect", "Zone"
 
-Fellowship
-  id, church_id, pfcc_id (nullable), name
-
-Cell
-  id, church_id, fellowship_id, name
+StructureNode
+  id, church_id, layer_id
+  parent_node_id                 null → parent is church (first layer only)
+  name
+  unit_number                    optional sequential label among siblings
+  leader_member_id               head of this unit (required once setup complete)
 
 Member
-  id, church_id, cell_id
-  auth_user_id         nullable until invite accepted
+  id, church_id
+  parent_node_id                 must reference node on deepest org layer
+  auth_user_id                   nullable until invite accepted
   name, phone, email
   created_at
 
 RoleAssignment
   id, church_id, user_id (auth)
-  role                 Pastor | PFCCManager | FellowshipLeader | CellLeader | Member
-  scope_pfcc_id        nullable
-  scope_fellowship_id  nullable
-  scope_cell_id        nullable
+  role                           Pastor | PFCCManager | FellowshipLeader | CellLeader | Member
+  scope_node_id                  node at appropriate layer for role
 ```
 
-**Member** links to auth account for login. **PFCC manager** creates member accounts; **cell leader** assigns/confirms cell roster.
+**Member** links to auth account for login. Leaders are scoped to **structure nodes** at the layer matching their role’s standard type.
+
+### Current codebase gap
+
+Template-first **StructureNode** + wizards exist, but:
+
+- Template is **locked** after any roster node exists (needs evolve API).
+- Some UI still branches on `standardType === 'Fellowship' | 'Cell'` instead of layer position.
+- Leader can still be skipped on generic unit create — should converge on **every unit has a head**.
+- Dashboard metrics still assume a `Cell` layer by standard type.
 
 ---
 
@@ -253,7 +390,9 @@ Auth stays API-owned (ASP.NET Identity + JWT) — no change to auth architecture
 
 | Phase | Deliverable |
 |-------|-------------|
-| **1** | Schema: Church, PFCC, Fellowship, Cell, Member, RoleAssignment |
+| **1a** | *(done — to refactor)* Fixed PFCC / Fellowship / Cell / Member schema + CRUD |
+| **1b** | **Structure template:** pastor defines layer chain; generic `StructureNode`; migrate existing data |
+| **1c** | **Evolvable structure:** append/insert layers with auto-bridge migration; generic wizards; required head on every unit |
 | **2** | GivingProgram + scope rules + pastor creates Rhapsody |
 | **3** | Contribution + screenshot storage + cell leader UI |
 | **4** | Fellowship approval + pastor drill-down dashboard |
@@ -276,6 +415,10 @@ Each phase should ship testable API + minimal UI; review before next phase.
 | Pastor sees internal PFCC/fellowship programs? | Yes — always |
 | Screenshot required? | Yes — on every cell-leader contribution |
 | Public signup? | No — invite only |
+| Change structure after roster exists? | **Append** or **insert** only (with migration preview); remove/reorder later |
+| Insert layer between existing layers? | Yes — **auto-bridge** default (one new parent node per ancestor) |
+| Every org unit has a leader? | **Yes** — every structure node has a head |
+| Structure direction | **One-way** chain (Church → layers → member); two-way edit deferred |
 
 ---
 

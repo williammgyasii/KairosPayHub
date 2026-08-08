@@ -13,6 +13,8 @@ public class Church
     public ICollection<Cell> Cells { get; set; } = new List<Cell>();
     public ICollection<Member> Members { get; set; } = new List<Member>();
     public ICollection<RoleAssignment> RoleAssignments { get; set; } = new List<RoleAssignment>();
+    public StructureTemplate? Template { get; set; }
+    public ICollection<StructureNode> Nodes { get; set; } = new List<StructureNode>();
 }
 
 public class Pfcc
@@ -48,8 +50,6 @@ public class Cell
     public Fellowship? Fellowship { get; set; }
     public string Name { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
-
-    public ICollection<Member> Members { get; set; } = new List<Member>();
 }
 
 public class Member
@@ -57,12 +57,18 @@ public class Member
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid ChurchId { get; set; }
     public Church? Church { get; set; }
-    public Guid CellId { get; set; }
-    public Cell? Cell { get; set; }
+    public Guid ParentNodeId { get; set; }
+    public StructureNode? ParentNode { get; set; }
     public Guid? AuthUserId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? Phone { get; set; }
+    public int? Age { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public string? Residence { get; set; }
+    public MemberOccupationStatus? OccupationStatus { get; set; }
+    public string? SchoolOrWorkplace { get; set; }
+    public MemberPosition Position { get; set; } = MemberPosition.Member;
     public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -79,5 +85,7 @@ public class RoleAssignment
     public Fellowship? ScopeFellowship { get; set; }
     public Guid? ScopeCellId { get; set; }
     public Cell? ScopeCell { get; set; }
+    public Guid? ScopeNodeId { get; set; }
+    public StructureNode? ScopeNode { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

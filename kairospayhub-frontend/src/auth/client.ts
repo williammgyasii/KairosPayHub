@@ -59,8 +59,8 @@ export async function setPassword(token: string, password: string): Promise<void
   await authPost('/auth/set-password', { token, password })
 }
 
-export async function forgotPassword(email: string): Promise<void> {
-  await authPost('/auth/forgot-password', { email })
+export async function forgotPassword(email: string): Promise<{ devResetLink?: string }> {
+  return authPost('/auth/forgot-password', { email })
 }
 
 export async function resetPassword(token: string, password: string): Promise<void> {

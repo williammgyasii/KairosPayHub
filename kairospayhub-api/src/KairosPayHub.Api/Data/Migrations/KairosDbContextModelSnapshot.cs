@@ -111,6 +111,8 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("UserId", "Code");
+
                     b.ToTable("email_confirmation_codes", (string)null);
                 });
 
@@ -141,6 +143,10 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.HasIndex("TokenHash");
 
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TokenHash", "Purpose");
+
                     b.ToTable("one_time_tokens", (string)null);
                 });
 
@@ -168,9 +174,12 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TokenHash");
+                    b.HasIndex("TokenHash")
+                        .HasFilter("\"Revoked\" = false");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "Revoked");
 
                     b.ToTable("refresh_tokens", (string)null);
                 });
@@ -285,6 +294,12 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.HasIndex("VerifiedById");
 
+                    b.HasIndex("ChurchId", "Status");
+
+                    b.HasIndex("OrganizationId", "ChurchId");
+
+                    b.HasIndex("OrganizationId", "DateSent");
+
                     b.ToTable("records", (string)null);
                 });
 
@@ -308,6 +323,8 @@ namespace KairosPayHub.Api.Data.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("ChurchId", "Id");
 
                     b.HasIndex("FellowshipId");
 
@@ -371,10 +388,10 @@ namespace KairosPayHub.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("AuthUserId")
-                        .HasColumnType("uuid");
+                    b.Property<int?>("Age")
+                        .HasColumnType("integer");
 
-                    b.Property<Guid>("CellId")
+                    b.Property<Guid?>("AuthUserId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ChurchId")
@@ -383,6 +400,9 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("date");
+
                     b.Property<string>("Email")
                         .HasColumnType("text");
 
@@ -390,16 +410,36 @@ namespace KairosPayHub.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("OccupationStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ParentNodeId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Phone")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Residence")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SchoolOrWorkplace")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CellId");
+                    b.HasIndex("AuthUserId");
 
                     b.HasIndex("ChurchId");
 
-                    b.HasIndex("ChurchId", "CellId");
+                    b.HasIndex("ParentNodeId");
+
+                    b.HasIndex("ChurchId", "Email");
+
+                    b.HasIndex("ChurchId", "ParentNodeId");
 
                     b.ToTable("church_members", (string)null);
                 });
@@ -452,6 +492,9 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Property<Guid?>("ScopeFellowshipId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ScopeNodeId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("ScopePfccId")
                         .HasColumnType("uuid");
 
@@ -465,9 +508,119 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.HasIndex("ScopeFellowshipId");
 
+                    b.HasIndex("ScopeNodeId");
+
                     b.HasIndex("ScopePfccId");
 
+                    b.HasIndex("ChurchId", "AuthUserId");
+
+                    b.HasIndex("ChurchId", "Role");
+
+                    b.HasIndex("ChurchId", "ScopeNodeId");
+
                     b.ToTable("role_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureLayer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StandardType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("structure_layers", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureNode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LayerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LeaderMemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ParentNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UnitNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChurchId");
+
+                    b.HasIndex("LayerId");
+
+                    b.HasIndex("LeaderMemberId");
+
+                    b.HasIndex("ParentNodeId");
+
+                    b.HasIndex("ChurchId", "LayerId");
+
+                    b.HasIndex("ChurchId", "ParentNodeId");
+
+                    b.ToTable("structure_nodes", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChurchId")
+                        .IsUnique();
+
+                    b.ToTable("structure_templates", (string)null);
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.User", b =>
@@ -729,16 +882,16 @@ namespace KairosPayHub.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("KairosPayHub.Api.Domain.Structure.Cell", "Cell")
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.StructureNode", "ParentNode")
                         .WithMany("Members")
-                        .HasForeignKey("ChurchId", "CellId")
+                        .HasForeignKey("ChurchId", "ParentNodeId")
                         .HasPrincipalKey("ChurchId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Cell");
-
                     b.Navigation("Church");
+
+                    b.Navigation("ParentNode");
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Pfcc", b =>
@@ -770,6 +923,11 @@ namespace KairosPayHub.Api.Data.Migrations
                         .HasForeignKey("ScopeFellowshipId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.StructureNode", "ScopeNode")
+                        .WithMany()
+                        .HasForeignKey("ScopeNodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("KairosPayHub.Api.Domain.Structure.Pfcc", "ScopePfcc")
                         .WithMany()
                         .HasForeignKey("ScopePfccId")
@@ -781,7 +939,65 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.Navigation("ScopeFellowship");
 
+                    b.Navigation("ScopeNode");
+
                     b.Navigation("ScopePfcc");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureLayer", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.StructureTemplate", "Template")
+                        .WithMany("Layers")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureNode", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithMany("Nodes")
+                        .HasForeignKey("ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.StructureLayer", "Layer")
+                        .WithMany("Nodes")
+                        .HasForeignKey("LayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Member", "Leader")
+                        .WithMany()
+                        .HasForeignKey("LeaderMemberId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.StructureNode", "ParentNode")
+                        .WithMany("Children")
+                        .HasForeignKey("ChurchId", "ParentNodeId")
+                        .HasPrincipalKey("ChurchId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Church");
+
+                    b.Navigation("Layer");
+
+                    b.Navigation("Leader");
+
+                    b.Navigation("ParentNode");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureTemplate", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithOne("Template")
+                        .HasForeignKey("KairosPayHub.Api.Domain.Structure.StructureTemplate", "ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Church");
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.User", b =>
@@ -860,11 +1076,6 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Navigation("Users");
                 });
 
-            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Cell", b =>
-                {
-                    b.Navigation("Members");
-                });
-
             modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Church", b =>
                 {
                     b.Navigation("Cells");
@@ -873,9 +1084,13 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.Navigation("Members");
 
+                    b.Navigation("Nodes");
+
                     b.Navigation("Pfccs");
 
                     b.Navigation("RoleAssignments");
+
+                    b.Navigation("Template");
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Fellowship", b =>
@@ -886,6 +1101,23 @@ namespace KairosPayHub.Api.Data.Migrations
             modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Pfcc", b =>
                 {
                     b.Navigation("Fellowships");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureLayer", b =>
+                {
+                    b.Navigation("Nodes");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureNode", b =>
+                {
+                    b.Navigation("Children");
+
+                    b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.StructureTemplate", b =>
+                {
+                    b.Navigation("Layers");
                 });
 #pragma warning restore 612, 618
         }

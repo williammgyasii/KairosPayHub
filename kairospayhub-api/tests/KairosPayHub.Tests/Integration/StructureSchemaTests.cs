@@ -11,36 +11,43 @@ public class StructureSchemaTests(PostgresFixture fx) : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task Can_persist_church_hierarchy_with_pfcc()
+    public async Task Can_persist_template_node_hierarchy_and_member()
     {
         var church = StructureSeed.Church();
-        var pfcc = StructureSeed.Pfcc(church);
-        var fellowship = StructureSeed.Fellowship(church, pfcc: pfcc);
-        var cell = StructureSeed.Cell(church, fellowship);
+        var template = StructureSeed.Template(
+            church,
+            (StructureLayerType.PFCC, "PFCC"),
+            (StructureLayerType.Fellowship, "Fellowship"),
+            (StructureLayerType.Cell, "Cell"));
+        var pfccLayer = template.Layers.Single(l => l.StandardType == StructureLayerType.PFCC);
+        var fellowshipLayer = template.Layers.Single(l => l.StandardType == StructureLayerType.Fellowship);
+        var cellLayer = template.Layers.Single(l => l.StandardType == StructureLayerType.Cell);
+
+        var pfcc = StructureSeed.Node(church, pfccLayer, "PFCC One");
+        var fellowship = StructureSeed.Node(church, fellowshipLayer, "Fellowship A", pfcc);
+        var cell = StructureSeed.Node(church, cellLayer, "Cell 1", fellowship);
         var member = StructureSeed.Member(church, cell, "Kay", "kay@example.com");
 
         await using (var db = fx.CreateContext())
         {
-            db.AddRange(church, pfcc, fellowship, cell, member);
+            db.AddRange(church, template, pfcc, fellowship, cell, member);
             await db.SaveChangesAsync();
         }
 
         await using (var db = fx.CreateContext())
         {
             var loaded = await db.StructureChurches
-                .Include(c => c.Pfccs)
-                .Include(c => c.Fellowships)
-                .Include(c => c.Cells)
+                .Include(c => c.Template!.Layers)
+                .Include(c => c.Nodes)
                 .Include(c => c.Members)
                 .SingleAsync(c => c.Id == church.Id);
 
-            Assert.Single(loaded.Pfccs);
-            Assert.Single(loaded.Fellowships);
-            Assert.Equal(pfcc.Id, loaded.Fellowships.First().PfccId);
-            Assert.Single(loaded.Cells);
+            Assert.NotNull(loaded.Template);
+            Assert.Equal(3, loaded.Template!.Layers.Count);
+            Assert.Equal(3, loaded.Nodes.Count);
             Assert.Single(loaded.Members);
             Assert.Equal("Kay", loaded.Members.First().Name);
-            Assert.True(loaded.Members.First().CreatedAt > DateTimeOffset.MinValue);
+            Assert.Equal(cell.Id, loaded.Members.First().ParentNodeId);
         }
     }
 
@@ -65,17 +72,23 @@ public class StructureSchemaTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Role_assignment_links_auth_user_to_church_scope()
+    public async Task Role_assignment_links_auth_user_to_node_scope()
     {
         var church = StructureSeed.Church();
-        var fellowship = StructureSeed.Fellowship(church);
-        var cell = StructureSeed.Cell(church, fellowship);
+        var template = StructureSeed.Template(
+            church,
+            (StructureLayerType.Fellowship, "Fellowship"),
+            (StructureLayerType.Cell, "Cell"));
+        var fellowshipLayer = template.Layers.Single(l => l.StandardType == StructureLayerType.Fellowship);
+        var cellLayer = template.Layers.Single(l => l.StandardType == StructureLayerType.Cell);
+        var fellowship = StructureSeed.Node(church, fellowshipLayer, "Fellowship A");
+        var cell = StructureSeed.Node(church, cellLayer, "Cell 1", fellowship);
         var authUserId = Guid.NewGuid();
         var assignment = StructureSeed.CellLeaderRole(church, authUserId, cell);
 
         await using (var db = fx.CreateContext())
         {
-            db.AddRange(church, fellowship, cell, assignment);
+            db.AddRange(church, template, fellowship, cell, assignment);
             await db.SaveChangesAsync();
         }
 
@@ -83,23 +96,33 @@ public class StructureSchemaTests(PostgresFixture fx) : IAsyncLifetime
         {
             var loaded = await db.RoleAssignments.SingleAsync(r => r.Id == assignment.Id);
             Assert.Equal(ChurchRole.CellLeader, loaded.Role);
-            Assert.Equal(cell.Id, loaded.ScopeCellId);
-            Assert.Equal(fellowship.Id, loaded.ScopeFellowshipId);
+            Assert.Equal(cell.Id, loaded.ScopeNodeId);
             Assert.Equal(authUserId, loaded.AuthUserId);
         }
     }
 
     [Fact]
-    public async Task Member_cell_must_belong_to_same_church()
+    public async Task Member_parent_node_must_belong_to_same_church()
     {
         var churchA = StructureSeed.Church("A");
         var churchB = StructureSeed.Church("B");
-        var fellowshipA = StructureSeed.Fellowship(churchA);
-        var cellA = StructureSeed.Cell(churchA, fellowshipA);
-        var member = StructureSeed.Member(churchB, cellA);
+        var templateA = StructureSeed.Template(
+            churchA,
+            (StructureLayerType.Fellowship, "Fellowship"),
+            (StructureLayerType.Cell, "Cell"));
+        var fellowshipLayer = templateA.Layers.Single(l => l.StandardType == StructureLayerType.Fellowship);
+        var cellLayer = templateA.Layers.Single(l => l.StandardType == StructureLayerType.Cell);
+        var fellowship = StructureSeed.Node(churchA, fellowshipLayer, "Fellowship A");
+        var cell = StructureSeed.Node(churchA, cellLayer, "Cell 1", fellowship);
+        var member = new Member
+        {
+            ChurchId = churchB.Id,
+            ParentNodeId = cell.Id,
+            Name = "Wrong church",
+        };
 
         await using var db = fx.CreateContext();
-        db.AddRange(churchA, churchB, fellowshipA, cellA, member);
+        db.AddRange(churchA, churchB, templateA, fellowship, cell, member);
 
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
     }

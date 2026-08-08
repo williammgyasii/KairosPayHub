@@ -15,11 +15,17 @@ export function ChurchBrand({ churchName, logoUrl, collapsed, className }: Churc
   const fallback = churchName ? initials(churchName) : DEFAULT_CHURCH_EMOJI
 
   return (
-    <div className={cn('flex items-center gap-3', collapsed && 'justify-center', className)}>
+    <div
+      className={cn(
+        'flex items-center',
+        collapsed ? 'justify-center' : 'gap-3',
+        className,
+      )}
+    >
       <Avatar
         className={cn(
           'shrink-0 rounded-xl border bg-muted/40',
-          collapsed ? 'h-11 w-11' : 'h-12 w-12',
+          collapsed ? 'size-10' : 'size-12',
         )}
       >
         {logoUrl ? <AvatarImage src={logoUrl} alt={label} className="object-cover" /> : null}

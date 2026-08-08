@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 
 namespace KairosPayHub.Tests.Integration;
 
@@ -19,6 +20,84 @@ public class AuthTests : IAsyncLifetime
     public Task InitializeAsync() => _fx.ResetAsync();
 
     public async Task DisposeAsync() => await _factory.DisposeAsync();
+
+    [Fact]
+    public async Task Onboarding_relinks_legacy_user_when_email_already_exists()
+    {
+        var oldAuthUserId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var churchId = Guid.NewGuid();
+
+        await using (var db = _fx.CreateContext())
+        {
+            db.Organizations.Add(new KairosPayHub.Api.Domain.Organization
+            {
+                Id = orgId,
+                Name = "Legacy Org",
+            });
+            db.StructureChurches.Add(new KairosPayHub.Api.Domain.Structure.Church
+            {
+                Id = churchId,
+                Name = "Legacy Church",
+            });
+            db.AppUsers.Add(new KairosPayHub.Api.Domain.User
+            {
+                OrganizationId = orgId,
+                AuthSubject = oldAuthUserId.ToString(),
+                Name = "William",
+                Email = "legacy-pastor@example.com",
+                Role = KairosPayHub.Api.Domain.Role.Pastor,
+            });
+            db.RoleAssignments.Add(new KairosPayHub.Api.Domain.Structure.RoleAssignment
+            {
+                ChurchId = churchId,
+                AuthUserId = oldAuthUserId,
+                Role = KairosPayHub.Api.Domain.Structure.ChurchRole.Pastor,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        _factory.Email.Clear();
+        var client = _factory.CreateClient();
+
+        await client.PostAsJsonAsync("/auth/register", new
+        {
+            name = "William",
+            email = "legacy-pastor@example.com",
+            password = "Password1",
+        });
+        var code = _factory.Email.ExtractConfirmationCode()!;
+        await client.PostAsJsonAsync("/auth/confirm-email", new
+        {
+            email = "legacy-pastor@example.com",
+            code,
+        });
+
+        var login = await client.PostAsJsonAsync("/auth/login", new
+        {
+            email = "legacy-pastor@example.com",
+            password = "Password1",
+        });
+        var access = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access);
+
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { churchName = "Grace Assembly" });
+        Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
+
+        var body = await onboard.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("relinked").GetBoolean());
+        Assert.Equal(churchId, body.GetProperty("churchId").GetGuid());
+
+        await using var verify = _fx.CreateContext();
+        var newAuthUserId = await verify.Users
+            .Where(u => u.Email == "legacy-pastor@example.com")
+            .Select(u => u.Id)
+            .SingleAsync();
+        var assignment = await verify.RoleAssignments.SingleAsync();
+        Assert.Equal(newAuthUserId, assignment.AuthUserId);
+        Assert.Equal(1, await verify.AppUsers.CountAsync());
+    }
 
     [Fact]
     public async Task Register_confirm_login_and_onboard()

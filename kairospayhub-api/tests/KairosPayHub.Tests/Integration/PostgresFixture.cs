@@ -38,7 +38,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         await using var db = CreateContext();
         await db.Database.ExecuteSqlRawAsync("""
             TRUNCATE records, users, churches, organizations,
-              role_assignments, church_members, structure_cells,
+              role_assignments, church_members, structure_nodes, structure_layers,
+              structure_templates, structure_cells,
               structure_fellowships, pfccs, church_tenants,
               refresh_tokens, one_time_tokens, email_confirmation_codes,
               "AspNetRoleClaims", "AspNetUserClaims", "AspNetUserLogins",

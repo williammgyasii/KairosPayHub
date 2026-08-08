@@ -23,6 +23,9 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
     public DbSet<Domain.Structure.Cell> StructureCells => Set<Domain.Structure.Cell>();
     public DbSet<Domain.Structure.Member> ChurchMembers => Set<Domain.Structure.Member>();
     public DbSet<Domain.Structure.RoleAssignment> RoleAssignments => Set<Domain.Structure.RoleAssignment>();
+    public DbSet<Domain.Structure.StructureTemplate> StructureTemplates => Set<Domain.Structure.StructureTemplate>();
+    public DbSet<Domain.Structure.StructureLayer> StructureLayers => Set<Domain.Structure.StructureLayer>();
+    public DbSet<Domain.Structure.StructureNode> StructureNodes => Set<Domain.Structure.StructureNode>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -81,6 +84,9 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
                 .HasDefaultValue(RecordStatus.Submitted);
             e.HasIndex(x => x.OrganizationId);
             e.HasIndex(x => x.ChurchId);
+            e.HasIndex(x => new { x.OrganizationId, x.ChurchId });
+            e.HasIndex(x => new { x.ChurchId, x.Status });
+            e.HasIndex(x => new { x.OrganizationId, x.DateSent });
             e.HasOne(x => x.Church)
                 .WithMany()
                 .HasForeignKey(x => x.ChurchId)
@@ -98,8 +104,10 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         b.Entity<RefreshToken>(e =>
         {
             e.ToTable("refresh_tokens");
-            e.HasIndex(x => x.TokenHash);
+            e.HasIndex(x => x.TokenHash)
+                .HasFilter("\"Revoked\" = false");
             e.HasIndex(x => x.UserId);
+            e.HasIndex(x => new { x.UserId, x.Revoked });
         });
 
         b.Entity<OneTimeToken>(e =>
@@ -107,12 +115,15 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.ToTable("one_time_tokens");
             e.Property(x => x.Purpose).HasConversion<string>();
             e.HasIndex(x => x.TokenHash);
+            e.HasIndex(x => new { x.TokenHash, x.Purpose });
+            e.HasIndex(x => x.UserId);
         });
 
         b.Entity<EmailConfirmationCode>(e =>
         {
             e.ToTable("email_confirmation_codes");
             e.HasIndex(x => x.UserId);
+            e.HasIndex(x => new { x.UserId, x.Code });
         });
 
         ConfigureStructure(b);
@@ -175,17 +186,75 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         {
             e.ToTable("church_members");
             e.Property(x => x.Name).IsRequired();
+            e.Property(x => x.Position).HasConversion<string>().IsRequired();
             e.HasIndex(x => x.ChurchId);
-            e.HasIndex(x => x.CellId);
+            e.HasIndex(x => x.ParentNodeId);
+            e.HasIndex(x => new { x.ChurchId, x.ParentNodeId });
+            e.HasIndex(x => x.AuthUserId);
+            e.HasIndex(x => new { x.ChurchId, x.Email });
             e.HasOne(x => x.Church)
                 .WithMany(c => c.Members)
                 .HasForeignKey(x => x.ChurchId)
                 .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(x => x.Cell)
-                .WithMany(c => c.Members)
-                .HasForeignKey(x => new { x.ChurchId, x.CellId })
-                .HasPrincipalKey(c => new { c.ChurchId, c.Id })
+            e.HasOne(x => x.ParentNode)
+                .WithMany(n => n.Members)
+                .HasForeignKey(x => new { x.ChurchId, x.ParentNodeId })
+                .HasPrincipalKey(n => new { n.ChurchId, n.Id })
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<Domain.Structure.StructureTemplate>(e =>
+        {
+            e.ToTable("structure_templates");
+            e.Property(x => x.Name).IsRequired().HasMaxLength(120);
+            e.HasIndex(x => x.ChurchId).IsUnique();
+            e.HasOne(x => x.Church)
+                .WithOne(c => c.Template)
+                .HasForeignKey<Domain.Structure.StructureTemplate>(x => x.ChurchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Structure.StructureLayer>(e =>
+        {
+            e.ToTable("structure_layers");
+            e.Property(x => x.StandardType).HasConversion<string>().IsRequired();
+            e.Property(x => x.DisplayName).IsRequired();
+            e.HasIndex(x => new { x.TemplateId, x.SortOrder }).IsUnique();
+            e.HasOne(x => x.Template)
+                .WithMany(t => t.Layers)
+                .HasForeignKey(x => x.TemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Structure.StructureNode>(e =>
+        {
+            e.ToTable("structure_nodes");
+            e.Property(x => x.Name).IsRequired();
+            e.HasAlternateKey(x => new { x.ChurchId, x.Id });
+            e.HasIndex(x => x.ChurchId);
+            e.HasIndex(x => x.LayerId);
+            e.HasIndex(x => x.ParentNodeId);
+            e.HasIndex(x => new { x.ChurchId, x.ParentNodeId });
+            e.HasIndex(x => new { x.ChurchId, x.LayerId });
+            e.HasIndex(x => x.LeaderMemberId);
+            e.HasOne(x => x.Church)
+                .WithMany(c => c.Nodes)
+                .HasForeignKey(x => x.ChurchId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Layer)
+                .WithMany(l => l.Nodes)
+                .HasForeignKey(x => x.LayerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ParentNode)
+                .WithMany(n => n.Children)
+                .HasForeignKey(x => new { x.ChurchId, x.ParentNodeId })
+                .HasPrincipalKey(n => new { n.ChurchId, n.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.UnitNumber).HasMaxLength(50);
+            e.HasOne(x => x.Leader)
+                .WithMany()
+                .HasForeignKey(x => x.LeaderMemberId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<Domain.Structure.RoleAssignment>(e =>
@@ -194,6 +263,9 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.Role).HasConversion<string>().IsRequired();
             e.HasIndex(x => x.ChurchId);
             e.HasIndex(x => x.AuthUserId);
+            e.HasIndex(x => new { x.ChurchId, x.AuthUserId });
+            e.HasIndex(x => new { x.ChurchId, x.ScopeNodeId });
+            e.HasIndex(x => new { x.ChurchId, x.Role });
             e.HasOne(x => x.Church)
                 .WithMany(c => c.RoleAssignments)
                 .HasForeignKey(x => x.ChurchId)
@@ -209,6 +281,10 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.HasOne(x => x.ScopeCell)
                 .WithMany()
                 .HasForeignKey(x => x.ScopeCellId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.ScopeNode)
+                .WithMany()
+                .HasForeignKey(x => x.ScopeNodeId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }

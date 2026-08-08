@@ -18,55 +18,167 @@ public class StructureController(CurrentActor current, StructureService structur
         return Ok(await structure.GetTreeAsync(actor, ct));
     }
 
-    [HttpPost("pfccs")]
-    public async Task<IActionResult> CreatePfcc([FromBody] CreatePfccRequest request, CancellationToken ct)
+    [HttpGet("template")]
+    public async Task<IActionResult> GetTemplate(CancellationToken ct)
+    {
+        var actor = await current.RequireAsync(ct);
+        var template = await structure.GetTemplateAsync(actor, ct);
+        return template is null ? NotFound() : Ok(template);
+    }
+
+    [HttpPut("template")]
+    public async Task<IActionResult> SetTemplate(
+        [FromBody] SetStructureTemplateRequest request,
+        CancellationToken ct)
+    {
+        if (request.Layers is null || request.Layers.Count == 0)
+            return BadRequest(new { error = "Layers are required" });
+
+        var actor = await current.RequireAsync(ct);
+        return Ok(await structure.SetTemplateAsync(actor, request.Name, request.Layers, ct));
+    }
+
+    [HttpPost("template/evolve")]
+    public async Task<IActionResult> EvolveTemplate(
+        [FromBody] EvolveStructureTemplateRequest request,
+        CancellationToken ct)
+    {
+        var actor = await current.RequireAsync(ct);
+        return Ok(await structure.EvolveTemplateAsync(actor, request, ct));
+    }
+
+    [HttpDelete("template")]
+    public async Task<IActionResult> DeleteTemplate(CancellationToken ct)
+    {
+        var actor = await current.RequireAsync(ct);
+        await structure.DeleteTemplateAsync(actor, ct);
+        return NoContent();
+    }
+
+    [HttpPost("nodes")]
+    public async Task<IActionResult> CreateNode(
+        [FromBody] CreateStructureNodeRequest request,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
             return BadRequest(new { error = "Name is required" });
+        if (request.LayerId == Guid.Empty)
+            return BadRequest(new { error = "LayerId is required" });
 
         var actor = await current.RequireAsync(ct);
-        return Ok(await structure.CreatePfccAsync(actor, request.Name, ct));
+        return Ok(await structure.CreateNodeAsync(
+            actor,
+            request.LayerId,
+            request.ParentNodeId,
+            request.Name,
+            request.UnitNumber,
+            request.LeaderMemberId,
+            request.NewLeader,
+            ct));
     }
 
-    [HttpPost("fellowships")]
-    public async Task<IActionResult> CreateFellowship(
-        [FromBody] CreateFellowshipRequest request,
+    [HttpPatch("nodes/{nodeId:guid}")]
+    public async Task<IActionResult> UpdateNode(
+        Guid nodeId,
+        [FromBody] UpdateStructureNodeRequest request,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
             return BadRequest(new { error = "Name is required" });
 
         var actor = await current.RequireAsync(ct);
-        return Ok(await structure.CreateFellowshipAsync(actor, request.Name, request.PfccId, ct));
+        return Ok(await structure.UpdateNodeAsync(
+            actor,
+            nodeId,
+            request.Name,
+            request.UnitNumber,
+            request.LeaderMemberId,
+            request.NewLeader,
+            ct));
     }
 
-    [HttpPost("cells")]
-    public async Task<IActionResult> CreateCell([FromBody] CreateCellRequest request, CancellationToken ct)
+    [HttpDelete("nodes/{nodeId:guid}")]
+    public async Task<IActionResult> DeleteNode(Guid nodeId, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { error = "Name is required" });
-        if (request.FellowshipId == Guid.Empty)
-            return BadRequest(new { error = "FellowshipId is required" });
-
         var actor = await current.RequireAsync(ct);
-        return Ok(await structure.CreateCellAsync(actor, request.Name, request.FellowshipId, ct));
+        await structure.DeleteNodeAsync(actor, nodeId, ct);
+        return NoContent();
+    }
+
+    [HttpPatch("nodes/{nodeId:guid}/link")]
+    public async Task<IActionResult> LinkNode(
+        Guid nodeId,
+        [FromBody] LinkStructureNodeRequest request,
+        CancellationToken ct)
+    {
+        var actor = await current.RequireAsync(ct);
+        return Ok(await structure.LinkNodeAsync(actor, nodeId, request.ParentNodeId, ct));
     }
 
     [HttpPost("members")]
-    public async Task<IActionResult> CreateMember([FromBody] CreateMemberRequest request, CancellationToken ct)
+    public async Task<IActionResult> CreateMember(
+        [FromBody] CreateStructureMemberRequest request,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
             return BadRequest(new { error = "Name is required" });
-        if (request.CellId == Guid.Empty)
-            return BadRequest(new { error = "CellId is required" });
+        if (request.ParentNodeId == Guid.Empty)
+            return BadRequest(new { error = "ParentNodeId is required" });
 
         var actor = await current.RequireAsync(ct);
         return Ok(await structure.CreateMemberAsync(
             actor,
             request.Name,
-            request.CellId,
+            request.ParentNodeId,
             request.Email,
             request.Phone,
+            request.Age,
+            request.DateOfBirth,
+            request.Residence,
+            StructureService.ParseMemberOccupationStatus(request.OccupationStatus),
+            request.SchoolOrWorkplace,
+            StructureService.ParseMemberPosition(request.Position),
             ct));
+    }
+
+    [HttpPatch("members/{memberId:guid}")]
+    public async Task<IActionResult> UpdateMember(
+        Guid memberId,
+        [FromBody] UpdateStructureMemberRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(new { error = "Name is required" });
+        if (request.ParentNodeId == Guid.Empty)
+            return BadRequest(new { error = "ParentNodeId is required" });
+
+        var actor = await current.RequireAsync(ct);
+        return Ok(await structure.UpdateMemberAsync(
+            actor,
+            memberId,
+            request.Name,
+            request.ParentNodeId,
+            request.Email,
+            request.Phone,
+            request.Age,
+            request.DateOfBirth,
+            request.Residence,
+            StructureService.ParseMemberOccupationStatus(request.OccupationStatus),
+            request.SchoolOrWorkplace,
+            StructureService.ParseMemberPosition(request.Position),
+            ct));
+    }
+
+    [HttpPatch("members/{memberId:guid}/link")]
+    public async Task<IActionResult> LinkMember(
+        Guid memberId,
+        [FromBody] LinkStructureMemberRequest request,
+        CancellationToken ct)
+    {
+        if (request.ParentNodeId == Guid.Empty)
+            return BadRequest(new { error = "ParentNodeId is required" });
+
+        var actor = await current.RequireAsync(ct);
+        return Ok(await structure.LinkMemberAsync(actor, memberId, request.ParentNodeId, ct));
     }
 }

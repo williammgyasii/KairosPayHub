@@ -5,7 +5,7 @@ using MimeKit;
 
 namespace KairosPayHub.Api.Email;
 
-public class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSender
+public class SmtpEmailSender(IOptions<EmailOptions> options, IHostEnvironment environment)
 {
     public async Task SendAsync(string toEmail, string subject, string body, CancellationToken ct = default)
     {
@@ -20,6 +20,10 @@ public class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSender
         message.Body = new TextPart("plain") { Text = body };
 
         using var client = new SmtpClient();
+        // macOS dev machines often fail OCSP/revocation checks against Resend SMTP.
+        if (environment.IsDevelopment())
+            client.CheckCertificateRevocation = false;
+
         await client.ConnectAsync(cfg.Smtp.Host, cfg.Smtp.Port,
             cfg.Smtp.UseTls ? SecureSocketOptions.StartTls : SecureSocketOptions.None, ct);
 

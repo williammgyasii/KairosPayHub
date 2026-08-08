@@ -1,6 +1,7 @@
 import { useOutletContext } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
+import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { getAccessToken } from '@/auth/client'
 import { Button } from '@/components/ui/button'
@@ -49,6 +50,15 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      <DashboardPageHeader
+        breadcrumbs={[
+          { label: 'Overview', to: '/' },
+          { label: 'Settings' },
+        ]}
+        title="Settings"
+        description="Manage your church branding and account preferences."
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Church branding</CardTitle>
