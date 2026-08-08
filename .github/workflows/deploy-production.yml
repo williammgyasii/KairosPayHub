@@ -1,4 +1,4 @@
-name: Release
+name: Deploy to Production
 
 on:
   push:
@@ -6,11 +6,11 @@ on:
       - v*
 
 concurrency:
-  group: release-prod
+  group: deploy-production
   cancel-in-progress: false
 
 jobs:
-  deploy-production:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

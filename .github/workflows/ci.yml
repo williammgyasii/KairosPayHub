@@ -1,4 +1,5 @@
-name: CI
+# Tests on every PR/push. Render dev auto-deploy waits for this workflow to pass (checksPass).
+name: Test
 
 on:
   push:
