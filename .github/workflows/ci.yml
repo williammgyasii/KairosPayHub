@@ -43,7 +43,5 @@ jobs:
 
       - name: Build
         env:
-          VITE_COGNITO_USER_POOL_ID: us-east-1_placeholder
-          VITE_COGNITO_CLIENT_ID: placeholder
-          VITE_API_URL: https://api.kairospayhub.com
+          VITE_API_URL: https://dev.api.kairospayhub.com
         run: npm run build

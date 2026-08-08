@@ -167,18 +167,21 @@ Local API uses `appsettings.Development.json` for JWT issuer localhost + CORS fo
 
 ---
 
-## Git & deploy flow
+## Git & deploy flow (Option A)
 
-| Branch | Deploys to | Blueprint |
-|--------|------------|-----------|
-| `main` | Production | `render.yaml` |
-| `develop` | Development | `render.dev.yaml` |
+Single branch **`main`**, single Blueprint **`render.yaml`**, two Render environments under project **KairosPayHub**.
 
-Workflow:
+| Target | Trigger | Mechanism |
+|--------|---------|-----------|
+| **Development** | Merge/push to `main` + CI green | Render `autoDeployTrigger: checksPass` on dev services |
+| **Production** | Git tag `v*` on `main` | GitHub Actions `release.yml` → Render Deploy API (`autoDeployTrigger: off`) |
 
-1. Feature branch → PR → merge to `develop` → auto-deploy dev.
-2. Validate on `dev.app` / `dev.api`.
-3. Merge `develop` → `main` → auto-deploy prod.
+```bash
+git push origin main              # → dev after CI
+git tag v0.2.0 && git push origin v0.2.0   # → prod
+```
+
+The `develop` branch and `render.dev.yaml` are **retired** — do not use for deploys.
 
 ---
 
@@ -186,12 +189,13 @@ Workflow:
 
 | File | Role |
 |------|------|
-| `render.yaml` | Prod Render Blueprint |
-| `render.dev.yaml` | Dev Render Blueprint |
+| `render.yaml` | Single Blueprint — KairosPayHub project (Development + Production) |
+| `.github/workflows/ci.yml` | Tests on PR + main (gates dev deploy) |
+| `.github/workflows/release.yml` | Prod deploy on `v*` tags |
 | `.env.example` | Documented template (no secrets) |
 | `.env` | Local secrets → **dev resources only** (gitignored) |
 | `wrangler.toml` | Cloudflare account + R2 notes |
-| `infra/environments.md` | Operator runbook (DNS, dashboards, smoke tests) |
+| `infra/environments.md` | Operator runbook |
 
 ---
 

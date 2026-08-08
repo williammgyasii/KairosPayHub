@@ -9,7 +9,6 @@ KairosPayHub runs on **Render** (API, frontend, Postgres) and **Cloudflare** (DN
 
 | Blueprint | Environment |
 |-----------|-------------|
-| `render.yaml` | Production (`main`) |
-| `render.dev.yaml` | Development (`develop`) |
+| `render.yaml` | KairosPayHub → Development + Production |
 
 AWS/Cognito infrastructure was removed; see git history if you need to clean up orphaned AWS resources.

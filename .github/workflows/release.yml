@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+concurrency:
+  group: release-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy production API
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_PROD_API_SERVICE_ID }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          test -n "$RENDER_API_KEY"
+          test -n "$SERVICE_ID"
+          curl -fsS -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"commitId\":\"${COMMIT_SHA}\",\"clearCache\":\"do_not_clear\"}"
+
+      - name: Deploy production frontend
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_PROD_FRONTEND_SERVICE_ID }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          test -n "$RENDER_API_KEY"
+          test -n "$SERVICE_ID"
+          curl -fsS -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"commitId\":\"${COMMIT_SHA}\",\"clearCache\":\"do_not_clear\"}"

@@ -84,9 +84,10 @@ def wait_postgres(token: str, postgres_id: str, timeout_s: int = 900):
     raise TimeoutError("Postgres did not become available in time")
 
 
-def postgres_connection(token: str, postgres_id: str):
+def postgres_connection(token: str, postgres_id: str, *, internal: bool = True):
     status, data = request("GET", f"{RENDER_BASE}/postgres/{postgres_id}/connection-info", token)
-    return data["externalConnectionString"]
+    key = "internalConnectionString" if internal else "externalConnectionString"
+    return data[key]
 
 
 def get_env_vars(token: str, service_id: str):
