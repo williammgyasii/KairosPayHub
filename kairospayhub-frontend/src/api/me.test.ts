@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { displayName, needsOnboarding, type Me } from './me'
+import { displayName, isPastor, isScopedLeader, needsOnboarding, type Me } from './me'
 
 const notOnboarded: Me = { onboarded: false, email: 'p@example.com', name: null }
 
@@ -39,5 +39,21 @@ describe('displayName', () => {
     expect(
       displayName({ onboarded: false, email: null, name: null }, 'session@example.com'),
     ).toBe('session@example.com')
+  })
+})
+
+describe('isPastor', () => {
+  it('is true only for Pastor role', () => {
+    expect(isPastor('Pastor')).toBe(true)
+    expect(isPastor('PFCCManager')).toBe(false)
+    expect(isPastor('CellLeader')).toBe(false)
+  })
+})
+
+describe('isScopedLeader', () => {
+  it('is true for PFCC and fellowship leaders', () => {
+    expect(isScopedLeader('PFCCManager')).toBe(true)
+    expect(isScopedLeader('FellowshipLeader')).toBe(true)
+    expect(isScopedLeader('Pastor')).toBe(false)
   })
 })

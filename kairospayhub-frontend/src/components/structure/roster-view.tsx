@@ -24,9 +24,10 @@ interface RosterViewProps {
   error: string | null
   busy: boolean
   submit: (action: () => Promise<void>) => Promise<void>
+  readOnly?: boolean
 }
 
-export function RosterView({ tree, error, busy, submit }: RosterViewProps) {
+export function RosterView({ tree, error, busy, submit, readOnly = false }: RosterViewProps) {
   const layers = getLayers(tree)
   const [tab, setTab] = useState<string>(layers[0]?.id ?? '')
   const activeLayer = layers.find((l) => l.id === tab) ?? layers[0]
@@ -55,6 +56,7 @@ export function RosterView({ tree, error, busy, submit }: RosterViewProps) {
           tree={tree}
           busy={busy}
           submit={submit}
+          hidden={readOnly}
         />
       </div>
 
@@ -74,11 +76,13 @@ function AddLayerButton({
   tree,
   busy,
   submit,
+  hidden = false,
 }: {
   layer: StructureLayer
   tree: StructureTree
   busy: boolean
   submit: RosterViewProps['submit']
+  hidden?: boolean
 }) {
   const api = useApi()
   const [open, setOpen] = useState(false)
@@ -87,6 +91,8 @@ function AddLayerButton({
   const parentOptions = parentOptionsForLayer(tree, layer)
   const parentLayer = getLayers(tree)[layer.sortOrder - 1]
   const blocked = layer.sortOrder > 0 && parentOptions.length === 0
+
+  if (hidden) return null
 
   return (
     <div className="relative">

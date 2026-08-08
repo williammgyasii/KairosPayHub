@@ -27,6 +27,7 @@ interface MemberDetailSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit: (member: StructureMemberRow) => void
+  readOnly?: boolean
 }
 
 export function MemberDetailSheet({
@@ -35,6 +36,7 @@ export function MemberDetailSheet({
   open,
   onOpenChange,
   onEdit,
+  readOnly = false,
 }: MemberDetailSheetProps) {
   const [tab, setTab] = useState<DetailTab>('overview')
 
@@ -49,18 +51,20 @@ export function MemberDetailSheet({
       <div className="flex h-full flex-col gap-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <RoleBadge role={member.role} position={member.position} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              onOpenChange(false)
-              onEdit(member)
-            }}
-          >
-            <Pencil className="size-3.5" />
-            Edit profile
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onOpenChange(false)
+                onEdit(member)
+              }}
+            >
+              <Pencil className="size-3.5" />
+              Edit profile
+            </Button>
+          )}
         </div>
 
         <nav className="-mx-1 flex gap-1 overflow-x-auto border-b border-border/60 px-1 pb-px">

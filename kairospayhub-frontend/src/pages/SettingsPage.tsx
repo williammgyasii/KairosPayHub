@@ -4,6 +4,7 @@ import type { DashboardOutletContext } from '@/components/layout/dashboard-layou
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { getAccessToken } from '@/auth/client'
+import { apiBaseUrl } from '@/lib/api-base'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -29,7 +30,7 @@ export function SettingsPage() {
       const body = new FormData()
       body.append('file', file)
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL.replace(/\/+$/, '')}/api/church/logo`, {
+      const res = await fetch(`${apiBaseUrl()}/api/church/logo`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body,

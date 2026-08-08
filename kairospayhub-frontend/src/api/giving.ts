@@ -1,9 +1,11 @@
 import type { ApiClient } from './client'
 import { getAccessToken } from '../auth/client'
+import { apiBaseUrl } from '@/lib/api-base'
 
 export type GivingType = 'Rhapsody' | 'SundayService' | 'SpecialProgram' | 'FellowshipGiving'
 export type ProgramScopeKind = 'ChurchWide' | 'Fellowship' | 'PFCC' | 'FellowshipGroup'
 export type ProgramStatus = 'Open' | 'Closed'
+export type ProgramApprovalStatus = 'Approved' | 'PendingPastorApproval' | 'Rejected'
 export type ContributionStatus = 'PendingApproval' | 'Approved' | 'Rejected'
 
 export type GivingProgram = {
@@ -15,6 +17,8 @@ export type GivingProgram = {
   scopeKind: ProgramScopeKind | string
   scopeNodeId: string | null
   status: ProgramStatus | string
+  approvalStatus: ProgramApprovalStatus | string
+  createdByRole: string | null
   createdAt: string
   hasChildren: boolean
   acceptsContributions: boolean
@@ -65,6 +69,12 @@ export type GivingDashboardCampaign = {
 export type GivingDashboard = {
   openCampaignCount: number
   campaigns: GivingDashboardCampaign[]
+  scopeUnitName?: string | null
+  fellowshipCount?: number
+  cellCount?: number
+  memberCount?: number
+  pendingApprovalCount?: number
+  scopedApprovedTotal?: number
 }
 
 export type CreateGivingProgramInput = {
@@ -113,6 +123,16 @@ export async function getGivingDashboard(api: ApiClient) {
 
 export async function createSubPeriod(api: ApiClient, input: CreateSubPeriodInput) {
   return api.post<GivingProgram>('/api/giving/programs', input)
+}
+
+export async function approveSubGiving(api: ApiClient, programId: string) {
+  return api.post<GivingProgram>(`/api/giving/programs/${programId}/approve`, {})
+}
+
+export async function rejectSubGiving(api: ApiClient, programId: string, reason?: string) {
+  return api.post<GivingProgram>(`/api/giving/programs/${programId}/reject`, {
+    reason: reason ?? null,
+  })
 }
 
 export async function getProgram(api: ApiClient, programId: string) {
@@ -188,7 +208,7 @@ export async function uploadGivingAttachment(file: File) {
   body.append('file', file)
 
   const res = await fetch(
-    `${import.meta.env.VITE_API_URL.replace(/\/+$/, '')}/api/giving/attachments`,
+    `${apiBaseUrl()}/api/giving/attachments`,
     {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -209,6 +229,19 @@ export function formatContributionStatus(status: string) {
   switch (status) {
     case 'PendingApproval':
       return 'Pending approval'
+    case 'Approved':
+      return 'Approved'
+    case 'Rejected':
+      return 'Rejected'
+    default:
+      return status
+  }
+}
+
+export function formatApprovalStatus(status: string) {
+  switch (status) {
+    case 'PendingPastorApproval':
+      return 'Pending pastor approval'
     case 'Approved':
       return 'Approved'
     case 'Rejected':

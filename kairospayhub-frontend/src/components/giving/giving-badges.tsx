@@ -1,6 +1,7 @@
-import type { ContributionStatus, ProgramStatus } from '@/api/giving'
-import { formatContributionStatus } from '@/api/giving'
+import type { ContributionStatus, ProgramApprovalStatus, ProgramStatus } from '@/api/giving'
+import { formatApprovalStatus, formatContributionStatus } from '@/api/giving'
 import { contributionStatusTone, programStatusLabel, scopeKindLabel } from '@/lib/giving-ui'
+import { Lock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -12,10 +13,51 @@ export function ProgramStatusBadge({ status }: { status: ProgramStatus | string 
   )
 }
 
+export function ProgramApprovalBadge({ status }: { status: ProgramApprovalStatus | string }) {
+  return (
+    <Badge
+      variant="secondary"
+      className={cn(
+        status === 'PendingPastorApproval' &&
+          'border-amber-200/80 bg-amber-500/10 text-amber-900',
+        status === 'Rejected' && 'border-destructive/30 bg-destructive/10 text-destructive',
+      )}
+    >
+      {formatApprovalStatus(status)}
+    </Badge>
+  )
+}
+
 export function ScopeKindBadge({ scopeKind }: { scopeKind: string }) {
   return (
     <Badge variant="outline" className="font-normal">
       {scopeKindLabel(scopeKind)}
+    </Badge>
+  )
+}
+
+export function SubGivingTagBadge({ tag }: { tag: 'locked' | 'yours' | 'church' }) {
+  if (tag === 'locked') {
+    return (
+      <Badge
+        variant="outline"
+        className="gap-1 border-muted-foreground/30 bg-muted/40 font-normal text-muted-foreground"
+      >
+        <Lock className="size-3" />
+        Locked
+      </Badge>
+    )
+  }
+  if (tag === 'yours') {
+    return (
+      <Badge variant="outline" className="border-primary/30 bg-primary/5 font-normal text-primary">
+        Yours
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="font-normal text-muted-foreground">
+      Church
     </Badge>
   )
 }

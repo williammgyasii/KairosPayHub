@@ -40,9 +40,17 @@ interface RosterUnitViewProps {
   error: string | null
   busy: boolean
   submit: (action: () => Promise<void>) => Promise<void>
+  readOnly?: boolean
 }
 
-export function RosterUnitView({ tree, unitNodeId, error, busy, submit }: RosterUnitViewProps) {
+export function RosterUnitView({
+  tree,
+  unitNodeId,
+  error,
+  busy,
+  submit,
+  readOnly = false,
+}: RosterUnitViewProps) {
   const api = useApi()
   const navigate = useNavigate()
   const unit = nodeById(tree, unitNodeId)
@@ -160,14 +168,14 @@ export function RosterUnitView({ tree, unitNodeId, error, busy, submit }: Roster
               <ArrowLeft className="size-4" />
             </Button>
 
-            {activeTab?.kind === 'layer' && (
+            {activeTab?.kind === 'layer' && !readOnly && (
               <Button className="shrink-0" onClick={openCreateNode}>
                 <Plus className="size-4" />
                 Add new {activeTab.layer.displayName.toLowerCase()}
               </Button>
             )}
 
-            {activeTab?.kind === 'members' && (
+            {activeTab?.kind === 'members' && !readOnly && (
               <Button className="shrink-0" onClick={() => setMemberSheet({ mode: 'create' })}>
                 <Plus className="size-4" />
                 Add member
@@ -193,6 +201,7 @@ export function RosterUnitView({ tree, unitNodeId, error, busy, submit }: Roster
           hidePathColumn={activeTab.layer.sortOrder === layer.sortOrder + 1}
           hideParentColumn={activeTab.layer.sortOrder === layer.sortOrder + 1}
           embedded
+          readOnly={readOnly}
           onEdit={(row) =>
             setNodeSheet({ mode: 'edit', row, layer: activeTab.layer })
           }
@@ -204,13 +213,14 @@ export function RosterUnitView({ tree, unitNodeId, error, busy, submit }: Roster
         <StructureMemberTable
           rows={memberRows}
           structureLayers={getLayers(tree)}
-          emptyMessage={`No members under ${unit.name} yet. Add cells first if needed, then click Add member.`}
+          emptyMessage={`No members under ${unit.name} yet.${readOnly ? '' : ' Add cells first if needed, then click Add member.'}`}
           onEdit={(member) => setMemberSheet({ mode: 'edit', member })}
           embedded
+          readOnly={readOnly}
         />
       )}
 
-      {memberSheet && (
+      {!readOnly && memberSheet && (
         <MemberFormSheet
           tree={tree}
           unitNodeId={unit.id}
@@ -221,7 +231,7 @@ export function RosterUnitView({ tree, unitNodeId, error, busy, submit }: Roster
         />
       )}
 
-      {fellowshipWizardOpen && activeTab?.kind === 'layer' && (
+      {!readOnly && fellowshipWizardOpen && activeTab?.kind === 'layer' && (
         <FellowshipCreateWizard
           tree={tree}
           unitNodeId={unit.id}
@@ -233,7 +243,7 @@ export function RosterUnitView({ tree, unitNodeId, error, busy, submit }: Roster
         />
       )}
 
-      {cellWizardOpen && activeTab?.kind === 'layer' && deepest && (
+      {!readOnly && cellWizardOpen && activeTab?.kind === 'layer' && deepest && (
         <CellCreateWizard
           tree={tree}
           unitNodeId={unit.id}
@@ -245,7 +255,7 @@ export function RosterUnitView({ tree, unitNodeId, error, busy, submit }: Roster
         />
       )}
 
-      {nodeSheet && (
+      {!readOnly && nodeSheet && (
         <UnitNodeFormSheet
           tree={tree}
           unitNodeId={unit.id}
@@ -256,7 +266,7 @@ export function RosterUnitView({ tree, unitNodeId, error, busy, submit }: Roster
         />
       )}
 
-      {deleteTarget && (
+      {!readOnly && deleteTarget && (
         <UnitDeleteModal
           impact={deleteImpact}
           busy={busy}

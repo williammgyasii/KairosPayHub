@@ -32,6 +32,8 @@ interface MembershipViewProps {
   submit: (action: () => Promise<void>) => Promise<void>
   wizardOpen?: boolean
   onWizardOpenChange?: (open: boolean) => void
+  readOnly?: boolean
+  scopeParentNodeId?: string | null
 }
 
 function sortFieldFromColumn(columnId: string): StructureMemberListParams['sortBy'] {
@@ -77,6 +79,8 @@ export function MembershipView({
   submit,
   wizardOpen: wizardOpenProp,
   onWizardOpenChange,
+  readOnly = false,
+  scopeParentNodeId = null,
 }: MembershipViewProps) {
   const api = useApi()
   const [wizardOpenInternal, setWizardOpenInternal] = useState(false)
@@ -117,6 +121,8 @@ export function MembershipView({
         sortBy,
         sortDir,
         search: debouncedSearch || undefined,
+        parentNodeId: scopeParentNodeId ?? undefined,
+        includeDescendants: scopeParentNodeId ? true : undefined,
       })
       setList(await api.get<StructureMemberListResponse>(`/api/structure/members${query}`))
     } catch (err) {
@@ -125,7 +131,7 @@ export function MembershipView({
     } finally {
       setListLoading(false)
     }
-  }, [api, page, pageSize, sortBy, sortDir, debouncedSearch])
+  }, [api, page, pageSize, sortBy, sortDir, debouncedSearch, scopeParentNodeId])
 
   useEffect(() => {
     void loadMembers()
@@ -170,12 +176,14 @@ export function MembershipView({
       <StructureMemberTable
         rows={filteredRows}
         structureLayers={structureLayers}
-        title="All members"
+        title={scopeParentNodeId ? 'Members in your scope' : 'All members'}
         extendedColumns
         totalCount={totalCount}
         emptyMessage={
           totalCount === 0
-            ? 'No members yet. Click Add member above.'
+            ? readOnly
+              ? 'No members in your scope yet.'
+              : 'No members yet. Click Add member above.'
             : 'No members match your filters on this page.'
         }
         showSearch={false}
@@ -183,6 +191,7 @@ export function MembershipView({
         serverSorting
         sorting={sorting}
         onSortingChange={handleSortingChange}
+        readOnly={readOnly}
         toolbar={
           <MemberTableToolbar
             rows={rows}
@@ -213,10 +222,10 @@ export function MembershipView({
           )
         }
         onView={(member) => setDetailMember(member)}
-        onEdit={(member) => setSheet({ mode: 'edit', member })}
+        onEdit={readOnly ? () => {} : (member) => setSheet({ mode: 'edit', member })}
       />
 
-      {wizardOpen && (
+      {!readOnly && wizardOpen && (
         <MemberCreateWizard
           tree={tree}
           busy={busy}
@@ -225,7 +234,7 @@ export function MembershipView({
         />
       )}
 
-      {sheet && (
+      {!readOnly && sheet && (
         <MemberFormSheet
           tree={tree}
           busy={busy}
@@ -242,13 +251,20 @@ export function MembershipView({
           open
           onOpenChange={(open) => !open && setDetailMember(null)}
           onEdit={(member) => setSheet({ mode: 'edit', member })}
+          readOnly={readOnly}
         />
       )}
     </div>
   )
 }
 
-export function MembershipEmptyState({ needsRoster }: { needsRoster: boolean }) {
+export function MembershipEmptyState({
+  needsRoster,
+  pastorOnlyStructure = false,
+}: {
+  needsRoster: boolean
+  pastorOnlyStructure?: boolean
+}) {
   return (
     <section className="rounded-xl border border-border/60 bg-muted/10 px-5 py-8 text-center">
       <p className="text-sm font-medium">
@@ -257,13 +273,17 @@ export function MembershipEmptyState({ needsRoster }: { needsRoster: boolean }) 
       <p className="mt-1 text-sm text-muted-foreground">
         {needsRoster
           ? 'Add PFCCs, fellowships, or cells in Roster before registering members.'
-          : 'Save your layer chain on the Structure page, then add roster units.'}
+          : pastorOnlyStructure
+            ? 'Your pastor needs to define the church structure before members appear here.'
+            : 'Save your layer chain on the Structure page, then add roster units.'}
       </p>
-      <Button asChild className="mt-4">
-        <Link to={needsRoster ? '/roster' : '/structure'}>
-          Go to {needsRoster ? 'Roster' : 'Structure'}
-        </Link>
-      </Button>
+      {!pastorOnlyStructure && (
+        <Button asChild className="mt-4">
+          <Link to={needsRoster ? '/roster' : '/structure'}>
+            Go to {needsRoster ? 'Roster' : 'Structure'}
+          </Link>
+        </Button>
+      )}
     </section>
   )
 }

@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
+import { PastorRoute } from './auth/PastorRoute'
+import { ScopedLeaderRoute } from './auth/ScopedLeaderRoute'
 import { DashboardRoot } from './pages/Dashboard'
 import { GivingsPage } from './pages/GivingsPage'
 import { ProgramDetailPage } from './pages/ProgramDetailPage'
@@ -29,17 +31,52 @@ export default function App() {
         }
       >
         <Route index element={<OverviewPage />} />
-        <Route path="structure" element={<StructurePage />} />
-        <Route path="roster" element={<RosterPage />} />
-        <Route path="roster/units/:nodeId" element={<RosterUnitPage />} />
-        <Route path="roster/membership" element={<MembershipPage />} />
+        <Route
+          path="structure"
+          element={
+            <PastorRoute>
+              <StructurePage />
+            </PastorRoute>
+          }
+        />
+        <Route
+          path="roster"
+          element={
+            <ScopedLeaderRoute>
+              <RosterPage />
+            </ScopedLeaderRoute>
+          }
+        />
+        <Route
+          path="roster/units/:nodeId"
+          element={
+            <ScopedLeaderRoute>
+              <RosterUnitPage />
+            </ScopedLeaderRoute>
+          }
+        />
+        <Route
+          path="roster/membership"
+          element={
+            <ScopedLeaderRoute>
+              <MembershipPage />
+            </ScopedLeaderRoute>
+          }
+        />
         <Route path="membership" element={<Navigate to="/roster/membership" replace />} />
         <Route path="givings" element={<GivingsPage />} />
         <Route path="givings/:programId/structure/:nodeId" element={<ProgramStructureContributionsPage />} />
         <Route path="givings/:programId" element={<ProgramDetailPage />} />
         <Route path="programs" element={<Navigate to="/givings" replace />} />
         <Route path="programs/:programId" element={<LegacyProgramsRedirect />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route
+          path="settings"
+          element={
+            <PastorRoute>
+              <SettingsPage />
+            </PastorRoute>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,6 +1,22 @@
-import type { Contribution } from '@/api/giving'
+import type { Contribution, GivingRollupRow } from '@/api/giving'
 import type { StructureLayer, StructureLayerType, StructureNode, StructureTree } from '@/api/structure'
 import { getLayers, nodeById, parentChain } from '@/lib/structure-tree'
+
+export type ContributionStructureOptions = {
+  /** When set, views start one level below this node (leader's assigned unit). */
+  scopeRootNodeId?: string | null
+}
+
+export function structureOptionsForLeader(
+  role: string,
+  scopeNodeId?: string | null,
+): ContributionStructureOptions | undefined {
+  if (!scopeNodeId || role === 'Pastor') return undefined
+  if (role === 'PFCCManager' || role === 'FellowshipLeader') {
+    return { scopeRootNodeId: scopeNodeId }
+  }
+  return undefined
+}
 
 export type ContributionStructureRow = Contribution & {
   structurePath: string
@@ -77,11 +93,55 @@ function sortByDateDesc(rows: ContributionStructureRow[]) {
   )
 }
 
-function structurePathNodes(tree: StructureTree, memberParentNodeId: string): StructureNode[] {
+function structurePathNodes(
+  tree: StructureTree,
+  memberParentNodeId: string,
+  options?: ContributionStructureOptions,
+): StructureNode[] {
   const chain = parentChain(tree, memberParentNodeId)
+
+  if (options?.scopeRootNodeId) {
+    const scopeIndex = chain.findIndex((n) => n.id === options.scopeRootNodeId)
+    if (scopeIndex < 0) return []
+    return chain.slice(scopeIndex + 1)
+  }
+
   const pfcIndex = chain.findIndex((n) => layerForNode(tree, n)?.standardType === 'PFCC')
   if (pfcIndex >= 0) return chain.slice(pfcIndex)
   return chain
+}
+
+/** Pick rollup rows for dashboard breakdown — scoped leaders see units below their scope. */
+export function selectRollupBreakdownRows(
+  rows: GivingRollupRow[],
+  tree: StructureTree | null,
+  options?: ContributionStructureOptions,
+): GivingRollupRow[] {
+  if (rows.length === 0) return rows
+
+  if (options?.scopeRootNodeId && tree) {
+    const scopeNode = nodeById(tree, options.scopeRootNodeId)
+    const scopeLayer = scopeNode ? layerForNode(tree, scopeNode) : undefined
+    const withoutScope = rows.filter((row) => row.nodeId !== options.scopeRootNodeId)
+    if (withoutScope.length === 0) return rows
+
+    if (scopeLayer) {
+      const layers = getLayers(tree)
+      const scopeIndex = layers.findIndex((layer) => layer.id === scopeLayer.id)
+      const childLayerType = layers[scopeIndex + 1]?.standardType
+      if (childLayerType) {
+        const childRows = withoutScope.filter((row) => row.layerType === childLayerType)
+        if (childRows.length > 0) return childRows
+      }
+    }
+
+    return withoutScope
+  }
+
+  const pfcRows = rows.filter((row) => row.layerType === 'PFCC')
+  if (pfcRows.length > 0) return pfcRows
+  const fellowshipRows = rows.filter((row) => row.layerType === 'Fellowship')
+  return fellowshipRows.length > 0 ? fellowshipRows : rows
 }
 
 function layerLabel(tree: StructureTree, node: StructureNode): string {
@@ -128,17 +188,18 @@ function sortTree(nodes: ContributionTreeNode[]): ContributionTreeNode[] {
     }))
 }
 
-/** PFCC → … → unit → member → payments (Excel-style drill-down roots at PFCC or top layer). */
+/** PFCC → … → unit → member → payments (scoped leaders root at the level below their unit). */
 export function buildContributionStructureTree(
   tree: StructureTree | null,
   contributions: Contribution[],
+  options?: ContributionStructureOptions,
 ): ContributionTreeNode[] {
   if (!tree || contributions.length === 0) return []
 
   const roots = new Map<string, ContributionTreeNode>()
 
   for (const payment of contributions.map((c) => enrichContribution(tree, c))) {
-    const path = structurePathNodes(tree, payment.memberParentNodeId)
+    const path = structurePathNodes(tree, payment.memberParentNodeId, options)
     if (path.length === 0) continue
 
     const top = path[0]

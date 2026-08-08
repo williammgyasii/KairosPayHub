@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import { LogOut, Menu, Settings } from 'lucide-react'
 import { displayName, type Me } from '@/api/me'
+import { useApi } from '@/api/useApi'
 import { useAuth } from '@/auth/AuthContext'
+import { NotificationsBell } from '@/components/layout/notifications-bell'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,6 +23,7 @@ interface DashboardTopbarProps {
 }
 
 export function DashboardTopbar({ me }: DashboardTopbarProps) {
+  const api = useApi()
   const { email, signOut } = useAuth()
   const { toggleMobile } = useSidebar()
   const name = displayName(me, email)
@@ -40,6 +43,8 @@ export function DashboardTopbar({ me }: DashboardTopbarProps) {
       <Badge variant="secondary" className="hidden shrink-0 sm:inline-flex">
         {me.role}
       </Badge>
+
+      <NotificationsBell api={api} />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

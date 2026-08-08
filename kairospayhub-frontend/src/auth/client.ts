@@ -18,12 +18,10 @@ interface ProfileResponse {
   emailConfirmed?: boolean
 }
 
-function apiBase(): string {
-  return import.meta.env.VITE_API_URL.replace(/\/+$/, '')
-}
+import { apiBaseUrl } from '@/lib/api-base'
 
 async function authPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${apiBase()}${path}`, {
+  const res = await fetch(`${apiBaseUrl()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -49,7 +47,7 @@ function clearTokens() {
 async function fetchProfile(
   token: string,
 ): Promise<Pick<Session, 'email' | 'emailConfirmed'> | null> {
-  const me = await fetch(`${apiBase()}/auth/me`, {
+  const me = await fetch(`${apiBaseUrl()}/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (me.status === 401) return null

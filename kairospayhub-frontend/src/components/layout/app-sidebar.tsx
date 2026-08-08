@@ -8,7 +8,7 @@ import {
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Me } from '@/api/me'
+import { isPastor, isScopedLeader, type Me } from '@/api/me'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
@@ -47,9 +47,34 @@ const NAV: NavEntry[] = [
       { to: 'roster/membership', label: 'Membership', end: true },
     ],
   },
-  { kind: 'item', to: 'givings', label: 'Givings', icon: Gift, end: true },
+  { kind: 'item', to: 'givings', label: 'Givings', icon: Gift },
   { kind: 'item', to: 'settings', label: 'Settings', icon: Settings, end: true },
 ]
+
+const LEADER_NAV: NavEntry[] = [
+  { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
+  { kind: 'item', to: 'givings', label: 'Givings', icon: Gift },
+]
+
+const SCOPED_LEADER_NAV: NavEntry[] = [
+  { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
+  {
+    kind: 'group',
+    label: 'Roster',
+    icon: Users,
+    children: [
+      { to: 'roster', label: 'Units', end: true },
+      { to: 'roster/membership', label: 'Membership', end: true },
+    ],
+  },
+  { kind: 'item', to: 'givings', label: 'Givings', icon: Gift },
+]
+
+function navForRole(role: string): NavEntry[] {
+  if (isPastor(role)) return NAV
+  if (isScopedLeader(role)) return SCOPED_LEADER_NAV
+  return LEADER_NAV
+}
 
 function normalizePath(pathname: string) {
   if (pathname.length > 1 && pathname.endsWith('/')) {
@@ -87,6 +112,7 @@ export function AppSidebar({ me, className, expanded = false }: AppSidebarProps)
   const collapsed = expanded ? false : contextCollapsed
   const churchLabel = me.churchName ?? 'Your church'
   const showCollapseControl = !expanded
+  const nav = navForRole(me.role)
 
   return (
     <aside
@@ -126,7 +152,7 @@ export function AppSidebar({ me, className, expanded = false }: AppSidebarProps)
           collapsed ? 'items-center gap-2.5 px-2 pt-4' : 'gap-1 p-2',
         )}
       >
-        {NAV.map((entry) =>
+        {nav.map((entry) =>
           entry.kind === 'item' ? (
             <SidebarNavItem key={entry.to} item={entry} collapsed={collapsed} />
           ) : (
@@ -184,10 +210,10 @@ function navItemStyles(isActive: boolean, collapsed: boolean, disabled?: boolean
       ? 'pointer-events-none opacity-40'
       : isActive
         ? cn(
-            'bg-primary/12 text-primary shadow-sm',
-            collapsed ? 'ring-2 ring-primary/20' : 'ring-1 ring-primary/15',
+            'bg-primary text-primary-foreground shadow-md',
+            collapsed ? 'ring-2 ring-primary/40' : 'ring-1 ring-primary/30',
             !collapsed &&
-              'before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-primary',
+              'before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-primary-foreground/40',
           )
         : cn(
             'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
@@ -220,7 +246,7 @@ function SidebarNavItem({
         className={cn(
           'size-4 shrink-0 transition-transform duration-150',
           !item.disabled && !isActive && 'group-hover:scale-105',
-          isActive && 'text-primary',
+          isActive && 'text-primary-foreground',
         )}
       />
       {!collapsed && (
@@ -261,7 +287,7 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
         aria-current={isActive ? 'page' : undefined}
         className={navItemStyles(isActive, collapsed)}
       >
-        <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+        <Icon className={cn('size-4 shrink-0', isActive && 'text-primary-foreground')} />
       </NavLink>
     )
 
@@ -288,7 +314,7 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
           isActive ? 'text-primary' : 'text-muted-foreground',
         )}
       >
-        <Icon className="size-4 shrink-0" />
+        <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
         {group.label}
       </div>
       <div className="ml-3 space-y-0.5 border-l border-border/60 pl-2">
@@ -304,7 +330,7 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
               className={cn(
                 'block rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                 childActive
-                  ? 'bg-primary/12 text-primary ring-1 ring-primary/15'
+                  ? 'bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/30'
                   : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
               )}
             >

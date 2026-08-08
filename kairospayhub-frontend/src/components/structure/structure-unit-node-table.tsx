@@ -39,6 +39,7 @@ interface StructureUnitNodeTableProps {
   onEdit: (row: StructureUnitNodeRow) => void
   onDelete: (row: StructureUnitNodeRow) => void
   className?: string
+  readOnly?: boolean
 }
 
 export function StructureUnitNodeTable({
@@ -52,6 +53,7 @@ export function StructureUnitNodeTable({
   onEdit,
   onDelete,
   className,
+  readOnly = false,
 }: StructureUnitNodeTableProps) {
   const navigate = useNavigate()
   const [sorting, setSorting] = useState<SortingState>([])
@@ -59,12 +61,12 @@ export function StructureUnitNodeTable({
 
   const columns = useMemo(
     () =>
-      createUnitNodeColumns(layer, childLayer, { hidePathColumn, hideParentColumn }, {
+      createUnitNodeColumns(layer, childLayer, { hidePathColumn, hideParentColumn, readOnly }, {
         onEdit,
         onDelete,
         onOpen: (row) => navigate(`/roster/units/${row.id}`),
       }),
-    [layer, childLayer, hidePathColumn, hideParentColumn, onEdit, onDelete, navigate],
+    [layer, childLayer, hidePathColumn, hideParentColumn, onEdit, onDelete, navigate, readOnly],
   )
 
   const table = useReactTable({
@@ -167,7 +169,7 @@ export function StructureUnitNodeTable({
 function createUnitNodeColumns(
   _layer: Pick<StructureLayer, 'displayName' | 'standardType'>,
   childLayer: Pick<StructureLayer, 'displayName' | 'standardType'> | undefined,
-  options: { hidePathColumn: boolean; hideParentColumn: boolean },
+  options: { hidePathColumn: boolean; hideParentColumn: boolean; readOnly?: boolean },
   actions: {
     onEdit: (row: StructureUnitNodeRow) => void
     onDelete: (row: StructureUnitNodeRow) => void
@@ -175,6 +177,7 @@ function createUnitNodeColumns(
   },
 ) {
   const helper = createColumnHelper<StructureUnitNodeRow>()
+  const readOnly = options.readOnly ?? false
 
   return [
     helper.accessor('name', {
@@ -248,30 +251,34 @@ function createUnitNodeColumns(
         </div>
       ),
     }),
-    helper.display({
-      id: 'actions',
-      header: '',
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-8">
-              <MoreHorizontal className="size-4" />
-              <span className="sr-only">Actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => actions.onOpen(row.original)}>Open</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => actions.onEdit(row.original)}>Edit</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => actions.onDelete(row.original)}
-            >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    }),
+    ...(readOnly
+      ? []
+      : [
+          helper.display({
+            id: 'actions',
+            header: '',
+            cell: ({ row }) => (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-8">
+                    <MoreHorizontal className="size-4" />
+                    <span className="sr-only">Actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => actions.onOpen(row.original)}>Open</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => actions.onEdit(row.original)}>Edit</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => actions.onDelete(row.original)}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ),
+          }),
+        ]),
   ]
 }

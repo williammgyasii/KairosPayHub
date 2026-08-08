@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useOutletContext, useParams } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
@@ -7,7 +7,11 @@ import {
   OverviewDashboard,
   OverviewSetupPreview,
 } from '@/components/overview/overview-dashboard'
+import { LeaderOverviewDashboard } from '@/components/overview/leader-overview-dashboard'
 import { StructureSetupCallout } from '@/components/overview/structure-setup-callout'
+import { getGivingDashboard, type GivingDashboard } from '@/api/giving'
+import { isPastor, isScopedLeader } from '@/api/me'
+import { filterTreeToSubtree } from '@/lib/structure-tree'
 import { MembershipEmptyState, MembershipView } from '@/components/structure/membership-view'
 import { RosterEmptyState, RosterView } from '@/components/structure/roster-view'
 import { RosterUnitView } from '@/components/structure/roster-unit-view'
@@ -24,34 +28,113 @@ import { StructureChainFromLabels } from '@/components/structure/structure-chain
 import { hasDesignedStructure } from '@/lib/structure-table-rows'
 import { useApi } from '@/api/useApi'
 import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
+import { Link } from 'react-router-dom'
+import { Gift } from 'lucide-react'
+
+function LeaderOverviewFallback() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Gift className="size-4 text-primary" />
+          Your givings
+        </CardTitle>
+        <CardDescription>
+          Open Givings to view campaigns, log contributions, and track approvals in your scope.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild>
+          <Link to="/givings">Go to Givings</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function scopedRosterTree(
+  tree: ReturnType<typeof useStructureTree>['tree'],
+  me: DashboardOutletContext['me'],
+) {
+  if (!tree) return tree
+  if (isPastor(me.role)) return tree
+  if (isScopedLeader(me.role) && me.scopeNodeId) {
+    return filterTreeToSubtree(tree, me.scopeNodeId)
+  }
+  return tree
+}
 
 export function OverviewPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
+  const api = useApi()
   const { tree } = useStructureTree()
   const showDashboard = hasTemplate(tree)
+  const pastor = isPastor(me.role)
+  const scopedLeader = isScopedLeader(me.role)
+  const [leaderDashboard, setLeaderDashboard] = useState<GivingDashboard | null>(null)
+  const [dashboardLoading, setDashboardLoading] = useState(scopedLeader)
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
+
+  const loadLeaderDashboard = useCallback(async () => {
+    if (!scopedLeader) return
+    setDashboardLoading(true)
+    setDashboardError(null)
+    try {
+      setLeaderDashboard(await getGivingDashboard(api))
+    } catch (err) {
+      setDashboardError(err instanceof Error ? err.message : 'Could not load dashboard metrics')
+    } finally {
+      setDashboardLoading(false)
+    }
+  }, [api, scopedLeader])
+
+  useEffect(() => {
+    void loadLeaderDashboard()
+  }, [loadLeaderDashboard])
+
+  const scopedTree =
+    scopedLeader && tree && me.scopeNodeId
+      ? filterTreeToSubtree(tree, me.scopeNodeId)
+      : tree
+
+  const scopeTitle = me.scopeUnitName ?? me.churchName ?? 'Your church'
 
   return (
     <div className="space-y-8">
       <DashboardPageHeader
         breadcrumbs={[{ label: 'Overview' }]}
-        title={me.churchName ?? 'Your church'}
+        title={scopedLeader ? scopeTitle : (me.churchName ?? 'Your church')}
         description={
-          showDashboard
-            ? tree?.nodes.length || tree?.members.length
-              ? 'Live metrics, charts, and recommendations from your church structure.'
-              : `${tree?.template?.name ?? 'Your structure'} is saved. Add org units in Roster and people in Membership.`
-            : 'Define your structure chain, populate Roster, then register members in Membership.'
+          scopedLeader
+            ? `Live metrics and giving totals for your ${me.role === 'PFCCManager' ? 'PFCC' : 'fellowship'} scope.`
+            : pastor
+              ? showDashboard
+                ? tree?.nodes.length || tree?.members.length
+                  ? 'Live metrics, charts, and recommendations from your church structure.'
+                  : `${tree?.template?.name ?? 'Your structure'} is saved. Add org units in Roster and people in Membership.`
+                : 'Define your structure chain, populate Roster, then register members in Membership.'
+              : 'Your overview and giving activity.'
         }
       />
 
-      <StructureSetupCallout tree={tree} churchName={me.churchName} />
+      {pastor && <StructureSetupCallout tree={tree} churchName={me.churchName} />}
 
-      {showDashboard && tree ? (
-        <OverviewDashboard tree={tree} churchName={me.churchName} />
-      ) : (
+      {scopedLeader && showDashboard && scopedTree ? (
+        dashboardLoading ? (
+          <Spinner label="Loading your dashboard…" />
+        ) : dashboardError ? (
+          <p className="text-sm text-destructive">{dashboardError}</p>
+        ) : leaderDashboard ? (
+          <LeaderOverviewDashboard tree={scopedTree} dashboard={leaderDashboard} />
+        ) : null
+      ) : pastor && showDashboard && scopedTree ? (
+        <OverviewDashboard tree={scopedTree} churchName={me.churchName} />
+      ) : pastor ? (
         <OverviewSetupPreview tree={tree} />
+      ) : (
+        <LeaderOverviewFallback />
       )}
     </div>
   )
@@ -234,7 +317,10 @@ function ModalPickAddLayer({
 }
 
 export function RosterPage() {
+  const { me } = useOutletContext<DashboardOutletContext>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
+  const readOnly = !isPastor(me.role)
+  const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
   useEffect(() => {
     void load()
@@ -244,11 +330,11 @@ export function RosterPage() {
     return <Spinner label="Loading roster…" />
   }
 
-  if (!tree) {
+  if (!displayTree) {
     return <p className="text-sm text-destructive">{error ?? 'Could not load roster.'}</p>
   }
 
-  if (!hasTemplate(tree)) {
+  if (!hasTemplate(displayTree)) {
     return (
       <div className="space-y-5">
         <DashboardPageHeader
@@ -274,16 +360,23 @@ export function RosterPage() {
           { label: 'Units' },
         ]}
         title="Roster"
-        description={`${tree.template!.name} — ${getLayers(tree).map((l) => l.displayName).join(', ')}. Click a unit to manage its members.`}
+        description={
+          readOnly
+            ? `${me.scopeUnitName ?? 'Your unit'} — view units in your scope.`
+            : `${displayTree.template!.name} — ${getLayers(displayTree).map((l) => l.displayName).join(', ')}. Click a unit to manage its members.`
+        }
       />
-      <RosterView tree={tree} error={error} busy={busy} submit={submit} />
+      <RosterView tree={displayTree} error={error} busy={busy} submit={submit} readOnly={readOnly} />
     </div>
   )
 }
 
 export function RosterUnitPage() {
+  const { me } = useOutletContext<DashboardOutletContext>()
   const { nodeId } = useParams<{ nodeId: string }>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
+  const readOnly = !isPastor(me.role)
+  const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
   useEffect(() => {
     void load()
@@ -293,28 +386,32 @@ export function RosterUnitPage() {
     return <Spinner label="Loading unit…" />
   }
 
-  if (!tree) {
+  if (!displayTree) {
     return <p className="text-sm text-destructive">{error ?? 'Could not load unit.'}</p>
   }
 
-  if (!hasTemplate(tree) || !nodeId) {
+  if (!hasTemplate(displayTree) || !nodeId) {
     return <RosterEmptyState />
   }
 
   return (
     <RosterUnitView
-      tree={tree}
+      tree={displayTree}
       unitNodeId={nodeId}
       error={error}
       busy={busy}
       submit={submit}
+      readOnly={readOnly}
     />
   )
 }
 
 export function MembershipPage() {
+  const { me } = useOutletContext<DashboardOutletContext>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
   const [addOpen, setAddOpen] = useState(false)
+  const readOnly = !isPastor(me.role)
+  const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
   useEffect(() => {
     void load({ includeMembers: false })
@@ -324,11 +421,11 @@ export function MembershipPage() {
     return <Spinner label="Loading membership…" />
   }
 
-  if (!tree) {
+  if (!displayTree) {
     return <p className="text-sm text-destructive">{error ?? 'Could not load membership.'}</p>
   }
 
-  if (!hasTemplate(tree)) {
+  if (!hasTemplate(displayTree)) {
     return (
       <div className="space-y-5">
         <DashboardPageHeader
@@ -346,7 +443,8 @@ export function MembershipPage() {
     )
   }
 
-  const hasRosterUnits = tree.nodes.length > 0
+  const hasRosterUnits = displayTree.nodes.length > 0
+  const scopeLabel = me.scopeUnitName ?? 'your unit'
 
   return (
     <div className="space-y-5">
@@ -358,9 +456,13 @@ export function MembershipPage() {
         ]}
         title="Membership"
         titleSize="hero"
-        description={`Register members with name, phone, age, and role — placed under a roster unit from ${tree.template!.name}.`}
+        description={
+          readOnly
+            ? `Members registered under ${scopeLabel}.`
+            : `Register members with name, phone, age, and role — placed under a roster unit from ${displayTree.template!.name}.`
+        }
         actions={
-          hasRosterUnits ? (
+          !readOnly && hasRosterUnits ? (
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="size-4" />
               Add member
@@ -370,15 +472,17 @@ export function MembershipPage() {
       />
 
       {!hasRosterUnits ? (
-        <MembershipEmptyState needsRoster />
+        <MembershipEmptyState needsRoster pastorOnlyStructure={readOnly} />
       ) : (
         <MembershipView
-          tree={tree}
+          tree={displayTree}
           error={error}
           busy={busy}
           submit={submit}
           wizardOpen={addOpen}
           onWizardOpenChange={setAddOpen}
+          readOnly={readOnly}
+          scopeParentNodeId={readOnly ? me.scopeNodeId : null}
         />
       )}
     </div>

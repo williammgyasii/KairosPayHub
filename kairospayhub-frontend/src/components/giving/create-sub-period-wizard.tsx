@@ -21,6 +21,8 @@ import { Modal } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
+import { isDescendantOf } from '@/lib/structure-tree'
+
 type CreateSubPeriodWizardProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -28,11 +30,17 @@ type CreateSubPeriodWizardProps = {
   api: ApiClient
   tree: StructureTree | null
   onCreated: () => void
+  requiresPastorApproval?: boolean
+  scopeRootNodeId?: string | null
 }
 
-function scopeOptionsForParent(parent: GivingProgram): ProgramScopeKind[] {
+function scopeOptionsForParent(
+  parent: GivingProgram,
+  allowChurchWide: boolean,
+): ProgramScopeKind[] {
   if (parent.scopeKind === 'ChurchWide') {
-    return ['ChurchWide', 'PFCC', 'Fellowship', 'FellowshipGroup']
+    const options: ProgramScopeKind[] = ['PFCC', 'Fellowship', 'FellowshipGroup']
+    return allowChurchWide ? ['ChurchWide', ...options] : options
   }
   if (parent.scopeKind === 'PFCC') return ['PFCC', 'Fellowship', 'FellowshipGroup']
   if (parent.scopeKind === 'Fellowship') return ['Fellowship', 'FellowshipGroup']
@@ -46,8 +54,13 @@ export function CreateSubPeriodWizard({
   api,
   tree,
   onCreated,
+  requiresPastorApproval = false,
+  scopeRootNodeId = null,
 }: CreateSubPeriodWizardProps) {
-  const scopeOptions = useMemo(() => scopeOptionsForParent(parent), [parent])
+  const scopeOptions = useMemo(
+    () => scopeOptionsForParent(parent, !requiresPastorApproval),
+    [parent, requiresPastorApproval],
+  )
   const steps = ['Details', 'Scope', 'Review'] as const
 
   const [step, setStep] = useState(0)
@@ -73,10 +86,14 @@ export function CreateSubPeriodWizard({
     setScopeNodeIds([])
   }, [open, scopeOptions])
 
-  const scopeNodes = useMemo(
-    () => (tree ? nodesForScopeKind(tree, scopeKind) : []),
-    [tree, scopeKind],
-  )
+  const scopeNodes = useMemo(() => {
+    if (!tree) return []
+    const nodes = nodesForScopeKind(tree, scopeKind)
+    if (!scopeRootNodeId) return nodes
+    return nodes.filter(
+      (node) => node.id === scopeRootNodeId || isDescendantOf(tree, scopeRootNodeId, node.id),
+    )
+  }, [tree, scopeKind, scopeRootNodeId])
 
   const scopePickerOptions = useMemo(
     () =>
@@ -125,7 +142,7 @@ export function CreateSubPeriodWizard({
       onOpenChange(false)
       onCreated()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create sub-period')
+      setError(err instanceof Error ? err.message : 'Could not create sub-giving')
     } finally {
       setBusy(false)
     }
@@ -143,8 +160,12 @@ export function CreateSubPeriodWizard({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title="Add sub-period"
-      description="Cell leaders log contributions on sub-periods, not the parent campaign."
+      title="Add sub-giving"
+      description={
+        requiresPastorApproval
+          ? 'Your sub-giving will be sent to the pastor for approval before contributions can be logged.'
+          : 'Cell leaders log contributions on sub givings, not the parent campaign.'
+      }
       size="lg"
     >
       <div className="space-y-5">
@@ -284,7 +305,7 @@ export function CreateSubPeriodWizard({
           onNext={handleNext}
           isLastStep={step === steps.length - 1}
           canProceed={canProceed}
-          submitLabel="Create sub-period"
+          submitLabel={requiresPastorApproval ? 'Submit for approval' : 'Create sub-giving'}
         />
       </div>
     </Modal>

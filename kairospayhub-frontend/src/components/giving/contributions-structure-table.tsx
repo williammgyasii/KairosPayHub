@@ -10,6 +10,7 @@ import {
   buildContributionStructureTree,
   findContributionTreeNodeWithPath,
   isMemberContributionNode,
+  type ContributionStructureOptions,
   type ContributionTreeNode,
 } from '@/lib/contribution-structure'
 import { ContributionStatusBadge } from '@/components/giving/giving-badges'
@@ -37,10 +38,12 @@ export function ContributionsStructureTable({
   programId,
   contributions,
   tree,
+  structureOptions,
 }: {
   programId: string
   contributions: Contribution[]
   tree: StructureTree | null
+  structureOptions?: ContributionStructureOptions
 }) {
   const [filter, setFilter] = useState<'all' | ContributionStatus>('all')
   const [sheetNode, setSheetNode] = useState<ContributionTreeNode | null>(null)
@@ -51,8 +54,8 @@ export function ContributionsStructureTable({
   }, [contributions, filter])
 
   const roots = useMemo(
-    () => buildContributionStructureTree(tree, filtered),
-    [tree, filtered],
+    () => buildContributionStructureTree(tree, filtered, structureOptions),
+    [tree, filtered, structureOptions],
   )
 
   const counts = useMemo(() => {
@@ -94,18 +97,20 @@ export function ProgramStructureContributionsView({
   groupBy,
   contributions,
   tree,
+  structureOptions,
 }: {
   program: GivingProgram
   nodeId: string
   groupBy?: string | null
   contributions: Contribution[]
   tree: StructureTree | null
+  structureOptions?: ContributionStructureOptions
 }) {
   const [sheetNode, setSheetNode] = useState<ContributionTreeNode | null>(null)
 
   const roots = useMemo(
-    () => buildContributionStructureTree(tree, contributions),
-    [tree, contributions],
+    () => buildContributionStructureTree(tree, contributions, structureOptions),
+    [tree, contributions, structureOptions],
   )
 
   const match = useMemo(

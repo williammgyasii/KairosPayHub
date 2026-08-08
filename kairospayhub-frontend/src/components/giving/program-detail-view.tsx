@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
 import type { Me } from '@/api/me'
 import type { ApiClient } from '@/api/client'
 import type { Contribution, GivingProgram, GivingProgramRollup } from '@/api/giving'
@@ -9,16 +8,17 @@ import {
 } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { givingTypeLabel } from '@/lib/giving-ui'
+import { isPastor, isScopedLeader } from '@/api/me'
+import { structureOptionsForLeader } from '@/lib/contribution-structure'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
 import { CreateSubPeriodWizard } from '@/components/giving/create-sub-period-wizard'
-import { GivingTable } from '@/components/giving/giving-table'
 import { LogContributionForm } from '@/components/giving/log-contribution-form'
 import { PendingApprovalQueue } from '@/components/giving/pending-approval-queue'
 import { ProgramDashboard, type ProgramDetailTab } from '@/components/giving/program-dashboard'
 import { ProgramStatusBadge, ScopeKindBadge } from '@/components/giving/giving-badges'
+import { SubGivingsPanel } from '@/components/giving/sub-givings-panel'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type DetailTab = ProgramDetailTab
@@ -46,24 +46,37 @@ export function ProgramDetailView({
   onRefresh,
   initialTab,
 }: ProgramDetailViewProps) {
-  const isPastor = me.role === 'Pastor'
+  const isPastorRole = isPastor(me.role)
+  const isScopedLeaderRole = isScopedLeader(me.role)
   const isFellowshipLeader = me.role === 'FellowshipLeader'
   const isCellLeader = me.role === 'CellLeader'
   const acceptsContributions = program.acceptsContributions
-  const [subPeriodOpen, setSubPeriodOpen] = useState(false)
+  const [subGivingOpen, setSubGivingOpen] = useState(false)
+  const structureOptions = useMemo(
+    () => structureOptionsForLeader(me.role, me.scopeNodeId),
+    [me.role, me.scopeNodeId],
+  )
 
-  const pending = useMemo(
+  const pendingContributions = useMemo(
     () => contributions.filter((c) => c.status === 'PendingApproval'),
     [contributions],
   )
 
+  const pendingSubGivingsCount = useMemo(
+    () => children.filter((c) => c.approvalStatus === 'PendingPastorApproval').length,
+    [children],
+  )
+
   const tabs = useMemo(() => {
     const items: { id: DetailTab; label: string; badge?: number }[] = [{ id: 'dashboard', label: 'Dashboard' }]
-    if (program.hasChildren || (isPastor && !program.parentProgramId)) {
-      items.push({ id: 'subperiods', label: 'Sub-periods', badge: children.length || undefined })
+    if (program.hasChildren || !program.parentProgramId) {
+      const badge = isPastorRole
+        ? pendingSubGivingsCount || children.length || undefined
+        : children.length || undefined
+      items.push({ id: 'subgivings', label: 'Sub givings', badge })
     }
-    if ((isFellowshipLeader || isPastor) && pending.length > 0) {
-      items.push({ id: 'pending', label: 'Pending', badge: pending.length })
+    if ((isFellowshipLeader || isPastorRole) && pendingContributions.length > 0) {
+      items.push({ id: 'pending', label: 'Pending', badge: pendingContributions.length })
     }
     if (isCellLeader && program.status === 'Open' && acceptsContributions) {
       items.push({ id: 'log', label: 'Log giving' })
@@ -74,10 +87,11 @@ export function ProgramDetailView({
     }
     return items
   }, [
-    isPastor,
+    isPastorRole,
     isFellowshipLeader,
     isCellLeader,
-    pending.length,
+    pendingContributions.length,
+    pendingSubGivingsCount,
     program.status,
     program.hasChildren,
     program.parentProgramId,
@@ -88,9 +102,15 @@ export function ProgramDetailView({
 
   const [tab, setTab] = useState<DetailTab>(initialTab ?? 'dashboard')
 
+  // ProgramDetailPage keeps this component mounted when only :programId changes,
+  // so reset tab when switching campaigns (e.g. parent sub-givings → leaf sub-giving).
   useEffect(() => {
-    if (initialTab) setTab(initialTab)
-  }, [initialTab])
+    setTab((current) => {
+      if (initialTab && tabs.some((item) => item.id === initialTab)) return initialTab
+      if (tabs.some((item) => item.id === current)) return current
+      return 'dashboard'
+    })
+  }, [program.id, initialTab, tabs])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -132,12 +152,6 @@ export function ProgramDetailView({
         description={`${givingTypeLabel(program.givingType)} · ${program.periodLabel}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {isPastor && !program.parentProgramId && (
-              <Button type="button" size="sm" onClick={() => setSubPeriodOpen(true)}>
-                <Plus className="size-4" />
-                Add sub-period
-              </Button>
-            )}
             <ScopeKindBadge scopeKind={program.scopeKind} />
             <ProgramStatusBadge status={program.status} />
           </div>
@@ -179,32 +193,33 @@ export function ProgramDetailView({
           rollup={rollup}
           children={children}
           tree={tree}
-          pending={pending}
+          pending={pendingContributions}
           acceptsContributions={acceptsContributions}
-          isPastor={isPastor}
+          isPastor={isPastorRole}
           isFellowshipLeader={isFellowshipLeader}
           isCellLeader={isCellLeader}
+          structureOptions={structureOptions}
           onTabChange={setTab}
         />
       )}
 
-      {tab === 'subperiods' && (
-        <div className="space-y-4">
-          {children.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {isPastor
-                ? 'No sub-periods yet. Add one to start logging contributions for this campaign.'
-                : 'No sub-periods have been created for this campaign yet.'}
-            </p>
-          ) : (
-            <GivingTable rows={children} emptyMessage="No sub-periods yet." />
-          )}
-        </div>
+      {tab === 'subgivings' && (
+        <SubGivingsPanel
+          meRole={me.role}
+          children={children}
+          api={api}
+          onRefresh={onRefresh}
+          onCreateClick={
+            (isPastorRole || isScopedLeaderRole) && !program.parentProgramId
+              ? () => setSubGivingOpen(true)
+              : undefined
+          }
+        />
       )}
 
       {tab === 'pending' && (
         <PendingApprovalQueue
-          contributions={pending}
+          contributions={pendingContributions}
           canAct={isFellowshipLeader}
           busy={busy}
           onApprove={handleApprove}
@@ -226,6 +241,7 @@ export function ProgramDetailView({
           programId={program.id}
           contributions={contributions}
           tree={tree}
+          structureOptions={structureOptions}
         />
       )}
 
@@ -233,13 +249,15 @@ export function ProgramDetailView({
         <ContributionsHistoryTable contributions={contributions} tree={tree} />
       )}
 
-      {isPastor && (
+      {(isPastorRole || isScopedLeaderRole) && (
         <CreateSubPeriodWizard
-          open={subPeriodOpen}
-          onOpenChange={setSubPeriodOpen}
+          open={subGivingOpen}
+          onOpenChange={setSubGivingOpen}
           parent={program}
           api={api}
           tree={tree}
+          requiresPastorApproval={!isPastorRole}
+          scopeRootNodeId={isScopedLeaderRole ? me.scopeNodeId : null}
           onCreated={() => void onRefresh()}
         />
       )}

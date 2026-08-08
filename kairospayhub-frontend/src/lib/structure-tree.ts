@@ -37,12 +37,37 @@ export function parentChain(tree: StructureTree, nodeId: string): StructureNode[
 }
 
 export function isDescendantOf(tree: StructureTree, ancestorId: string, nodeId: string): boolean {
+  if (ancestorId === nodeId) return true
   let current = nodeById(tree, nodeId)
   while (current?.parentNodeId) {
     if (current.parentNodeId === ancestorId) return true
     current = nodeById(tree, current.parentNodeId)
   }
   return false
+}
+
+export function collectSubtreeNodeIds(tree: StructureTree, rootId: string): Set<string> {
+  const ids = new Set<string>([rootId])
+  let expanded = true
+  while (expanded) {
+    expanded = false
+    for (const node of tree.nodes) {
+      if (node.parentNodeId && ids.has(node.parentNodeId) && !ids.has(node.id)) {
+        ids.add(node.id)
+        expanded = true
+      }
+    }
+  }
+  return ids
+}
+
+export function filterTreeToSubtree(tree: StructureTree, rootNodeId: string): StructureTree {
+  const nodeIds = collectSubtreeNodeIds(tree, rootNodeId)
+  return {
+    ...tree,
+    nodes: tree.nodes.filter((node) => nodeIds.has(node.id)),
+    members: tree.members.filter((member) => nodeIds.has(member.parentNodeId)),
+  }
 }
 
 export function countNodesForLayer(tree: StructureTree, layerId: string): number {

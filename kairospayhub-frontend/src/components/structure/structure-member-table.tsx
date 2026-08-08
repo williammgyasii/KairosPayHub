@@ -43,6 +43,7 @@ interface StructureMemberTableProps {
   serverSorting?: boolean
   sorting?: SortingState
   onSortingChange?: OnChangeFn<SortingState>
+  readOnly?: boolean
 }
 
 export function StructureMemberTable({
@@ -64,6 +65,7 @@ export function StructureMemberTable({
   serverSorting = false,
   sorting: sortingProp,
   onSortingChange: onSortingChangeProp,
+  readOnly = false,
 }: StructureMemberTableProps) {
   const [localSorting, setLocalSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
@@ -71,8 +73,8 @@ export function StructureMemberTable({
   const setSorting = onSortingChangeProp ?? setLocalSorting
 
   const columns = useMemo(
-    () => createMemberColumns(structureLayers, onEdit, onView, extendedColumns),
-    [structureLayers, onEdit, onView, extendedColumns],
+    () => createMemberColumns(structureLayers, onEdit, onView, extendedColumns, readOnly),
+    [structureLayers, onEdit, onView, extendedColumns, readOnly],
   )
 
   const table = useReactTable({
@@ -200,6 +202,7 @@ function createMemberColumns(
   onEdit: (member: StructureMemberRow) => void,
   onView?: (member: StructureMemberRow) => void,
   extendedColumns = false,
+  readOnly = false,
 ) {
   const helper = createColumnHelper<StructureMemberRow>()
 
@@ -296,13 +299,17 @@ function createMemberColumns(
         <span className="tabular-nums text-muted-foreground">{getValue() || '—'}</span>
       ),
     }),
-    helper.display({
-      id: 'actions',
-      header: '',
-      cell: ({ row }) => (
-        <MemberRowMenu member={row.original} onEdit={onEdit} onView={onView} />
-      ),
-    }),
+    ...(readOnly
+      ? []
+      : [
+          helper.display({
+            id: 'actions',
+            header: '',
+            cell: ({ row }) => (
+              <MemberRowMenu member={row.original} onEdit={onEdit} onView={onView} />
+            ),
+          }),
+        ]),
   ]
 }
 

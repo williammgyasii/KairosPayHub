@@ -14,6 +14,7 @@ import {
 } from '@/api/giving'
 import { ProgramDetailView } from '@/components/giving/program-detail-view'
 import type { ProgramDetailTab } from '@/components/giving/program-dashboard'
+import { isPastor, isScopedLeader } from '@/api/me'
 import { Spinner } from '@/components/ui/spinner'
 
 export function ProgramDetailPage() {
@@ -27,7 +28,7 @@ export function ProgramDetailPage() {
     const tab = searchParams.get('tab')
     const allowed: ProgramDetailTab[] = [
       'dashboard',
-      'subperiods',
+      'subgivings',
       'pending',
       'log',
       'contributions',
@@ -43,7 +44,7 @@ export function ProgramDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const isPastor = me.role === 'Pastor'
+  const canSeeRollup = isPastor(me.role) || isScopedLeader(me.role)
 
   const load = useCallback(async () => {
     if (!programId) return
@@ -54,7 +55,7 @@ export function ProgramDetailPage() {
       setProgram(prog)
       setChildren(prog.hasChildren ? await listChildPrograms(api, programId) : [])
       setContributions(await listProgramContributions(api, programId))
-      if (isPastor) {
+      if (canSeeRollup) {
         setRollup(await getProgramRollup(api, programId))
       } else {
         setRollup(null)
@@ -65,7 +66,7 @@ export function ProgramDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [api, programId, isPastor])
+  }, [api, programId, canSeeRollup])
 
   useEffect(() => {
     void load()
