@@ -244,24 +244,30 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope)
 
         if (scopeKind == ProgramScopeKind.Fellowship)
         {
-            if (actor.StructureRole != ChurchRole.FellowshipLeader && !scope.IsPastor(actor))
+            if (!await scope.HasRoleAsync(actor, authUserId, ChurchRole.FellowshipLeader, ct)
+                && !scope.IsPastor(actor))
+            {
                 throw new ForbiddenException("Only a fellowship leader can create fellowship-scoped programs");
+            }
             await ValidateScopeNodeAsync(actor, authUserId, input.ScopeNodeId, ct);
             return;
         }
 
         if (scopeKind == ProgramScopeKind.PFCC)
         {
-            if (actor.StructureRole != ChurchRole.PFCCManager && !scope.IsPastor(actor))
+            if (!await scope.HasRoleAsync(actor, authUserId, ChurchRole.PFCCManager, ct)
+                && !scope.IsPastor(actor))
+            {
                 throw new ForbiddenException("Only a PFCC manager can create PFCC-scoped programs");
+            }
             await ValidateScopeNodeAsync(actor, authUserId, input.ScopeNodeId, ct);
             return;
         }
 
         if (scopeKind == ProgramScopeKind.FellowshipGroup)
         {
-            if (actor.StructureRole != ChurchRole.FellowshipLeader
-                && actor.StructureRole != ChurchRole.PFCCManager
+            if (!await scope.HasRoleAsync(actor, authUserId, ChurchRole.FellowshipLeader, ct)
+                && !await scope.HasRoleAsync(actor, authUserId, ChurchRole.PFCCManager, ct)
                 && !scope.IsPastor(actor))
             {
                 throw new ForbiddenException("You cannot create grouped fellowship programs");
@@ -288,12 +294,11 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope)
         if (scope.IsPastor(actor))
             return;
 
-        var actorScope = await scope.GetActorScopeNodeIdAsync(actor, authUserId, ct);
-        if (actorScope is null)
-            throw new ForbiddenException("You do not have scope for this node");
-
-        if (!await scope.IsNodeInSubtreeAsync(actor.StructureChurchId, actorScope.Value, node.Id, ct)
-            && !await scope.IsNodeInSubtreeAsync(actor.StructureChurchId, node.Id, actorScope.Value, ct))
+        if (!await scope.IsNodeAccessibleViaAssignmentsAsync(
+            actor.StructureChurchId,
+            authUserId,
+            node.Id,
+            ct))
         {
             throw new ForbiddenException("Scope node is outside your assignment");
         }

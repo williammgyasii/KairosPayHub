@@ -119,26 +119,10 @@ public class ContributionService(
 
         if (!scope.IsPastor(actor))
         {
-            if (actor.StructureRole == ChurchRole.FellowshipLeader)
-            {
-                var scopeNodeId = await scope.GetActorScopeNodeIdAsync(actor, authUserId, ct);
-                if (scopeNodeId is null)
-                    return [];
-                var subtree = await scope.CollectSubtreeNodeIdsAsync(churchId, scopeNodeId.Value, ct);
-                query = query.Where(c => subtree.Contains(c.MemberParentNodeId));
-            }
-            else if (actor.StructureRole == ChurchRole.CellLeader)
-            {
-                var scopeNodeId = await scope.GetActorScopeNodeIdAsync(actor, authUserId, ct);
-                if (scopeNodeId is null)
-                    return [];
-                var subtree = await scope.CollectSubtreeNodeIdsAsync(churchId, scopeNodeId.Value, ct);
-                query = query.Where(c => subtree.Contains(c.MemberParentNodeId));
-            }
-            else
-            {
+            var visibleNodes = await scope.GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
+            if (visibleNodes.Count == 0)
                 return [];
-            }
+            query = query.Where(c => visibleNodes.Contains(c.MemberParentNodeId));
         }
 
         var rows = await query.OrderByDescending(c => c.CreatedAt).ToListAsync(ct);

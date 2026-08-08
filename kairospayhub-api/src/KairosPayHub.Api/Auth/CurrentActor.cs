@@ -40,7 +40,9 @@ public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
 
         RoleAssignment? assignment = authUserId is not null
             ? await db.RoleAssignments.AsNoTracking()
-                .FirstOrDefaultAsync(r => r.AuthUserId == authUserId, ct)
+                .Where(r => r.AuthUserId == authUserId)
+                .OrderBy(r => r.Role)
+                .FirstOrDefaultAsync(ct)
             : null;
 
         var legacyUser = await db.AppUsers.AsNoTracking()

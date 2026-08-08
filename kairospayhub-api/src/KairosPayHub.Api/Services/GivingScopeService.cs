@@ -194,9 +194,110 @@ public class GivingScopeService(KairosDbContext db)
             return null;
 
         return await db.RoleAssignments.AsNoTracking()
-            .Where(r => r.ChurchId == actor.StructureChurchId && r.AuthUserId == authUserId)
+            .Where(r =>
+                r.ChurchId == actor.StructureChurchId
+                && r.AuthUserId == authUserId
+                && r.Role == actor.StructureRole)
             .Select(r => r.ScopeNodeId)
             .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<bool> HasRoleAsync(
+        Actor actor,
+        Guid authUserId,
+        ChurchRole role,
+        CancellationToken ct) =>
+        actor.StructureChurchId != default
+        && await db.RoleAssignments.AsNoTracking()
+            .AnyAsync(
+                r => r.ChurchId == actor.StructureChurchId
+                    && r.AuthUserId == authUserId
+                    && r.Role == role,
+                ct);
+
+    public async Task<HashSet<Guid>> GetActorVisibleMemberNodeIdsAsync(
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        var assignments = await db.RoleAssignments.AsNoTracking()
+            .Where(r => r.ChurchId == actor.StructureChurchId && r.AuthUserId == authUserId)
+            .ToListAsync(ct);
+
+        var ids = new HashSet<Guid>();
+        foreach (var assignment in assignments)
+        {
+            if (assignment.Role is not (
+                ChurchRole.PFCCManager
+                or ChurchRole.FellowshipLeader
+                or ChurchRole.CellLeader))
+            {
+                continue;
+            }
+
+            if (assignment.ScopeNodeId is not Guid scopeNodeId)
+                continue;
+
+            foreach (var id in await CollectSubtreeNodeIdsAsync(
+                actor.StructureChurchId,
+                scopeNodeId,
+                ct))
+            {
+                ids.Add(id);
+            }
+        }
+
+        return ids;
+    }
+
+    private async Task<bool> MemberWithinRoleAssignmentsAsync(
+        Guid churchId,
+        Guid authUserId,
+        ChurchRole role,
+        Guid memberParentNodeId,
+        CancellationToken ct)
+    {
+        var scopeNodeIds = await db.RoleAssignments.AsNoTracking()
+            .Where(r => r.ChurchId == churchId && r.AuthUserId == authUserId && r.Role == role)
+            .Select(r => r.ScopeNodeId)
+            .ToListAsync(ct);
+
+        foreach (var scopeNodeId in scopeNodeIds)
+        {
+            if (scopeNodeId is not Guid scopedNodeId)
+                continue;
+
+            if (await IsNodeInSubtreeAsync(churchId, scopedNodeId, memberParentNodeId, ct))
+                return true;
+        }
+
+        return false;
+    }
+
+    public async Task<bool> IsNodeAccessibleViaAssignmentsAsync(
+        Guid churchId,
+        Guid authUserId,
+        Guid nodeId,
+        CancellationToken ct)
+    {
+        var scopeNodeIds = await db.RoleAssignments.AsNoTracking()
+            .Where(r => r.ChurchId == churchId && r.AuthUserId == authUserId)
+            .Select(r => r.ScopeNodeId)
+            .ToListAsync(ct);
+
+        foreach (var actorScope in scopeNodeIds)
+        {
+            if (actorScope is not Guid scopedNodeId)
+                continue;
+
+            if (await IsNodeInSubtreeAsync(churchId, scopedNodeId, nodeId, ct)
+                || await IsNodeInSubtreeAsync(churchId, nodeId, scopedNodeId, ct))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public bool IsPastor(Actor actor) =>
@@ -219,14 +320,12 @@ public class GivingScopeService(KairosDbContext db)
         if (!await MemberInProgramScopeAsync(program, member.ParentNodeId, ct))
             return false;
 
-        if (actor.StructureRole == ChurchRole.CellLeader)
-        {
-            var scopeNodeId = await GetActorScopeNodeIdAsync(actor, authUserId, ct);
-            if (scopeNodeId is null) return false;
-            return await IsNodeInSubtreeAsync(program.ChurchId, scopeNodeId.Value, member.ParentNodeId, ct);
-        }
-
-        return false;
+        return await MemberWithinRoleAssignmentsAsync(
+            program.ChurchId,
+            authUserId,
+            ChurchRole.CellLeader,
+            member.ParentNodeId,
+            ct);
     }
 
     public async Task<bool> CanApproveContributionAsync(
@@ -241,15 +340,10 @@ public class GivingScopeService(KairosDbContext db)
         if (IsPastor(actor))
             return true;
 
-        if (actor.StructureRole != ChurchRole.FellowshipLeader)
-            return false;
-
-        var scopeNodeId = await GetActorScopeNodeIdAsync(actor, authUserId, ct);
-        if (scopeNodeId is null) return false;
-
-        return await IsNodeInSubtreeAsync(
+        return await MemberWithinRoleAssignmentsAsync(
             program.ChurchId,
-            scopeNodeId.Value,
+            authUserId,
+            ChurchRole.FellowshipLeader,
             contribution.MemberParentNodeId,
             ct);
     }
@@ -268,13 +362,7 @@ public class GivingScopeService(KairosDbContext db)
         if (member.AuthUserId == authUserId)
             return true;
 
-        var scopeNodeId = await GetActorScopeNodeIdAsync(actor, authUserId, ct);
-        if (scopeNodeId is null) return false;
-
-        return await IsNodeInSubtreeAsync(
-            member.ChurchId,
-            scopeNodeId.Value,
-            member.ParentNodeId,
-            ct);
+        var visibleNodes = await GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
+        return visibleNodes.Contains(member.ParentNodeId);
     }
 }
