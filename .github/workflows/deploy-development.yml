@@ -1,0 +1,46 @@
+name: Deploy to Development
+
+on:
+  workflow_run:
+    workflows: [Test]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-development
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Deploy development API
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_DEV_API_SERVICE_ID }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          test -n "$RENDER_API_KEY"
+          test -n "$SERVICE_ID"
+          curl -fsS -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"commitId\":\"${COMMIT_SHA}\",\"clearCache\":\"do_not_clear\"}"
+
+      - name: Deploy development frontend
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_DEV_FRONTEND_SERVICE_ID }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          test -n "$RENDER_API_KEY"
+          test -n "$SERVICE_ID"
+          curl -fsS -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"commitId\":\"${COMMIT_SHA}\",\"clearCache\":\"do_not_clear\"}"

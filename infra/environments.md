@@ -26,14 +26,14 @@ Sync: [Render Blueprints](https://dashboard.render.com/blueprints)
 ## Release flow (Option A)
 
 ```text
-merge → main → CI passes → Dev auto-deploys
-git tag v1.2.3 → GitHub release.yml → Prod deploys that commit
+merge → main → CI passes → deploy-development.yml → Dev API + frontend deploy
+git tag v1.2.3 → deploy-production.yml → Prod deploys that commit
 ```
 
-| Target | Trigger | Render setting |
-|--------|---------|----------------|
-| **Dev** | Push to `main` after CI green | `autoDeployTrigger: checksPass` |
-| **Prod** | Git tag `v*` | `autoDeployTrigger: off` + `.github/workflows/release.yml` |
+| Target | Trigger | Mechanism |
+|--------|---------|-----------|
+| **Dev** | Push to `main` after CI green | `.github/workflows/deploy-development.yml` |
+| **Prod** | Git tag `v*` | `.github/workflows/deploy-production.yml` |
 
 ### Day-to-day
 
@@ -51,6 +51,8 @@ git push origin v0.2.0
 | Secret | Value |
 |--------|-------|
 | `RENDER_API_KEY` | Render dashboard API key |
+| `RENDER_DEV_API_SERVICE_ID` | `srv-d9rkbg49v7es73cgt740` |
+| `RENDER_DEV_FRONTEND_SERVICE_ID` | `srv-d9rkbgifngtc73dj47tg` |
 | `RENDER_PROD_API_SERVICE_ID` | `srv-d9r55e3m8hqs739tni7g` |
 | `RENDER_PROD_FRONTEND_SERVICE_ID` | `srv-d9r55fvavr4c73c8c2n0` |
 
@@ -58,6 +60,8 @@ Set via CLI:
 
 ```bash
 gh secret set RENDER_API_KEY --body "$RENDER_API_KEY"
+gh secret set RENDER_DEV_API_SERVICE_ID --body "srv-d9rkbg49v7es73cgt740"
+gh secret set RENDER_DEV_FRONTEND_SERVICE_ID --body "srv-d9rkbgifngtc73dj47tg"
 gh secret set RENDER_PROD_API_SERVICE_ID --body "srv-d9r55e3m8hqs739tni7g"
 gh secret set RENDER_PROD_FRONTEND_SERVICE_ID --body "srv-d9r55fvavr4c73c8c2n0"
 ```

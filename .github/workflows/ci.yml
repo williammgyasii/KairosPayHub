@@ -1,4 +1,4 @@
-# Tests on every PR/push. Render dev auto-deploy waits for this workflow to pass (checksPass).
+# Tests on every PR/push. Dev deploy runs via deploy-development.yml after this workflow passes on main.
 name: Test
 
 on:

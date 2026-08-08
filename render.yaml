@@ -2,12 +2,12 @@
 # Sync at https://dashboard.render.com/blueprints
 #
 # Deploy model (Option A):
-#   main + CI green  → Development (autoDeployTrigger: checksPass, both services)
-#   git tag v*       → Production (GitHub Actions deploy-production.yml + autoDeploy off)
+#   main + CI green  → Development (.github/workflows/deploy-development.yml)
+#   git tag v*       → Production (.github/workflows/deploy-production.yml)
 #
-# Dev services intentionally have NO buildFilter: if CI fails on a mixed
-# frontend+API commit and later API-only fixes pass, the frontend must still
-# redeploy from main so dev stays in sync.
+# Dev services use autoDeployTrigger: off so both API and frontend always
+# deploy together from GitHub Actions (Render path filters caused frontend to
+# be skipped when API-only fix commits passed after a failed mixed commit).
 #
 # DNS (Cloudflare CNAME): app / api / dev.app / dev.api → Render hostnames
 # Custom domains are already on the existing services; omit here so Blueprint
@@ -29,7 +29,7 @@ projects:
             rootDir: kairospayhub-api
             dockerfilePath: ./Dockerfile
             healthCheckPath: /health
-            autoDeployTrigger: checksPass
+            autoDeployTrigger: "off"
             envVars:
               - key: ASPNETCORE_ENVIRONMENT
                 value: Production
@@ -86,7 +86,7 @@ projects:
             rootDir: kairospayhub-frontend
             buildCommand: npm ci && npm test && npm run build
             staticPublishPath: ./dist
-            autoDeployTrigger: checksPass
+            autoDeployTrigger: "off"
             routes:
               - type: rewrite
                 source: /*
