@@ -3,7 +3,7 @@ import { ArrowRight, Check, Eye, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { ApiClient } from '@/api/client'
 import type { GivingProgram } from '@/api/giving'
-import { approveSubGiving, rejectSubGiving } from '@/api/giving'
+import { approveSubGiving, formatAmount, rejectSubGiving } from '@/api/giving'
 import type { ChurchRole } from '@/api/me'
 import {
   ProgramApprovalBadge,
@@ -11,6 +11,7 @@ import {
   ScopeKindBadge,
   SubGivingTagBadge,
 } from '@/components/giving/giving-badges'
+import { programCreatorLabel } from '@/lib/giving-ui'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -203,7 +204,7 @@ export function SubGivingsPanel({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[940px] text-sm">
               <thead>
                 <tr className="border-b border-border/60 bg-muted/20">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -214,6 +215,14 @@ export function SubGivingsPanel({
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Scope
+                  </th>
+                  {isPastor && (
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Created by
+                    </th>
+                  )}
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Approved
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Tags
@@ -243,6 +252,14 @@ export function SubGivingsPanel({
                     <td className="px-4 py-3 align-middle text-muted-foreground">{row.periodLabel}</td>
                     <td className="px-4 py-3 align-middle">
                       <ScopeKindBadge scopeKind={row.scopeKind} />
+                    </td>
+                    {isPastor && (
+                      <td className="px-4 py-3 align-middle text-muted-foreground">
+                        {programCreatorLabel(row)}
+                      </td>
+                    )}
+                    <td className="px-4 py-3 align-middle text-right font-semibold tabular-nums">
+                      {formatAmount(row.totalApprovedAmount ?? 0)}
                     </td>
                     <td className="px-4 py-3 align-middle">
                       <div className="flex flex-wrap gap-1.5">

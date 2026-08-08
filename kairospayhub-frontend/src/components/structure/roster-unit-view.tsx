@@ -29,7 +29,7 @@ import {
   layerById,
   memberBelongsToUnit,
   nodeById,
-  parentChain,
+  rosterBreadcrumbChain,
   unitDetailTabs,
   unitDeleteImpact,
 } from '@/lib/structure-tree'
@@ -41,6 +41,7 @@ interface RosterUnitViewProps {
   busy: boolean
   submit: (action: () => Promise<void>) => Promise<void>
   readOnly?: boolean
+  scopeRootNodeId?: string | null
 }
 
 export function RosterUnitView({
@@ -50,6 +51,7 @@ export function RosterUnitView({
   busy,
   submit,
   readOnly = false,
+  scopeRootNodeId = null,
 }: RosterUnitViewProps) {
   const api = useApi()
   const navigate = useNavigate()
@@ -88,12 +90,11 @@ export function RosterUnitView({
   }
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
-  const chain = parentChain(tree, unit.id)
   const breadcrumbs = [
     { label: 'Overview', to: '/' },
     { label: 'Roster', to: '/roster' },
     { label: 'Units', to: '/roster' },
-    ...chain.slice(0, -1).map((node) => ({
+    ...rosterBreadcrumbChain(tree, unit.id, scopeRootNodeId).map((node) => ({
       label: node.name,
       to: `/roster/units/${node.id}`,
     })),

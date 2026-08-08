@@ -100,7 +100,7 @@ export function NotificationsBell({ api }: NotificationsBellProps) {
                         <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
                       ) : null}
                     </div>
-                    <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                    <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">
                       {notification.body}
                     </p>
                     <p className="mt-1 text-[11px] text-muted-foreground/80">

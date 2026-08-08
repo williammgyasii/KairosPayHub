@@ -13,6 +13,7 @@ import {
   type ContributionStructureOptions,
   type ContributionTreeNode,
 } from '@/lib/contribution-structure'
+import { formatGivingDate } from '@/lib/giving-ui'
 import { ContributionStatusBadge } from '@/components/giving/giving-badges'
 import { StructureContributionsUnitSheet } from '@/components/giving/structure-contributions-unit-sheet'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
@@ -39,11 +40,13 @@ export function ContributionsStructureTable({
   contributions,
   tree,
   structureOptions,
+  viewerRole,
 }: {
   programId: string
   contributions: Contribution[]
   tree: StructureTree | null
   structureOptions?: ContributionStructureOptions
+  viewerRole?: string
 }) {
   const [filter, setFilter] = useState<'all' | ContributionStatus>('all')
   const [sheetNode, setSheetNode] = useState<ContributionTreeNode | null>(null)
@@ -82,7 +85,9 @@ export function ContributionsStructureTable({
       />
       <StructureContributionsUnitSheet
         node={sheetNode}
+        tree={tree}
         open={sheetNode != null}
+        viewerRole={viewerRole}
         onOpenChange={(open) => {
           if (!open) setSheetNode(null)
         }}
@@ -98,6 +103,7 @@ export function ProgramStructureContributionsView({
   contributions,
   tree,
   structureOptions,
+  viewerRole,
 }: {
   program: GivingProgram
   nodeId: string
@@ -105,6 +111,7 @@ export function ProgramStructureContributionsView({
   contributions: Contribution[]
   tree: StructureTree | null
   structureOptions?: ContributionStructureOptions
+  viewerRole?: string
 }) {
   const [sheetNode, setSheetNode] = useState<ContributionTreeNode | null>(null)
 
@@ -186,7 +193,7 @@ export function ProgramStructureContributionsView({
       </div>
 
       {isMember ? (
-        <MemberPaymentsTable payments={node.payments} />
+        <MemberPaymentsTable payments={node.payments} viewerRole={viewerRole} />
       ) : (
         <>
           <StructureLevelTable
@@ -203,7 +210,9 @@ export function ProgramStructureContributionsView({
           />
           <StructureContributionsUnitSheet
             node={sheetNode}
+            tree={tree}
             open={sheetNode != null}
+            viewerRole={viewerRole}
             onOpenChange={(open) => {
               if (!open) setSheetNode(null)
             }}
@@ -380,8 +389,10 @@ function StructureRowMenu({
 
 function MemberPaymentsTable({
   payments,
+  viewerRole,
 }: {
   payments: ContributionTreeNode['payments']
+  viewerRole?: string
 }) {
   return (
     <Card>
@@ -412,17 +423,17 @@ function MemberPaymentsTable({
               {payments.map((payment) => (
                 <tr key={payment.id} className="border-b border-border/30 last:border-0">
                   <td className="px-4 py-2.5 text-muted-foreground">
-                    {new Date(payment.dateSent).toLocaleDateString(undefined, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })}
+                    {formatGivingDate(payment.dateSent)}
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums font-medium">
                     {formatAmount(payment.amount, payment.currency)}
                   </td>
                   <td className="px-4 py-2.5">
-                    <ContributionStatusBadge status={payment.status} />
+                    <ContributionStatusBadge
+                      status={payment.status}
+                      viewerRole={viewerRole}
+                      pendingApproverRole={payment.pendingApproverRole}
+                    />
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">{payment.notes ?? '—'}</td>
                 </tr>

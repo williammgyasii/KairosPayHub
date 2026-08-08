@@ -15,7 +15,8 @@ public record CreateGivingProgramInput(
     string ScopeKind,
     Guid? ScopeNodeId = null,
     IReadOnlyList<Guid>? ScopeNodeIds = null,
-    Guid? ParentProgramId = null);
+    Guid? ParentProgramId = null,
+    bool MoveParentContributions = false);
 
 public class GivingProgramService(KairosDbContext db, GivingScopeService scope, NotificationService notifications)
 {
@@ -61,7 +62,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         }
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
-        return programs.Select(p => ToDto(p, parentIdsWithChildren)).ToList();
+        return await MapProgramsToDtosAsync(actor, authUserId, churchId, programs, parentIdsWithChildren, ct);
     }
 
     public async Task<IReadOnlyList<GivingProgramDto>> ListChildrenAsync(
@@ -100,7 +101,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         }
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
-        return programs.Select(p => ToDto(p, parentIdsWithChildren)).ToList();
+        return await MapProgramsToDtosAsync(actor, authUserId, churchId, programs, parentIdsWithChildren, ct);
     }
 
     public async Task<GivingProgramDto> GetAsync(
@@ -121,7 +122,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         }
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
-        return ToDto(program, parentIdsWithChildren);
+        return await MapProgramToDtoAsync(actor, authUserId, churchId, program, parentIdsWithChildren, ct);
     }
 
     public async Task<GivingDashboardDto> GetDashboardAsync(
@@ -182,7 +183,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
                 descendantIds.Count);
         }).ToList();
 
-        var pendingApprovalCount = await CountPendingContributionsAsync(allProgramIds, ct);
+        var pendingApprovalCount = await CountPendingContributionsForPastorAsync(churchId, allProgramIds, ct);
         var totalApproved = campaigns.Sum(c => c.TotalApprovedAmount);
 
         return new GivingDashboardDto(
@@ -248,12 +249,12 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         foreach (var root in roots)
             openProgramIds.AddRange(CollectDescendantIds(root.Id, childrenByParent));
 
-        var pendingApprovalCount = await db.Contributions.AsNoTracking()
-            .CountAsync(
-                c => openProgramIds.Contains(c.ProgramId)
-                    && c.Status == ContributionStatus.PendingApproval
-                    && subtreeSet.Contains(c.MemberParentNodeId),
-                ct);
+        var pendingApprovalCount = await CountPendingContributionsForScopedLeaderAsync(
+            actor,
+            churchId,
+            openProgramIds,
+            subtreeSet,
+            ct);
 
         var scopedApprovedByProgram = await db.Contributions.AsNoTracking()
             .Where(c =>
@@ -312,6 +313,52 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
             memberCount,
             pendingApprovalCount,
             scopedApprovedTotal);
+    }
+
+    private async Task<int> CountPendingContributionsForPastorAsync(
+        Guid churchId,
+        IReadOnlyList<Guid> programIds,
+        CancellationToken ct)
+    {
+        if (programIds.Count == 0)
+            return 0;
+
+        var hasPfccManagers = await scope.ChurchHasPfccManagersAsync(churchId, ct);
+        var pending = await db.Contributions.AsNoTracking()
+            .Where(c => programIds.Contains(c.ProgramId) && c.Status == ContributionStatus.PendingApproval)
+            .Select(c => c.EnteredByRole)
+            .ToListAsync(ct);
+
+        return pending.Count(enteredBy =>
+            enteredBy == ChurchRole.PFCCManager
+            || (!hasPfccManagers && enteredBy == ChurchRole.FellowshipLeader));
+    }
+
+    private async Task<int> CountPendingContributionsForScopedLeaderAsync(
+        Actor actor,
+        Guid churchId,
+        IReadOnlyList<Guid> programIds,
+        HashSet<Guid> subtreeMemberNodeIds,
+        CancellationToken ct)
+    {
+        if (programIds.Count == 0)
+            return 0;
+
+        var hasPfccManagers = await scope.ChurchHasPfccManagersAsync(churchId, ct);
+        var pending = await db.Contributions.AsNoTracking()
+            .Where(c =>
+                programIds.Contains(c.ProgramId)
+                && c.Status == ContributionStatus.PendingApproval
+                && subtreeMemberNodeIds.Contains(c.MemberParentNodeId))
+            .Select(c => c.EnteredByRole)
+            .ToListAsync(ct);
+
+        return actor.StructureRole switch
+        {
+            ChurchRole.PFCCManager => pending.Count(r => r == ChurchRole.FellowshipLeader),
+            ChurchRole.FellowshipLeader => pending.Count(r => r is null or ChurchRole.CellLeader),
+            _ => 0,
+        };
     }
 
     private async Task<int> CountPendingContributionsAsync(
@@ -453,13 +500,23 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
 
         await db.SaveChangesAsync(ct);
 
+        if (parent is not null && input.MoveParentContributions)
+        {
+            await db.Contributions
+                .Where(c => c.ProgramId == parent.Id)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(c => c.ProgramId, program.Id),
+                    ct);
+        }
+
         if (program.ParentProgramId is not null
             && program.ApprovalStatus == ProgramApprovalStatus.PendingPastorApproval)
         {
             await notifications.NotifySubGivingPendingAsync(program, ct);
         }
 
-        return ToDto(program, new HashSet<Guid>());
+        var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
+        return await MapProgramToDtoAsync(actor, createdByAuthUserId, churchId, program, parentIdsWithChildren, ct);
     }
 
     public async Task<GivingProgramDto> ApproveSubGivingAsync(
@@ -492,7 +549,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         await notifications.NotifySubGivingReviewedAsync(program, approved: true, ct);
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
-        return ToDto(program, parentIdsWithChildren);
+        return await MapProgramToDtoAsync(actor, authUserId, churchId, program, parentIdsWithChildren, ct);
     }
 
     public async Task<GivingProgramDto> RejectSubGivingAsync(
@@ -526,7 +583,120 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         await notifications.NotifySubGivingReviewedAsync(program, approved: false, ct);
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
-        return ToDto(program, parentIdsWithChildren);
+        return await MapProgramToDtoAsync(actor, authUserId, churchId, program, parentIdsWithChildren, ct);
+    }
+
+    public async Task<GivingProgramDto> CloseProgramAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid programId,
+        CancellationToken ct = default)
+    {
+        var program = await RequireRootProgramForPastorAsync(actor, programId, ct);
+        if (program.Status == ProgramStatus.Closed)
+            throw new BadRequestException("Campaign is already closed");
+
+        var treeIds = await CollectProgramTreeIdsAsync(program.ChurchId, program.Id, ct);
+        await db.GivingPrograms
+            .Where(p => treeIds.Contains(p.Id))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.Status, ProgramStatus.Closed), ct);
+
+        program.Status = ProgramStatus.Closed;
+        var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(program.ChurchId, ct);
+        return await MapProgramToDtoAsync(actor, authUserId, program.ChurchId, program, parentIdsWithChildren, ct);
+    }
+
+    public async Task<GivingProgramDto> ReopenProgramAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid programId,
+        CancellationToken ct = default)
+    {
+        var program = await RequireRootProgramForPastorAsync(actor, programId, ct);
+        if (program.Status == ProgramStatus.Open)
+            throw new BadRequestException("Campaign is already open");
+
+        var treeIds = await CollectProgramTreeIdsAsync(program.ChurchId, program.Id, ct);
+        await db.GivingPrograms
+            .Where(p => treeIds.Contains(p.Id))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.Status, ProgramStatus.Open), ct);
+
+        program.Status = ProgramStatus.Open;
+        var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(program.ChurchId, ct);
+        return await MapProgramToDtoAsync(actor, authUserId, program.ChurchId, program, parentIdsWithChildren, ct);
+    }
+
+    public async Task DeleteProgramAsync(
+        Actor actor,
+        Guid programId,
+        CancellationToken ct = default)
+    {
+        var program = await RequireRootProgramForPastorAsync(actor, programId, ct);
+        var treeIds = await CollectProgramTreeIdsAsync(program.ChurchId, program.Id, ct);
+
+        var hasContributions = await db.Contributions.AsNoTracking()
+            .AnyAsync(c => treeIds.Contains(c.ProgramId), ct);
+        if (hasContributions)
+        {
+            throw new BadRequestException(
+                "Cannot delete a campaign that has contributions. Close it instead.");
+        }
+
+        var programs = await db.GivingPrograms
+            .Where(p => treeIds.Contains(p.Id))
+            .ToListAsync(ct);
+
+        while (programs.Count > 0)
+        {
+            var leaves = programs
+                .Where(p => !programs.Any(child => child.ParentProgramId == p.Id))
+                .ToList();
+            if (leaves.Count == 0)
+                throw new InvalidOperationException("Could not resolve campaign delete order");
+
+            db.GivingPrograms.RemoveRange(leaves);
+            await db.SaveChangesAsync(ct);
+            programs.RemoveAll(p => leaves.Contains(p));
+        }
+    }
+
+    private async Task<GivingProgram> RequireRootProgramForPastorAsync(
+        Actor actor,
+        Guid programId,
+        CancellationToken ct)
+    {
+        if (!scope.IsPastor(actor))
+            throw new ForbiddenException("Only a pastor can manage campaigns");
+
+        var churchId = RequireStructureChurch(actor);
+        var program = await db.GivingPrograms.SingleOrDefaultAsync(
+            p => p.Id == programId && p.ChurchId == churchId,
+            ct)
+            ?? throw new ForbiddenException("Program not found");
+
+        if (program.ParentProgramId is not null)
+            throw new BadRequestException("Use campaign actions on the parent giving, not a sub-giving");
+
+        return program;
+    }
+
+    private async Task<IReadOnlyList<Guid>> CollectProgramTreeIdsAsync(
+        Guid churchId,
+        Guid rootProgramId,
+        CancellationToken ct)
+    {
+        var links = await db.GivingPrograms.AsNoTracking()
+            .Where(p => p.ChurchId == churchId && p.ParentProgramId != null)
+            .Select(p => new { p.Id, p.ParentProgramId })
+            .ToListAsync(ct);
+
+        var childrenByParent = links
+            .GroupBy(l => l.ParentProgramId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
+
+        var ids = new List<Guid> { rootProgramId };
+        ids.AddRange(CollectDescendantIds(rootProgramId, childrenByParent));
+        return ids;
     }
 
     private async Task ValidateCreatePermissionAsync(
@@ -637,7 +807,157 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         return result;
     }
 
-    private static GivingProgramDto ToDto(GivingProgram program, IReadOnlySet<Guid> parentIdsWithChildren)
+    private async Task<IReadOnlyList<GivingProgramDto>> MapProgramsToDtosAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid churchId,
+        IReadOnlyList<GivingProgram> programs,
+        IReadOnlySet<Guid> parentIdsWithChildren,
+        CancellationToken ct)
+    {
+        if (programs.Count == 0)
+            return [];
+
+        var creators = await GivingProgramCreatorResolver.ResolveForProgramsAsync(
+            db,
+            churchId,
+            programs.Select(p => (p.CreatedByAuthUserId, p.CreatedByRole)),
+            ct);
+
+        var totals = await LoadDisplayTotalsAsync(actor, authUserId, churchId, programs, ct);
+        var directStats = await LoadDirectContributionStatsAsync(
+            programs.Select(p => p.Id).ToList(),
+            ct);
+
+        return programs
+            .Select(p => ToDto(
+                p,
+                parentIdsWithChildren,
+                creators.TryGetValue(p.CreatedByAuthUserId, out var creator)
+                    ? creator
+                    : new ProgramCreatorDisplay(null, null),
+                totals.GetValueOrDefault(p.Id),
+                directStats.GetValueOrDefault(p.Id)))
+            .ToList();
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, DirectContributionStats>> LoadDirectContributionStatsAsync(
+        IReadOnlyList<Guid> programIds,
+        CancellationToken ct)
+    {
+        if (programIds.Count == 0)
+            return new Dictionary<Guid, DirectContributionStats>();
+
+        return await db.Contributions.AsNoTracking()
+            .Where(c => programIds.Contains(c.ProgramId))
+            .GroupBy(c => c.ProgramId)
+            .Select(g => new
+            {
+                ProgramId = g.Key,
+                Count = g.Count(),
+                Total = g.Sum(x => x.Amount),
+            })
+            .ToDictionaryAsync(
+                x => x.ProgramId,
+                x => new DirectContributionStats(x.Count, x.Total),
+                ct);
+    }
+
+    private sealed record DirectContributionStats(int Count, decimal Total);
+
+    private async Task<GivingProgramDto> MapProgramToDtoAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid churchId,
+        GivingProgram program,
+        IReadOnlySet<Guid> parentIdsWithChildren,
+        CancellationToken ct)
+    {
+        var dtos = await MapProgramsToDtosAsync(
+            actor,
+            authUserId,
+            churchId,
+            [program],
+            parentIdsWithChildren,
+            ct);
+        return dtos[0];
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, decimal>> LoadDisplayTotalsAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid churchId,
+        IReadOnlyList<GivingProgram> programs,
+        CancellationToken ct)
+    {
+        if (programs.Count == 0)
+            return new Dictionary<Guid, decimal>();
+
+        var links = await db.GivingPrograms.AsNoTracking()
+            .Where(p => p.ChurchId == churchId && p.ParentProgramId != null)
+            .Select(p => new { p.Id, p.ParentProgramId })
+            .ToListAsync(ct);
+
+        var childrenByParent = links
+            .GroupBy(l => l.ParentProgramId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
+
+        var rollupProgramIds = new HashSet<Guid>();
+        foreach (var program in programs)
+        {
+            rollupProgramIds.Add(program.Id);
+            foreach (var descendantId in CollectDescendantIds(program.Id, childrenByParent))
+                rollupProgramIds.Add(descendantId);
+        }
+
+        var approvedQuery = db.Contributions.AsNoTracking()
+            .Where(c =>
+                rollupProgramIds.Contains(c.ProgramId)
+                && c.Status == ContributionStatus.Approved);
+
+        Dictionary<Guid, decimal> approvedByProgram;
+        if (scope.IsPastor(actor))
+        {
+            approvedByProgram = await approvedQuery
+                .GroupBy(c => c.ProgramId)
+                .Select(g => new { ProgramId = g.Key, Total = g.Sum(x => x.Amount) })
+                .ToDictionaryAsync(x => x.ProgramId, x => x.Total, ct);
+        }
+        else
+        {
+            var subtreeSet = await scope.GetActorStructureSubtreeNodeIdsAsync(actor, authUserId, ct);
+            approvedByProgram = await approvedQuery
+                .Where(c => subtreeSet.Contains(c.MemberParentNodeId))
+                .GroupBy(c => c.ProgramId)
+                .Select(g => new { ProgramId = g.Key, Total = g.Sum(x => x.Amount) })
+                .ToDictionaryAsync(x => x.ProgramId, x => x.Total, ct);
+        }
+
+        var totals = new Dictionary<Guid, decimal>();
+        foreach (var program in programs)
+        {
+            var hasChildren = childrenByParent.ContainsKey(program.Id);
+            var descendantIds = CollectDescendantIds(program.Id, childrenByParent);
+            if (hasChildren)
+            {
+                totals[program.Id] = descendantIds.Sum(id => approvedByProgram.GetValueOrDefault(id));
+            }
+            else
+            {
+                totals[program.Id] = approvedByProgram.GetValueOrDefault(program.Id)
+                    + descendantIds.Sum(id => approvedByProgram.GetValueOrDefault(id));
+            }
+        }
+
+        return totals;
+    }
+
+    private static GivingProgramDto ToDto(
+        GivingProgram program,
+        IReadOnlySet<Guid> parentIdsWithChildren,
+        ProgramCreatorDisplay creator,
+        decimal totalApprovedAmount,
+        DirectContributionStats? directStats)
     {
         var hasChildren = parentIdsWithChildren.Contains(program.Id);
         return new GivingProgramDto(
@@ -651,9 +971,14 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
             program.Status.ToString(),
             program.ApprovalStatus.ToString(),
             program.CreatedByRole?.ToString(),
+            creator.Name,
+            creator.ScopeUnitName,
             program.CreatedAt,
+            totalApprovedAmount,
             hasChildren,
-            AcceptsContributions: !hasChildren && program.ApprovalStatus == ProgramApprovalStatus.Approved);
+            AcceptsContributions: !hasChildren && program.ApprovalStatus == ProgramApprovalStatus.Approved,
+            directStats?.Count ?? 0,
+            directStats?.Total ?? 0m);
     }
 
     private static GivingType ParseGivingType(string value)

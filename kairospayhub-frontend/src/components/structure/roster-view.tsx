@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createColumnHelper,
   flexRender,
@@ -12,7 +12,7 @@ import { ArrowUpDown, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useApi } from '@/api/useApi'
 import type { StructureLayer, StructureTree } from '@/api/structure'
-import { getLayers, nodesAtLayer, parentOptionsForLayer } from '@/lib/structure-tree'
+import { getLayers, layersBelowScopeRoot, nodesAtLayer, parentOptionsForLayer } from '@/lib/structure-tree'
 import { buildNodeRows, type StructureNodeRow } from '@/lib/structure-table-rows'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
 import { Button } from '@/components/ui/button'
@@ -25,12 +25,27 @@ interface RosterViewProps {
   busy: boolean
   submit: (action: () => Promise<void>) => Promise<void>
   readOnly?: boolean
+  scopeRootNodeId?: string | null
 }
 
-export function RosterView({ tree, error, busy, submit, readOnly = false }: RosterViewProps) {
-  const layers = getLayers(tree)
+export function RosterView({
+  tree,
+  error,
+  busy,
+  submit,
+  readOnly = false,
+  scopeRootNodeId = null,
+}: RosterViewProps) {
+  const layers = useMemo(
+    () => layersBelowScopeRoot(tree, scopeRootNodeId),
+    [tree, scopeRootNodeId],
+  )
   const [tab, setTab] = useState<string>(layers[0]?.id ?? '')
   const activeLayer = layers.find((l) => l.id === tab) ?? layers[0]
+
+  useEffect(() => {
+    setTab(layers[0]?.id ?? '')
+  }, [scopeRootNodeId, layers])
 
   const tabs = layers.map((layer) => ({
     id: layer.id,

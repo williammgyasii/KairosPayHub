@@ -128,6 +128,9 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, create.StatusCode);
         var contribution = await create.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("PendingApproval", contribution.GetProperty("status").GetString());
+        Assert.Equal("CellLeader", contribution.GetProperty("enteredByRole").GetString());
+        Assert.Equal("FellowshipLeader", contribution.GetProperty("pendingApproverRole").GetString());
+        Assert.Equal("https://fake.test/giving/test/receipt.jpg", contribution.GetProperty("attachmentUrl").GetString());
         var contributionId = contribution.GetProperty("id").GetGuid();
 
         var fellowshipClient = ClientForAuthUser(
@@ -246,5 +249,296 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
             $"/api/giving/programs/{programId}/contributions/{contributionId}/approve",
             null);
         Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pastor_cannot_approve_cell_leader_contribution()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Pastor Scope Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Fellowship",
+                email = "jane.fellowship@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob Cell",
+                email = "bob.cell@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Member Kay",
+            parentNodeId = cellId,
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "bob.cell@example.com");
+
+        var programId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var cellClient = ClientForAuthUser(cellLeader.AuthUserId!.Value, "bob.cell@example.com", "Bob Cell");
+        var contributionId = (await (await cellClient.PostAsJsonAsync(
+            $"/api/giving/programs/{programId}/contributions",
+            new
+            {
+                memberId,
+                amount = 100m,
+                dateSent = "2026-08-01T00:00:00Z",
+                attachmentKey = "giving/test/receipt.jpg",
+            })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var blocked = await pastor.PostAsync(
+            $"/api/giving/programs/{programId}/contributions/{contributionId}/approve",
+            null);
+        Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pfcc_manager_logs_contribution_pastor_approves()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "PFCC Giving Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "PFCC", displayName = "PFCC" },
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var pfccLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var fellowshipLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[2].GetProperty("id").GetGuid();
+
+        var pfccId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = pfccLayerId,
+            name = "PFCC 1",
+            newLeader = new
+            {
+                name = "Paul PFCC",
+                email = "paul.pfcc@example.com",
+                phone = "+233241111111",
+                dateOfBirth = "1988-01-01",
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = pfccId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Fellowship",
+                email = "jane.fellowship@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob Cell",
+                email = "bob.cell@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Member Kay",
+            parentNodeId = cellId,
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var pfccManager = await db.ChurchMembers.SingleAsync(m => m.Email == "paul.pfcc@example.com");
+        Assert.NotNull(pfccManager.AuthUserId);
+
+        var programId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var pfccClient = ClientForAuthUser(
+            pfccManager.AuthUserId!.Value,
+            "paul.pfcc@example.com",
+            "Paul PFCC");
+
+        var create = await pfccClient.PostAsJsonAsync($"/api/giving/programs/{programId}/contributions", new
+        {
+            memberId,
+            amount = 2000m,
+            currency = "GHS",
+            dateSent = "2026-08-05T00:00:00Z",
+            attachmentKey = "giving/test/pfcc-receipt.jpg",
+            notes = "PFCC Rhapsody Tuesday",
+        });
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+        var contribution = await create.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("PendingApproval", contribution.GetProperty("status").GetString());
+        Assert.Equal("PFCCManager", contribution.GetProperty("enteredByRole").GetString());
+        Assert.Equal("Pastor", contribution.GetProperty("pendingApproverRole").GetString());
+        var contributionId = contribution.GetProperty("id").GetGuid();
+
+        var fellowshipLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.fellowship@example.com");
+        var fellowshipClient = ClientForAuthUser(
+            fellowshipLeader.AuthUserId!.Value,
+            "jane.fellowship@example.com",
+            "Jane Fellowship");
+        var fellowshipBlocked = await fellowshipClient.PostAsync(
+            $"/api/giving/programs/{programId}/contributions/{contributionId}/approve",
+            null);
+        Assert.Equal(HttpStatusCode.Forbidden, fellowshipBlocked.StatusCode);
+
+        var approve = await pastor.PostAsync(
+            $"/api/giving/programs/{programId}/contributions/{contributionId}/approve",
+            null);
+        Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
+
+        var rollup = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{programId}/rollup");
+        Assert.Equal(2000m, rollup.GetProperty("totalApprovedAmount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Authenticated_leader_can_upload_giving_attachment()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Upload Church" });
+
+        using var form = new MultipartFormDataContent();
+        form.Add(new ByteArrayContent([0xFF, 0xD8, 0xFF, 0xD9]), "file", "receipt.jpg");
+
+        var upload = await pastor.PostAsync("/api/giving/attachments", form);
+        Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+
+        var body = await upload.Content.ReadFromJsonAsync<JsonElement>();
+        var key = body.GetProperty("attachmentKey").GetString();
+        Assert.StartsWith("giving/", key);
+        Assert.EndsWith(".jpg", key);
+        Assert.StartsWith("https://fake.test/", body.GetProperty("url").GetString());
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var fellowshipResp = await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = (await GetLayerIdAsync(pastor, "Fellowship")),
+            name = "F1",
+        });
+        var fellowshipId = (await fellowshipResp.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellResp = await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = (await GetLayerIdAsync(pastor, "Cell")),
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+        });
+        var cellId = (await cellResp.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Upload Member",
+            parentNodeId = cellId,
+            email = "upload.member@example.com",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var programResp = await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Upload Test",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        });
+        var programId = (await programResp.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("id").GetGuid();
+
+        var create = await pastor.PostAsJsonAsync($"/api/giving/programs/{programId}/contributions", new
+        {
+            memberId,
+            amount = 25m,
+            currency = "GHS",
+            dateSent = "2026-08-01T00:00:00Z",
+            attachmentKey = key,
+        });
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+
+        var download = await pastor.GetAsync($"/api/giving/attachments/content?key={Uri.EscapeDataString(key!)}");
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        Assert.Equal("image/jpeg", download.Content.Headers.ContentType?.MediaType);
+    }
+
+    private static async Task<Guid> GetLayerIdAsync(HttpClient client, string standardType)
+    {
+        var tree = await client.GetFromJsonAsync<JsonElement>("/api/structure/tree");
+        foreach (var layer in tree.GetProperty("layers").EnumerateArray())
+        {
+            if (layer.GetProperty("standardType").GetString() == standardType)
+                return layer.GetProperty("id").GetGuid();
+        }
+
+        throw new InvalidOperationException($"Layer {standardType} not found");
     }
 }

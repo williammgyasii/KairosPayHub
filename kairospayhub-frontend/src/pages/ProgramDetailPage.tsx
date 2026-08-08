@@ -9,6 +9,7 @@ import {
   listChildPrograms,
   listProgramContributions,
   type Contribution,
+  type ContributionListSummary,
   type GivingProgram,
   type GivingProgramRollup,
 } from '@/api/giving'
@@ -30,6 +31,7 @@ export function ProgramDetailPage() {
       'dashboard',
       'subgivings',
       'pending',
+      'approved',
       'log',
       'contributions',
       'history',
@@ -40,6 +42,7 @@ export function ProgramDetailPage() {
   const [program, setProgram] = useState<GivingProgram | null>(null)
   const [children, setChildren] = useState<GivingProgram[]>([])
   const [contributions, setContributions] = useState<Contribution[]>([])
+  const [contributionSummary, setContributionSummary] = useState<ContributionListSummary | null>(null)
   const [rollup, setRollup] = useState<GivingProgramRollup | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -53,8 +56,14 @@ export function ProgramDetailPage() {
     try {
       const prog = await getProgram(api, programId)
       setProgram(prog)
-      setChildren(prog.hasChildren ? await listChildPrograms(api, programId) : [])
-      setContributions(await listProgramContributions(api, programId))
+      const childRows = prog.hasChildren ? await listChildPrograms(api, programId) : []
+      setChildren(childRows)
+      const contributionList = await listProgramContributions(api, programId, {
+        page: 1,
+        pageSize: 500,
+      })
+      setContributions(contributionList.contributions)
+      setContributionSummary(contributionList.summary)
       if (canSeeRollup) {
         setRollup(await getProgramRollup(api, programId))
       } else {
@@ -67,6 +76,15 @@ export function ProgramDetailPage() {
       setLoading(false)
     }
   }, [api, programId, canSeeRollup])
+
+  const reloadChildren = useCallback(async () => {
+    if (!programId) return
+    try {
+      setChildren(await listChildPrograms(api, programId))
+    } catch {
+      // Parent load will surface errors on full refresh.
+    }
+  }, [api, programId])
 
   useEffect(() => {
     void load()
@@ -86,8 +104,10 @@ export function ProgramDetailPage() {
       program={program}
       children={children}
       contributions={contributions}
+      contributionSummary={contributionSummary}
       rollup={rollup}
       onRefresh={load}
+      onRefreshChildren={reloadChildren}
       initialTab={initialTab}
     />
   )

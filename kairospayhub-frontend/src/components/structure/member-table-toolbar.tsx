@@ -17,6 +17,7 @@ import type { StructureLayer } from '@/api/structure'
 import { MEMBER_OCCUPATION_OPTIONS, MEMBER_POSITION_OPTIONS } from '@/api/structure'
 import {
   buildMemberFilterFields,
+  buildStructureFilterFields,
   createMemberFilterRule,
   fieldDefFor,
   getActiveFilterRules,
@@ -56,6 +57,8 @@ interface MemberTableToolbarProps {
   onSearchFieldChange: (field: MemberFilterField | 'all') => void
   filteredCount: number
   totalCount: number
+  compact?: boolean
+  structureOnly?: boolean
 }
 
 export function MemberTableToolbar({
@@ -69,13 +72,21 @@ export function MemberTableToolbar({
   onSearchFieldChange,
   filteredCount,
   totalCount,
+  compact = false,
+  structureOnly = false,
 }: MemberTableToolbarProps) {
-  const fields = useMemo(() => buildMemberFilterFields(structureLayers), [structureLayers])
+  const fields = useMemo(
+    () =>
+      structureOnly
+        ? buildStructureFilterFields(structureLayers)
+        : buildMemberFilterFields(structureLayers),
+    [structureLayers, structureOnly],
+  )
   const activeCount = getActiveFilterRules(rules).length
   const [filtersOpen, setFiltersOpen] = useState(activeCount > 0 || rules.length > 0)
 
   function addRule() {
-    onChangeRules([...rules, createMemberFilterRule()])
+    onChangeRules([...rules, createMemberFilterRule(structureOnly ? fields[0]?.field : undefined)])
     setFiltersOpen(true)
   }
 
@@ -101,44 +112,51 @@ export function MemberTableToolbar({
 
   return (
     <div className="min-w-0 border-b border-border/60 bg-background">
-      <div className="flex flex-col gap-3 px-4 py-3 sm:px-5">
+      <div
+        className={cn(
+          'flex flex-col gap-3',
+          compact ? 'px-3 py-2.5' : 'px-4 py-3 sm:px-5',
+        )}
+      >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 shrink-0 justify-between gap-2 sm:w-36"
-                >
-                  {searchFieldLabel}
-                  <ChevronDown className="size-3.5 opacity-60" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-52 p-1">
-                <ScopeOption
-                  label="All fields"
-                  active={searchField === 'all'}
-                  onClick={() => onSearchFieldChange('all')}
-                />
-                {fields.map((field) => (
+            {!structureOnly && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 shrink-0 justify-between gap-2 sm:w-36"
+                  >
+                    {searchFieldLabel}
+                    <ChevronDown className="size-3.5 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-52 p-1">
                   <ScopeOption
-                    key={field.field}
-                    label={field.label}
-                    active={searchField === field.field}
-                    onClick={() => onSearchFieldChange(field.field)}
+                    label="All fields"
+                    active={searchField === 'all'}
+                    onClick={() => onSearchFieldChange('all')}
                   />
-                ))}
-              </PopoverContent>
-            </Popover>
+                  {fields.map((field) => (
+                    <ScopeOption
+                      key={field.field}
+                      label={field.label}
+                      active={searchField === field.field}
+                      onClick={() => onSearchFieldChange(field.field)}
+                    />
+                  ))}
+                </PopoverContent>
+              </Popover>
+            )}
 
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={(e) => onSearchQueryChange(e.target.value)}
-                placeholder="Search visible columns…"
+                placeholder={structureOnly ? 'Search by name…' : 'Search visible columns…'}
                 className="h-9 pl-9"
               />
             </div>

@@ -167,4 +167,136 @@ public class GivingProgramApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(1, list.GetProperty("programs").GetArrayLength());
         Assert.Equal("Rhapsody 2026", list.GetProperty("programs")[0].GetProperty("title").GetString());
     }
+
+    [Fact]
+    public async Task Pastor_closes_and_reopens_root_campaign()
+    {
+        var client = PastorClient();
+        await OnboardAsync(client);
+
+        var created = await client.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        });
+        var programId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var close = await client.PostAsync($"/api/giving/programs/{programId}/close", null);
+        Assert.Equal(HttpStatusCode.OK, close.StatusCode);
+        Assert.Equal("Closed", (await close.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+
+        var reopen = await client.PostAsync($"/api/giving/programs/{programId}/reopen", null);
+        Assert.Equal(HttpStatusCode.OK, reopen.StatusCode);
+        Assert.Equal("Open", (await reopen.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Pastor_deletes_empty_campaign_without_contributions()
+    {
+        var client = PastorClient();
+        await OnboardAsync(client);
+
+        var created = await client.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "SundayService",
+            title = "Sunday service 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        });
+        var programId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var delete = await client.DeleteAsync($"/api/giving/programs/{programId}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+
+        var get = await client.GetAsync($"/api/giving/programs/{programId}");
+        Assert.Equal(HttpStatusCode.Forbidden, get.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pastor_cannot_delete_campaign_with_contributions()
+    {
+        var pastor = PastorClient();
+        await OnboardAsync(pastor);
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane",
+                email = "jane.delete@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob",
+                email = "bob.delete@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Kay",
+            parentNodeId = cellId,
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "bob.delete@example.com");
+
+        var rootId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var childId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            parentProgramId = rootId,
+            title = "January 2026",
+            periodLabel = "January 2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var cellClient = ClientForAuthUser(cellLeader.AuthUserId!.Value, "bob.delete@example.com", "Bob");
+        await cellClient.PostAsJsonAsync($"/api/giving/programs/{childId}/contributions", new
+        {
+            memberId,
+            amount = 25m,
+            dateSent = "2026-01-15T00:00:00Z",
+            attachmentKey = "giving/test/delete.jpg",
+        });
+
+        var blocked = await pastor.DeleteAsync($"/api/giving/programs/{rootId}");
+        Assert.Equal(HttpStatusCode.BadRequest, blocked.StatusCode);
+    }
 }

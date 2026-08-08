@@ -143,6 +143,109 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
         var rootRollup = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/rollup");
         Assert.Equal(100m, rootRollup.GetProperty("totalApprovedAmount").GetDecimal());
         Assert.True(rootRollup.GetProperty("includesDescendants").GetBoolean());
+
+        children = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/children");
+        Assert.Equal(100m, children.GetProperty("programs")[0].GetProperty("totalApprovedAmount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Fellowship_leader_logs_with_attachment_auto_approves_and_shows_on_children_list()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Auto Approve Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane",
+                email = "jane.auto@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob",
+                email = "bob.auto@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Kay",
+            parentNodeId = cellId,
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var fellowshipLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.auto@example.com");
+
+        var rootId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var childId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            parentProgramId = rootId,
+            title = "January Rhapsody",
+            periodLabel = "January 2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var fellowshipClient = ClientForAuthUser(
+            fellowshipLeader.AuthUserId!.Value,
+            "jane.auto@example.com",
+            "Jane");
+
+        var create = await fellowshipClient.PostAsJsonAsync($"/api/giving/programs/{childId}/contributions", new
+        {
+            memberId,
+            amount = 250m,
+            dateSent = "2026-01-20T00:00:00Z",
+            attachmentKey = "giving/test/fl-receipt.jpg",
+        });
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+        var body = await create.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("PendingApproval", body.GetProperty("status").GetString());
+        Assert.Equal("FellowshipLeader", body.GetProperty("enteredByRole").GetString());
+        Assert.Equal("Pastor", body.GetProperty("pendingApproverRole").GetString());
+
+        var approve = await pastor.PostAsync(
+            $"/api/giving/programs/{childId}/contributions/{body.GetProperty("id").GetGuid()}/approve",
+            null);
+        Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
+
+        var children = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/children");
+        Assert.Equal(250m, children.GetProperty("programs")[0].GetProperty("totalApprovedAmount").GetDecimal());
     }
 
     [Fact]
@@ -186,6 +289,206 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
             scopeKind = "ChurchWide",
         });
         Assert.Equal(HttpStatusCode.BadRequest, blocked.StatusCode);
+    }
+
+    [Fact]
+    public async Task Creating_sub_giving_with_moveParentContributions_reassigns_parent_contributions()
+    {
+        var (pastor, rootId, memberId, fellowshipClient, cellClient) = await SeedNestedGivingAsync();
+
+        var onParent = await cellClient.PostAsJsonAsync($"/api/giving/programs/{rootId}/contributions", new
+        {
+            memberId,
+            amount = 50m,
+            dateSent = "2026-01-10T00:00:00Z",
+            attachmentKey = "giving/test/parent-a.jpg",
+        });
+        Assert.Equal(HttpStatusCode.OK, onParent.StatusCode);
+        var parentContributionId = (await onParent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var approveParent = await fellowshipClient.PostAsync(
+            $"/api/giving/programs/{rootId}/contributions/{parentContributionId}/approve",
+            null);
+        Assert.Equal(HttpStatusCode.OK, approveParent.StatusCode);
+
+        var childResp = await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            parentProgramId = rootId,
+            title = "January 2026",
+            periodLabel = "January 2026",
+            scopeKind = "ChurchWide",
+            moveParentContributions = true,
+        });
+        Assert.Equal(HttpStatusCode.OK, childResp.StatusCode);
+        var childId = (await childResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var parentList = await pastor.GetFromJsonAsync<JsonElement>(
+            $"/api/giving/programs/{rootId}/contributions?page=1&pageSize=20");
+        Assert.Equal(1, parentList.GetProperty("totalCount").GetInt32());
+        Assert.Equal(childId.ToString(), parentList.GetProperty("contributions")[0].GetProperty("programId").GetString());
+
+        var rootProgram = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}");
+        Assert.Equal(0, rootProgram.GetProperty("directContributionCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task Rollup_excludes_direct_parent_contributions_when_sub_givings_exist()
+    {
+        var (pastor, rootId, memberId, fellowshipClient, cellClient) = await SeedNestedGivingAsync();
+
+        var onParent = await cellClient.PostAsJsonAsync($"/api/giving/programs/{rootId}/contributions", new
+        {
+            memberId,
+            amount = 50m,
+            dateSent = "2026-01-10T00:00:00Z",
+            attachmentKey = "giving/test/parent-legacy.jpg",
+        });
+        var parentContributionId = (await onParent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        await fellowshipClient.PostAsync(
+            $"/api/giving/programs/{rootId}/contributions/{parentContributionId}/approve",
+            null);
+
+        var childResp = await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            parentProgramId = rootId,
+            title = "January 2026",
+            periodLabel = "January 2026",
+            scopeKind = "ChurchWide",
+        });
+        var childId = (await childResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var onChild = await cellClient.PostAsJsonAsync($"/api/giving/programs/{childId}/contributions", new
+        {
+            memberId,
+            amount = 100m,
+            dateSent = "2026-01-15T00:00:00Z",
+            attachmentKey = "giving/test/child.jpg",
+        });
+        var childContributionId = (await onChild.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        await fellowshipClient.PostAsync(
+            $"/api/giving/programs/{childId}/contributions/{childContributionId}/approve",
+            null);
+
+        var rootRollup = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/rollup");
+        Assert.Equal(100m, rootRollup.GetProperty("totalApprovedAmount").GetDecimal());
+
+        var rootProgram = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}");
+        Assert.Equal(100m, rootProgram.GetProperty("totalApprovedAmount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Direct_parent_contributions_are_flagged_as_legacy_when_sub_givings_exist()
+    {
+        var (pastor, rootId, memberId, fellowshipClient, cellClient) = await SeedNestedGivingAsync();
+
+        var onParent = await cellClient.PostAsJsonAsync($"/api/giving/programs/{rootId}/contributions", new
+        {
+            memberId,
+            amount = 75m,
+            dateSent = "2026-01-10T00:00:00Z",
+            attachmentKey = "giving/test/legacy.jpg",
+        });
+        var parentContributionId = (await onParent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        await fellowshipClient.PostAsync(
+            $"/api/giving/programs/{rootId}/contributions/{parentContributionId}/approve",
+            null);
+
+        var rootBeforeChild = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}");
+        Assert.Equal(1, rootBeforeChild.GetProperty("directContributionCount").GetInt32());
+        Assert.Equal(75m, rootBeforeChild.GetProperty("directContributionTotalAmount").GetDecimal());
+
+        await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            parentProgramId = rootId,
+            title = "January 2026",
+            periodLabel = "January 2026",
+            scopeKind = "ChurchWide",
+        });
+
+        var parentList = await pastor.GetFromJsonAsync<JsonElement>(
+            $"/api/giving/programs/{rootId}/contributions?page=1&pageSize=20");
+        var row = parentList.GetProperty("contributions")[0];
+        Assert.True(row.GetProperty("isLegacyParentContribution").GetBoolean());
+        Assert.False(row.GetProperty("isSubGiving").GetBoolean());
+    }
+
+    private async Task<(
+        HttpClient Pastor,
+        Guid RootId,
+        Guid MemberId,
+        HttpClient FellowshipClient,
+        HttpClient CellClient)> SeedNestedGivingAsync()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Legacy Parent Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane",
+                email = "jane.legacy@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob",
+                email = "bob.legacy@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Kay",
+            parentNodeId = cellId,
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "bob.legacy@example.com");
+        var fellowshipLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.legacy@example.com");
+
+        var rootResp = await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        });
+        var rootId = (await rootResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        return (
+            pastor,
+            rootId,
+            memberId,
+            ClientForAuthUser(fellowshipLeader.AuthUserId!.Value, "jane.legacy@example.com", "Jane"),
+            ClientForAuthUser(cellLeader.AuthUserId!.Value, "bob.legacy@example.com", "Bob"));
     }
 
     [Fact]

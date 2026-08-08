@@ -84,7 +84,8 @@ public record CreateGivingProgramRequest(
     string? ScopeKind,
     Guid? ScopeNodeId,
     IReadOnlyList<Guid>? ScopeNodeIds = null,
-    Guid? ParentProgramId = null);
+    Guid? ParentProgramId = null,
+    bool? MoveParentContributions = null);
 
 public record GivingProgramDto(
     Guid Id,
@@ -97,9 +98,14 @@ public record GivingProgramDto(
     string Status,
     string ApprovalStatus,
     string? CreatedByRole,
+    string? CreatedByName,
+    string? CreatedByScopeUnitName,
     DateTimeOffset CreatedAt,
+    decimal TotalApprovedAmount,
     bool HasChildren,
-    bool AcceptsContributions);
+    bool AcceptsContributions,
+    int DirectContributionCount,
+    decimal DirectContributionTotalAmount);
 
 public record GivingProgramListResponse(IReadOnlyList<GivingProgramDto> Programs);
 
@@ -109,7 +115,11 @@ public record CreateContributionRequest(
     string? Currency,
     DateTimeOffset DateSent,
     string AttachmentKey,
-    string? Notes);
+    string? Notes,
+    bool? SentToPastor = null,
+    string? RemittanceMedium = null,
+    string? RemittanceMediumOther = null,
+    Guid? BatchId = null);
 
 public record RejectContributionRequest(string? Reason);
 
@@ -118,20 +128,47 @@ public record RejectSubGivingRequest(string? Reason);
 public record ContributionDto(
     Guid Id,
     Guid ProgramId,
+    string ProgramTitle,
+    string ProgramPeriodLabel,
+    bool IsSubGiving,
+    bool IsLegacyParentContribution,
     Guid MemberId,
     string MemberName,
     decimal Amount,
     string Currency,
     DateTimeOffset DateSent,
     string AttachmentKey,
+    string? AttachmentUrl,
     string? Notes,
     Guid MemberParentNodeId,
     string Status,
+    string? EnteredByRole,
+    string? EnteredByName,
+    string? EnteredByScopeUnitName,
+    bool? SentToPastor,
+    string? RemittanceMedium,
+    string? RemittanceMediumOther,
+    Guid? BatchId,
+    string? PendingApproverRole,
     DateTimeOffset? ApprovedAt,
+    string? ApprovedByName,
     string? RejectedReason,
     DateTimeOffset CreatedAt);
 
-public record ContributionListResponse(IReadOnlyList<ContributionDto> Contributions);
+public record ContributionListSummary(
+    int PendingCount,
+    decimal PendingTotalAmount,
+    int AwaitingMyApprovalCount,
+    int ApprovedCount,
+    decimal ApprovedTotalAmount,
+    int RejectedCount);
+
+public record ContributionListResponse(
+    IReadOnlyList<ContributionDto> Contributions,
+    int TotalCount,
+    int Page,
+    int PageSize,
+    ContributionListSummary Summary);
 
 public record GivingAttachmentDto(string AttachmentKey, string Url);
 

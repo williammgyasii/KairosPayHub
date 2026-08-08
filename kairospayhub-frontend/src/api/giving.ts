@@ -7,6 +7,7 @@ export type ProgramScopeKind = 'ChurchWide' | 'Fellowship' | 'PFCC' | 'Fellowshi
 export type ProgramStatus = 'Open' | 'Closed'
 export type ProgramApprovalStatus = 'Approved' | 'PendingPastorApproval' | 'Rejected'
 export type ContributionStatus = 'PendingApproval' | 'Approved' | 'Rejected'
+export type RemittanceMedium = 'PastorBank' | 'ChurchMomo' | 'PastorMomo' | 'Other'
 
 export type GivingProgram = {
   id: string
@@ -19,26 +20,106 @@ export type GivingProgram = {
   status: ProgramStatus | string
   approvalStatus: ProgramApprovalStatus | string
   createdByRole: string | null
+  createdByName: string | null
+  createdByScopeUnitName: string | null
   createdAt: string
+  totalApprovedAmount: number
   hasChildren: boolean
   acceptsContributions: boolean
+  directContributionCount: number
+  directContributionTotalAmount: number
 }
 
 export type Contribution = {
   id: string
   programId: string
+  programTitle: string
+  programPeriodLabel: string
+  isSubGiving: boolean
+  isLegacyParentContribution: boolean
   memberId: string
   memberName: string
   amount: number
   currency: string
   dateSent: string
   attachmentKey: string
+  attachmentUrl: string | null
   notes: string | null
   memberParentNodeId: string
   status: ContributionStatus | string
+  enteredByRole: string | null
+  enteredByName: string | null
+  enteredByScopeUnitName: string | null
+  sentToPastor: boolean | null
+  remittanceMedium: RemittanceMedium | string | null
+  remittanceMediumOther: string | null
+  batchId: string | null
+  pendingApproverRole: string | null
   approvedAt: string | null
+  approvedByName: string | null
   rejectedReason: string | null
   createdAt: string
+}
+
+export type ContributionListSummary = {
+  pendingCount: number
+  pendingTotalAmount: number
+  awaitingMyApprovalCount: number
+  approvedCount: number
+  approvedTotalAmount: number
+  rejectedCount: number
+}
+
+export type ContributionListResult = {
+  contributions: Contribution[]
+  totalCount: number
+  page: number
+  pageSize: number
+  summary: ContributionListSummary
+}
+
+export type ContributionListQuery = {
+  page?: number
+  pageSize?: number
+  sortBy?: 'createdAt' | 'dateSent' | 'amount' | 'memberName' | 'status' | 'approvedAt'
+  sortDir?: 'asc' | 'desc'
+  status?: ContributionStatus
+  search?: string
+  awaitingMyApproval?: boolean
+}
+
+function summarizeContributions(contributions: Contribution[]): ContributionListSummary {
+  const pending = contributions.filter((c) => c.status === 'PendingApproval')
+  const approved = contributions.filter((c) => c.status === 'Approved')
+  const rejected = contributions.filter((c) => c.status === 'Rejected')
+  return {
+    pendingCount: pending.length,
+    pendingTotalAmount: pending.reduce((sum, c) => sum + c.amount, 0),
+    awaitingMyApprovalCount: 0,
+    approvedCount: approved.length,
+    approvedTotalAmount: approved.reduce((sum, c) => sum + c.amount, 0),
+    rejectedCount: rejected.length,
+  }
+}
+
+export function normalizeContributionListResult(
+  data: Partial<ContributionListResult> | null | undefined,
+): ContributionListResult {
+  const contributions = (data?.contributions ?? []).map((row) => ({
+    ...row,
+    programTitle: row.programTitle ?? 'Giving',
+    programPeriodLabel: row.programPeriodLabel ?? '',
+    isSubGiving: row.isSubGiving ?? false,
+    isLegacyParentContribution: row.isLegacyParentContribution ?? false,
+  }))
+  const summary = data?.summary ?? summarizeContributions(contributions)
+  return {
+    contributions,
+    totalCount: data?.totalCount ?? contributions.length,
+    page: data?.page ?? 1,
+    pageSize: data?.pageSize ?? (contributions.length || 25),
+    summary,
+  }
 }
 
 export type GivingRollupRow = {
@@ -94,6 +175,7 @@ export type CreateSubPeriodInput = {
   scopeNodeId?: string | null
   scopeNodeIds?: string[]
   parentProgramId: string
+  moveParentContributions?: boolean
 }
 
 export type CreateContributionInput = {
@@ -103,6 +185,10 @@ export type CreateContributionInput = {
   dateSent: string
   attachmentKey: string
   notes?: string | null
+  sentToPastor?: boolean | null
+  remittanceMedium?: RemittanceMedium | string | null
+  remittanceMediumOther?: string | null
+  batchId?: string | null
 }
 
 export async function listPrograms(api: ApiClient) {
@@ -143,16 +229,37 @@ export async function createProgram(api: ApiClient, input: CreateGivingProgramIn
   return api.post<GivingProgram>('/api/giving/programs', input)
 }
 
+export async function closeProgram(api: ApiClient, programId: string) {
+  return api.post<GivingProgram>(`/api/giving/programs/${programId}/close`, {})
+}
+
+export async function reopenProgram(api: ApiClient, programId: string) {
+  return api.post<GivingProgram>(`/api/giving/programs/${programId}/reopen`, {})
+}
+
+export async function deleteProgram(api: ApiClient, programId: string) {
+  await api.delete(`/api/giving/programs/${programId}`)
+}
+
 export async function listProgramContributions(
   api: ApiClient,
   programId: string,
-  status?: ContributionStatus,
+  query: ContributionListQuery = {},
 ) {
-  const qs = status ? `?status=${status}` : ''
-  const res = await api.get<{ contributions: Contribution[] }>(
-    `/api/giving/programs/${programId}/contributions${qs}`,
+  const params = new URLSearchParams()
+  if (query.page) params.set('page', String(query.page))
+  if (query.pageSize) params.set('pageSize', String(query.pageSize))
+  if (query.sortBy) params.set('sortBy', query.sortBy)
+  if (query.sortDir) params.set('sortDir', query.sortDir)
+  if (query.status) params.set('status', query.status)
+  if (query.search?.trim()) params.set('search', query.search.trim())
+  if (query.awaitingMyApproval) params.set('awaitingMyApproval', 'true')
+
+  const qs = params.toString()
+  const data = await api.get<Partial<ContributionListResult>>(
+    `/api/giving/programs/${programId}/contributions${qs ? `?${qs}` : ''}`,
   )
-  return res.contributions
+  return normalizeContributionListResult(data)
 }
 
 export async function createContribution(
@@ -191,15 +298,15 @@ export async function getProgramRollup(api: ApiClient, programId: string) {
 }
 
 export async function listMyContributions(api: ApiClient) {
-  const res = await api.get<{ contributions: Contribution[] }>('/api/giving/me/contributions')
-  return res.contributions
+  const res = await api.get<Partial<ContributionListResult>>('/api/giving/me/contributions')
+  return normalizeContributionListResult(res).contributions
 }
 
 export async function listMemberContributions(api: ApiClient, memberId: string) {
-  const res = await api.get<{ contributions: Contribution[] }>(
+  const res = await api.get<Partial<ContributionListResult>>(
     `/api/giving/members/${memberId}/contributions`,
   )
-  return res.contributions
+  return normalizeContributionListResult(res).contributions
 }
 
 export async function uploadGivingAttachment(file: File) {
@@ -207,18 +314,36 @@ export async function uploadGivingAttachment(file: File) {
   const body = new FormData()
   body.append('file', file)
 
-  const res = await fetch(
-    `${apiBaseUrl()}/api/giving/attachments`,
-    {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body,
-    },
-  )
+  const res = await fetch(`${apiBaseUrl()}/api/giving/attachments`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body,
+  })
 
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error ?? 'Upload failed')
-  return data as { attachmentKey: string; url: string }
+  const data = (await res.json().catch(() => ({}))) as Record<string, string>
+  if (!res.ok) {
+    throw new Error(data.error ?? data.title ?? 'Upload failed')
+  }
+
+  const attachmentKey = data.attachmentKey ?? data.AttachmentKey
+  const url = data.url ?? data.Url
+  if (!attachmentKey) throw new Error('Upload succeeded but no attachment key was returned')
+
+  return { attachmentKey, url: url ?? '' }
+}
+
+export function givingAttachmentContentUrl(attachmentKey: string) {
+  return `${apiBaseUrl()}/api/giving/attachments/content?key=${encodeURIComponent(attachmentKey)}`
+}
+
+export async function fetchGivingAttachmentBlobUrl(attachmentKey: string): Promise<string | null> {
+  const token = getAccessToken()
+  const res = await fetch(givingAttachmentContentUrl(attachmentKey), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) return null
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
 }
 
 export function formatAmount(amount: number, currency = 'GHS') {

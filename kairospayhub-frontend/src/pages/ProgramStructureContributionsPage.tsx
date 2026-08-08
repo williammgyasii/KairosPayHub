@@ -37,7 +37,9 @@ export function ProgramStructureContributionsPage() {
     try {
       const prog = await getProgram(api, programId)
       setProgram(prog)
-      setContributions(await listProgramContributions(api, programId))
+      setContributions(
+        (await listProgramContributions(api, programId, { page: 1, pageSize: 500 })).contributions,
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load giving structure')
       setProgram(null)
@@ -64,6 +66,7 @@ export function ProgramStructureContributionsPage() {
       contributions={contributions}
       tree={tree}
       structureOptions={structureOptions}
+      viewerRole={me.onboarded ? me.role : undefined}
     />
   )
 }

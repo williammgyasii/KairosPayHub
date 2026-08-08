@@ -366,7 +366,14 @@ export function RosterPage() {
             : `${displayTree.template!.name} — ${getLayers(displayTree).map((l) => l.displayName).join(', ')}. Click a unit to manage its members.`
         }
       />
-      <RosterView tree={displayTree} error={error} busy={busy} submit={submit} readOnly={readOnly} />
+      <RosterView
+        tree={displayTree}
+        error={error}
+        busy={busy}
+        submit={submit}
+        readOnly={readOnly}
+        scopeRootNodeId={isScopedLeader(me.role) ? me.scopeNodeId : null}
+      />
     </div>
   )
 }
@@ -402,6 +409,7 @@ export function RosterUnitPage() {
       busy={busy}
       submit={submit}
       readOnly={readOnly}
+      scopeRootNodeId={isScopedLeader(me.role) ? me.scopeNodeId : null}
     />
   )
 }

@@ -1,6 +1,6 @@
 import type { Contribution, GivingRollupRow } from '@/api/giving'
 import type { StructureLayer, StructureLayerType, StructureNode, StructureTree } from '@/api/structure'
-import { getLayers, nodeById, parentChain } from '@/lib/structure-tree'
+import { countCellsUnderUnit, countMembersUnderUnit, getLayers, nodeById, parentChain } from '@/lib/structure-tree'
 
 export type ContributionStructureOptions = {
   /** When set, views start one level below this node (leader's assigned unit). */
@@ -312,6 +312,179 @@ export function collectPaymentsInSubtree(node: ContributionTreeNode): Contributi
     payments.push(...collectPaymentsInSubtree(child))
   }
   return sortByDateDesc(payments)
+}
+
+export type UnitGivingBreakdownRow = {
+  id: string
+  name: string
+  layerLabel: string
+  unitNumber: string | null
+  rosterCount: number
+  membersGiving: number
+  approvedTotal: number
+  paymentCount: number
+  pendingCount: number
+}
+
+export type UnitGivingOverview = {
+  rosterCells: number
+  rosterMembers: number
+  membersGiving: number
+  participationLabel: string
+  breakdownTitle: string
+  breakdownRows: UnitGivingBreakdownRow[]
+}
+
+function compareBreakdownRows(a: UnitGivingBreakdownRow, b: UnitGivingBreakdownRow) {
+  const aNum = Number.parseInt(a.unitNumber ?? '', 10)
+  const bNum = Number.parseInt(b.unitNumber ?? '', 10)
+  if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) return aNum - bNum
+  return a.name.localeCompare(b.name)
+}
+
+export function buildUnitGivingOverview(
+  tree: StructureTree | null,
+  node: ContributionTreeNode,
+): UnitGivingOverview | null {
+  if (isMemberContributionNode(node)) return null
+
+  const memberChildren = node.children.filter((child) => isMemberContributionNode(child))
+  const unitChildren = node.children.filter((child) => !isMemberContributionNode(child))
+  const payments = collectPaymentsInSubtree(node)
+  const membersGiving = new Set(payments.map((p) => p.memberId)).size
+  const rosterMembers = tree ? countMembersUnderUnit(tree, node.id) : membersGiving
+  const rosterCells = tree ? countCellsUnderUnit(tree, node.id) : unitChildren.length
+
+  const isCellLevel = node.layerLabel === 'Cell' || memberChildren.length > 0
+
+  if (isCellLevel) {
+    const breakdownRows = (memberChildren.length > 0 ? memberChildren : node.children)
+      .filter((child) => isMemberContributionNode(child))
+      .map((member) => {
+        const approved = member.payments.filter((p) => p.status === 'Approved')
+        const pending = member.payments.filter((p) => p.status === 'PendingApproval')
+        return {
+          id: member.id,
+          name: member.name,
+          layerLabel: 'Member',
+          unitNumber: null,
+          rosterCount: 1,
+          membersGiving: member.payments.length > 0 ? 1 : 0,
+          approvedTotal: approved.reduce((sum, p) => sum + p.amount, 0),
+          paymentCount: member.payments.length,
+          pendingCount: pending.length,
+        }
+      })
+      .sort(compareBreakdownRows)
+
+    return {
+      rosterCells: 0,
+      rosterMembers,
+      membersGiving,
+      participationLabel: 'People in cell',
+      breakdownTitle: 'Members in this cell',
+      breakdownRows,
+    }
+  }
+
+  const breakdownRows = unitChildren
+    .map((child) => {
+      const childPayments = collectPaymentsInSubtree(child)
+      const approved = childPayments.filter((p) => p.status === 'Approved')
+      const pending = childPayments.filter((p) => p.status === 'PendingApproval')
+      const structureNode = tree ? nodeById(tree, child.id) : undefined
+      return {
+        id: child.id,
+        name: child.name,
+        layerLabel: child.layerLabel,
+        unitNumber: structureNode?.unitNumber ?? null,
+        rosterCount: tree ? countMembersUnderUnit(tree, child.id) : 0,
+        membersGiving: new Set(childPayments.map((p) => p.memberId)).size,
+        approvedTotal: approved.reduce((sum, p) => sum + p.amount, 0),
+        paymentCount: childPayments.length,
+        pendingCount: pending.length,
+      }
+    })
+    .sort(compareBreakdownRows)
+
+  const childLayer = unitChildren[0]?.layerLabel ?? 'Cell'
+
+  return {
+    rosterCells,
+    rosterMembers,
+    membersGiving,
+    participationLabel: `People in this ${node.layerLabel.toLowerCase()}`,
+    breakdownTitle: `${childLayer}s in this unit`,
+    breakdownRows,
+  }
+}
+
+export type StructureUploadGroup = {
+  fellowshipName: string
+  cells: {
+    cellName: string
+    unitNumber: string | null
+    uploads: ContributionStructureRow[]
+  }[]
+}
+
+function cellUnitNumber(tree: StructureTree | null, memberParentNodeId: string): string | null {
+  if (!tree) return null
+  const unit = nodeById(tree, memberParentNodeId)
+  return unit?.unitNumber ?? null
+}
+
+function compareCellGroups(
+  a: StructureUploadGroup['cells'][number],
+  b: StructureUploadGroup['cells'][number],
+) {
+  const aNum = Number.parseInt(a.unitNumber ?? '', 10)
+  const bNum = Number.parseInt(b.unitNumber ?? '', 10)
+  if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) return aNum - bNum
+  return a.cellName.localeCompare(b.cellName)
+}
+
+export function isPfccContributionNode(tree: StructureTree | null, node: ContributionTreeNode): boolean {
+  if (!tree) return node.layerLabel.toLowerCase().includes('pfcc')
+  const structureNode = nodeById(tree, node.id)
+  if (!structureNode) return node.layerLabel.toLowerCase().includes('pfcc')
+  const layer = layerForNode(tree, structureNode)
+  return layer?.standardType === 'PFCC'
+}
+
+export function buildUploadsByStructure(
+  tree: StructureTree | null,
+  payments: ContributionStructureRow[],
+): StructureUploadGroup[] {
+  const byFellowship = new Map<string, Map<string, ContributionStructureRow[]>>()
+
+  for (const payment of payments) {
+    const fellowship = payment.fellowshipName || 'Unassigned'
+    const cell = payment.unitName || 'Unassigned'
+    const fellowshipMap =
+      byFellowship.get(fellowship) ??
+      (() => {
+        const map = new Map<string, ContributionStructureRow[]>()
+        byFellowship.set(fellowship, map)
+        return map
+      })()
+    const rows = fellowshipMap.get(cell) ?? []
+    rows.push(payment)
+    fellowshipMap.set(cell, rows)
+  }
+
+  return [...byFellowship.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([fellowshipName, cellMap]) => ({
+      fellowshipName,
+      cells: [...cellMap.entries()]
+        .map(([cellName, uploads]) => ({
+          cellName,
+          unitNumber: cellUnitNumber(tree, uploads[0]?.memberParentNodeId ?? '') ,
+          uploads: sortByDateDesc(uploads),
+        }))
+        .sort(compareCellGroups),
+    }))
 }
 
 export function availableBreakdownLayers(node: ContributionTreeNode): string[] {

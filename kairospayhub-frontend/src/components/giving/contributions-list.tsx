@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Contribution, ContributionStatus } from '@/api/giving'
 import { formatAmount } from '@/api/giving'
+import { formatGivingDate } from '@/lib/giving-ui'
 import { ContributionStatusBadge } from '@/components/giving/giving-badges'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -76,7 +77,7 @@ export function ContributionsList({ contributions }: { contributions: Contributi
                   <p className="font-medium">{c.memberName}</p>
                   <p className="text-muted-foreground">
                     {formatAmount(c.amount, c.currency)} ·{' '}
-                    {new Date(c.dateSent).toLocaleDateString()}
+                    {formatGivingDate(c.dateSent)}
                     {c.notes ? ` · ${c.notes}` : ''}
                   </p>
                   {c.rejectedReason && (

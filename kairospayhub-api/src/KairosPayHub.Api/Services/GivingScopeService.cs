@@ -503,12 +503,39 @@ public class GivingScopeService(KairosDbContext db)
         if (!await MemberInProgramScopeAsync(program, member.ParentNodeId, ct))
             return false;
 
+        var role = actor.StructureRole;
+        if (role is not (
+            ChurchRole.CellLeader
+            or ChurchRole.FellowshipLeader
+            or ChurchRole.PFCCManager))
+        {
+            return false;
+        }
+
         return await MemberWithinRoleAssignmentsAsync(
             program.ChurchId,
             authUserId,
-            ChurchRole.CellLeader,
+            role.Value,
             member.ParentNodeId,
             ct);
+    }
+
+    public async Task<ChurchRole?> ResolveContributionApprovingRoleAsync(
+        Guid churchId,
+        ChurchRole? enteredByRole,
+        CancellationToken ct = default)
+    {
+        var enteredBy = enteredByRole ?? ChurchRole.CellLeader;
+
+        return enteredBy switch
+        {
+            ChurchRole.CellLeader => ChurchRole.FellowshipLeader,
+            ChurchRole.FellowshipLeader => await ChurchHasPfccManagersAsync(churchId, ct)
+                ? ChurchRole.PFCCManager
+                : ChurchRole.Pastor,
+            ChurchRole.PFCCManager => ChurchRole.Pastor,
+            _ => null,
+        };
     }
 
     public async Task<bool> CanApproveContributionAsync(
@@ -520,16 +547,66 @@ public class GivingScopeService(KairosDbContext db)
     {
         if (program.ChurchId != actor.StructureChurchId)
             return false;
-        if (IsPastor(actor))
-            return true;
 
-        return await MemberWithinRoleAssignmentsAsync(
+        var approvingRole = await ResolveContributionApprovingRoleAsync(
             program.ChurchId,
-            authUserId,
-            ChurchRole.FellowshipLeader,
-            contribution.MemberParentNodeId,
+            contribution.EnteredByRole,
             ct);
+        if (approvingRole is null)
+            return false;
+
+        if (IsPastor(actor))
+            return approvingRole == ChurchRole.Pastor;
+
+        if (actor.StructureRole != approvingRole)
+            return false;
+
+        return approvingRole switch
+        {
+            ChurchRole.FellowshipLeader => await MemberWithinRoleAssignmentsAsync(
+                program.ChurchId,
+                authUserId,
+                ChurchRole.FellowshipLeader,
+                contribution.MemberParentNodeId,
+                ct),
+            ChurchRole.PFCCManager => await MemberWithinRoleAssignmentsAsync(
+                program.ChurchId,
+                authUserId,
+                ChurchRole.PFCCManager,
+                contribution.MemberParentNodeId,
+                ct),
+            _ => false,
+        };
     }
+
+    public async Task<IQueryable<Contribution>> ApplyAwaitingMyApprovalFilterAsync(
+        IQueryable<Contribution> query,
+        Guid churchId,
+        Actor actor,
+        CancellationToken ct)
+    {
+        if (actor.StructureRole is not ChurchRole role)
+            return query.Where(_ => false);
+
+        query = query.Where(c => c.Status == ContributionStatus.PendingApproval);
+        var hasPfcc = await ChurchHasPfccManagersAsync(churchId, ct);
+
+        return role switch
+        {
+            ChurchRole.FellowshipLeader => query.Where(c => c.EnteredByRole == ChurchRole.CellLeader),
+            ChurchRole.PFCCManager when hasPfcc => query.Where(c => c.EnteredByRole == ChurchRole.FellowshipLeader),
+            ChurchRole.Pastor => query.Where(c =>
+                c.EnteredByRole == ChurchRole.PFCCManager
+                || (c.EnteredByRole == ChurchRole.FellowshipLeader && !hasPfcc)),
+            _ => query.Where(_ => false),
+        };
+    }
+
+    public async Task<bool> ChurchHasPfccManagersAsync(Guid churchId, CancellationToken ct) =>
+        await db.RoleAssignments.AsNoTracking()
+            .AnyAsync(
+                r => r.ChurchId == churchId && r.Role == ChurchRole.PFCCManager,
+                ct);
 
     public async Task<bool> CanViewMemberContributionsAsync(
         Actor actor,

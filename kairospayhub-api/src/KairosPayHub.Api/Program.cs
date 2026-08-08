@@ -112,7 +112,8 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
-builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+var corsPolicyName = "AppCors";
+builder.Services.AddCors(o => o.AddPolicy(corsPolicyName, p =>
     p.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 var app = builder.Build();
@@ -133,11 +134,11 @@ app.MapGet("/", () => Results.Ok(new
     hint = "Use the React app at http://127.0.0.1:5173 — this URL is the API only.",
 }));
 
-app.UseCors();
+app.UseCors(corsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapHub<NotificationHub>("/hubs/notifications").RequireCors(corsPolicyName);
 
 app.Run();
 

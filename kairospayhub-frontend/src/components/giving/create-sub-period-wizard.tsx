@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { GivingProgram, ProgramScopeKind } from '@/api/giving'
-import { createSubPeriod } from '@/api/giving'
+import { createSubPeriod, formatAmount } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import {
   defaultPeriodLabel,
@@ -21,7 +21,7 @@ import { Modal } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-import { isDescendantOf } from '@/lib/structure-tree'
+import { nodesBelowScopeRoot } from '@/lib/structure-tree'
 
 type CreateSubPeriodWizardProps = {
   open: boolean
@@ -37,7 +37,16 @@ type CreateSubPeriodWizardProps = {
 function scopeOptionsForParent(
   parent: GivingProgram,
   allowChurchWide: boolean,
+  scopeRootNodeId?: string | null,
 ): ProgramScopeKind[] {
+  if (scopeRootNodeId) {
+    if (parent.scopeKind === 'ChurchWide' || parent.scopeKind === 'PFCC') {
+      return ['Fellowship', 'FellowshipGroup']
+    }
+    if (parent.scopeKind === 'Fellowship') return ['Fellowship', 'FellowshipGroup']
+    return ['FellowshipGroup']
+  }
+
   if (parent.scopeKind === 'ChurchWide') {
     const options: ProgramScopeKind[] = ['PFCC', 'Fellowship', 'FellowshipGroup']
     return allowChurchWide ? ['ChurchWide', ...options] : options
@@ -58,9 +67,10 @@ export function CreateSubPeriodWizard({
   scopeRootNodeId = null,
 }: CreateSubPeriodWizardProps) {
   const scopeOptions = useMemo(
-    () => scopeOptionsForParent(parent, !requiresPastorApproval),
-    [parent, requiresPastorApproval],
+    () => scopeOptionsForParent(parent, !requiresPastorApproval, scopeRootNodeId),
+    [parent.scopeKind, parent.id, requiresPastorApproval, scopeRootNodeId],
   )
+  const defaultScopeKind = scopeOptions[0]
   const steps = ['Details', 'Scope', 'Review'] as const
 
   const [step, setStep] = useState(0)
@@ -70,29 +80,24 @@ export function CreateSubPeriodWizard({
 
   const [title, setTitle] = useState('')
   const [periodLabel, setPeriodLabel] = useState(defaultPeriodLabel())
-  const [scopeKind, setScopeKind] = useState<ProgramScopeKind>(scopeOptions[0])
+  const [scopeKind, setScopeKind] = useState<ProgramScopeKind>(defaultScopeKind)
   const [scopeNodeId, setScopeNodeId] = useState('')
   const [scopeNodeIds, setScopeNodeIds] = useState<string[]>([])
+  const [moveParentContributions, setMoveParentContributions] = useState(false)
+
+  const parentDirectCount = parent.directContributionCount ?? 0
+  const parentDirectTotal = parent.directContributionTotalAmount ?? 0
 
   useEffect(() => {
     if (!open) return
-    setStep(0)
-    setDirection('forward')
-    setError(null)
-    setTitle('')
-    setPeriodLabel(defaultPeriodLabel())
-    setScopeKind(scopeOptions[0])
-    setScopeNodeId('')
-    setScopeNodeIds([])
-  }, [open, scopeOptions])
+    setMoveParentContributions(parentDirectCount > 0)
+  }, [open, parent.id, parentDirectCount])
 
   const scopeNodes = useMemo(() => {
     if (!tree) return []
     const nodes = nodesForScopeKind(tree, scopeKind)
     if (!scopeRootNodeId) return nodes
-    return nodes.filter(
-      (node) => node.id === scopeRootNodeId || isDescendantOf(tree, scopeRootNodeId, node.id),
-    )
+    return nodesBelowScopeRoot(tree, nodes, scopeRootNodeId)
   }, [tree, scopeKind, scopeRootNodeId])
 
   const scopePickerOptions = useMemo(
@@ -100,9 +105,9 @@ export function CreateSubPeriodWizard({
       scopeNodes.map((node) => ({
         id: node.id,
         label: node.name,
-        hint: tree ? nodePathLabel(tree, node.id) : undefined,
+        hint: tree ? nodePathLabel(tree, node.id, scopeRootNodeId) : undefined,
       })),
-    [scopeNodes, tree],
+    [scopeNodes, tree, scopeRootNodeId],
   )
 
   const canProceed = useMemo(() => {
@@ -138,6 +143,7 @@ export function CreateSubPeriodWizard({
         scopeNodeId:
           scopeKind === 'Fellowship' || scopeKind === 'PFCC' ? scopeNodeId || null : null,
         scopeNodeIds: scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
+        moveParentContributions: parentDirectCount > 0 ? moveParentContributions : undefined,
       })
       onOpenChange(false)
       onCreated()
@@ -195,6 +201,19 @@ export function CreateSubPeriodWizard({
                   onChange={(e) => setPeriodLabel(e.target.value)}
                 />
               </WizardField>
+              {parentDirectCount > 0 && (
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.08] px-4 py-3 text-sm text-muted-foreground">
+                  <p>
+                    This campaign already has{' '}
+                    <strong className="text-foreground">
+                      {parentDirectCount} contribution{parentDirectCount === 1 ? '' : 's'}
+                    </strong>{' '}
+                    logged directly on it ({formatAmount(parentDirectTotal)}). After you add a
+                    sub-giving, new payments go there — you can move the existing ones on the final
+                    step.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -250,7 +269,7 @@ export function CreateSubPeriodWizard({
                           <span>
                             <span className="block text-sm font-medium">{node.name}</span>
                             <span className="text-xs text-muted-foreground">
-                              {nodePathLabel(tree, node.id)}
+                              {nodePathLabel(tree, node.id, scopeRootNodeId)}
                             </span>
                           </span>
                         </label>
@@ -293,6 +312,28 @@ export function CreateSubPeriodWizard({
                     : scopeKindLabel(scopeKind)}
                 </dd>
               </div>
+              {parentDirectCount > 0 && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-3">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={moveParentContributions}
+                      onChange={(e) => setMoveParentContributions(e.target.checked)}
+                      className="mt-1"
+                    />
+                    <span>
+                      <span className="block font-medium text-foreground">
+                        Move {parentDirectCount} existing contribution
+                        {parentDirectCount === 1 ? '' : 's'} ({formatAmount(parentDirectTotal)})
+                        into {title.trim() || 'this sub-giving'}
+                      </span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Recommended so all giving for this campaign lives under sub-givings.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </dl>
           )}
         </WizardStepPanel>

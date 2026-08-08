@@ -103,12 +103,25 @@ public class NotificationService(
         if (recipients.Count == 0)
             return;
 
-        var body = $"\"{subGiving.Title}\" needs your approval before contributions can be logged.";
+        var creator = await GivingProgramCreatorResolver.ResolveAsync(
+            db,
+            subGiving.ChurchId,
+            subGiving.CreatedByAuthUserId,
+            subGiving.CreatedByRole,
+            ct);
+
+        var creatorLabel = FormatCreatorLabel(creator, subGiving.CreatedByRole);
+        var body = creatorLabel is not null
+            ? $"{creatorLabel} submitted \"{subGiving.Title}\" for approval."
+            : $"\"{subGiving.Title}\" needs your approval before contributions can be logged.";
+
         await CreateManyAsync(
             subGiving.ChurchId,
             recipients,
             NotificationKind.SubGivingPendingApproval,
-            "Sub-giving awaiting approval",
+            creatorLabel is not null
+                ? $"Sub-giving from {creatorLabel.Split(" ·")[0]}"
+                : "Sub-giving awaiting approval",
             body,
             LinkPath: $"givings/{parentId}?tab=subgivings",
             programId: subGiving.Id,
@@ -129,9 +142,24 @@ public class NotificationService(
             ? NotificationKind.SubGivingApproved
             : NotificationKind.SubGivingRejected;
         var title = approved ? "Sub-giving approved" : "Sub-giving rejected";
+
+        string? reviewerName = null;
+        if (subGiving.ReviewedByAuthUserId is Guid reviewerId)
+        {
+            var reviewer = await GivingProgramCreatorResolver.ResolveAsync(
+                db,
+                subGiving.ChurchId,
+                reviewerId,
+                ChurchRole.Pastor,
+                ct);
+            reviewerName = reviewer.Name;
+        }
+
         var body = approved
-            ? $"Your sub-giving \"{subGiving.Title}\" was approved by the pastor."
+            ? $"Your sub-giving \"{subGiving.Title}\" was approved"
+              + (reviewerName is not null ? $" by {reviewerName}." : " by the pastor.")
             : $"Your sub-giving \"{subGiving.Title}\" was rejected"
+              + (reviewerName is not null ? $" by {reviewerName}" : " by the pastor")
               + (string.IsNullOrWhiteSpace(subGiving.RejectionReason)
                   ? "."
                   : $": {subGiving.RejectionReason}");
@@ -152,21 +180,25 @@ public class NotificationService(
         Contribution contribution,
         GivingProgram program,
         string memberName,
+        string? enteredByName,
+        string? enteredByScopeUnitName,
         CancellationToken ct = default)
     {
-        var recipients = new HashSet<Guid>(await PastorAuthUserIdsAsync(program.ChurchId, ct));
-        foreach (var leaderId in await FellowshipLeaderAuthUserIdsForMemberAsync(
-                     program.ChurchId,
-                     contribution.MemberParentNodeId,
-                     ct))
-        {
-            recipients.Add(leaderId);
-        }
+        var recipients = await ContributionApprovalRecipientAuthUserIdsAsync(
+            program.ChurchId,
+            contribution.EnteredByRole,
+            contribution.MemberParentNodeId,
+            ct);
 
         if (recipients.Count == 0)
             return;
 
-        var body = $"{memberName} logged {contribution.Amount:N2} {contribution.Currency} on \"{program.Title}\".";
+        var body = BuildContributionPendingBody(
+            contribution,
+            program,
+            memberName,
+            enteredByName,
+            enteredByScopeUnitName);
         await CreateManyAsync(
             program.ChurchId,
             recipients,
@@ -177,6 +209,51 @@ public class NotificationService(
             programId: program.Id,
             relatedEntityId: contribution.Id,
             ct);
+    }
+
+    private static string BuildContributionPendingBody(
+        Contribution contribution,
+        GivingProgram program,
+        string memberName,
+        string? enteredByName,
+        string? enteredByScopeUnitName)
+    {
+        var parts = new List<string>
+        {
+            $"{memberName} · {contribution.Amount:N2} {contribution.Currency} on \"{program.Title}\"",
+        };
+
+        var entererParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(enteredByName))
+            entererParts.Add(enteredByName.Trim());
+        if (contribution.EnteredByRole is not null)
+            entererParts.Add(contribution.EnteredByRole.ToString()!);
+        if (!string.IsNullOrWhiteSpace(enteredByScopeUnitName))
+            entererParts.Add(enteredByScopeUnitName.Trim());
+        if (entererParts.Count > 0)
+            parts.Add($"Logged by {string.Join(" · ", entererParts)}");
+
+        if (contribution.SentToPastor == true)
+        {
+            if (contribution.RemittanceMedium is not null)
+            {
+                var medium = contribution.RemittanceMedium == RemittanceMedium.Other
+                    && !string.IsNullOrWhiteSpace(contribution.RemittanceMediumOther)
+                    ? contribution.RemittanceMediumOther.Trim()
+                    : contribution.RemittanceMedium.ToString();
+                parts.Add($"Sent via {medium}");
+            }
+            else
+            {
+                parts.Add("Marked as sent to pastor");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(contribution.Notes))
+            parts.Add($"Notes: {contribution.Notes.Trim()}");
+
+        parts.Add("Review payment proof on the Pending tab");
+        return string.Join(". ", parts) + ".";
     }
 
     public async Task NotifyContributionReviewedAsync(
@@ -250,6 +327,60 @@ public class NotificationService(
             .Distinct()
             .ToListAsync(ct);
 
+    private async Task<List<Guid>> ContributionApprovalRecipientAuthUserIdsAsync(
+        Guid churchId,
+        ChurchRole? enteredByRole,
+        Guid memberParentNodeId,
+        CancellationToken ct)
+    {
+        var approvingRole = enteredByRole switch
+        {
+            ChurchRole.CellLeader or null => ChurchRole.FellowshipLeader,
+            ChurchRole.FellowshipLeader => await scope.ChurchHasPfccManagersAsync(churchId, ct)
+                ? ChurchRole.PFCCManager
+                : ChurchRole.Pastor,
+            ChurchRole.PFCCManager => ChurchRole.Pastor,
+            _ => (ChurchRole?)null,
+        };
+
+        if (approvingRole is null)
+            return [];
+
+        if (approvingRole == ChurchRole.Pastor)
+            return await PastorAuthUserIdsAsync(churchId, ct);
+
+        if (approvingRole == ChurchRole.PFCCManager)
+            return await PfccManagerAuthUserIdsForMemberAsync(churchId, memberParentNodeId, ct);
+
+        return await FellowshipLeaderAuthUserIdsForMemberAsync(churchId, memberParentNodeId, ct);
+    }
+
+    private async Task<List<Guid>> PfccManagerAuthUserIdsForMemberAsync(
+        Guid churchId,
+        Guid memberParentNodeId,
+        CancellationToken ct)
+    {
+        var assignments = await db.RoleAssignments.AsNoTracking()
+            .Where(r =>
+                r.ChurchId == churchId
+                && r.Role == ChurchRole.PFCCManager
+                && r.ScopeNodeId != null)
+            .ToListAsync(ct);
+
+        var result = new List<Guid>();
+        foreach (var assignment in assignments)
+        {
+            var subtree = await scope.CollectSubtreeNodeIdsAsync(
+                churchId,
+                assignment.ScopeNodeId!.Value,
+                ct);
+            if (subtree.Contains(memberParentNodeId))
+                result.Add(assignment.AuthUserId);
+        }
+
+        return result.Distinct().ToList();
+    }
+
     private async Task<List<Guid>> FellowshipLeaderAuthUserIdsForMemberAsync(
         Guid churchId,
         Guid memberParentNodeId,
@@ -275,6 +406,29 @@ public class NotificationService(
 
         return result.Distinct().ToList();
     }
+
+    private static string? FormatCreatorLabel(ProgramCreatorDisplay creator, ChurchRole? role)
+    {
+        if (string.IsNullOrWhiteSpace(creator.Name))
+            return null;
+
+        var parts = new List<string> { creator.Name.Trim() };
+        if (role is not null && role != ChurchRole.Pastor)
+            parts.Add(FormatRole(role.Value));
+        if (!string.IsNullOrWhiteSpace(creator.ScopeUnitName))
+            parts.Add(creator.ScopeUnitName.Trim());
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatRole(ChurchRole role) =>
+        role switch
+        {
+            ChurchRole.PFCCManager => "PFCC Manager",
+            ChurchRole.FellowshipLeader => "Fellowship Leader",
+            ChurchRole.CellLeader => "Cell Leader",
+            ChurchRole.Pastor => "Pastor",
+            _ => role.ToString(),
+        };
 
     private static NotificationDto ToDto(Notification row) =>
         new(

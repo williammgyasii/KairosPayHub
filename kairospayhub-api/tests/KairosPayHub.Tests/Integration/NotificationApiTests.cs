@@ -92,13 +92,20 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         var subBody = await subResp.Content.ReadFromJsonAsync<JsonElement>();
         var subId = subBody.GetProperty("id").GetGuid();
         Assert.Equal("PendingPastorApproval", subBody.GetProperty("approvalStatus").GetString());
+        Assert.Equal("Jane Fellowship", subBody.GetProperty("createdByName").GetString());
+        Assert.Equal("Titans", subBody.GetProperty("createdByScopeUnitName").GetString());
 
         var pastorNotifications = await pastor.GetFromJsonAsync<JsonElement>("/api/notifications");
         Assert.Equal(1, pastorNotifications.GetProperty("unreadCount").GetInt32());
         var pastorItem = pastorNotifications.GetProperty("notifications")[0];
         Assert.Equal("SubGivingPendingApproval", pastorItem.GetProperty("kind").GetString());
+        Assert.Contains("Jane Fellowship", pastorItem.GetProperty("body").GetString());
         Assert.Contains("January Rhapsody", pastorItem.GetProperty("body").GetString());
         Assert.Equal($"givings/{rootId}?tab=subgivings", pastorItem.GetProperty("linkPath").GetString());
+
+        var children = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/children");
+        var childRow = children.GetProperty("programs")[0];
+        Assert.Equal("Jane Fellowship", childRow.GetProperty("createdByName").GetString());
 
         var approve = await pastor.PostAsync($"/api/giving/programs/{subId}/approve", null);
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
@@ -111,7 +118,7 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Contribution_pending_notifies_pastor_and_fellowship_leader_approve_notifies_enterer()
+    public async Task Contribution_pending_notifies_fellowship_leader_not_pastor_approve_notifies_enterer()
     {
         var pastor = PastorClient();
         await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Contrib Notify Church" });
@@ -205,8 +212,7 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         var contributionId = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
         var pastorNotifications = await pastor.GetFromJsonAsync<JsonElement>("/api/notifications");
-        Assert.True(pastorNotifications.GetProperty("unreadCount").GetInt32() >= 1);
-        Assert.Contains(
+        Assert.DoesNotContain(
             pastorNotifications.GetProperty("notifications").EnumerateArray(),
             n => n.GetProperty("kind").GetString() == "ContributionPendingApproval");
 

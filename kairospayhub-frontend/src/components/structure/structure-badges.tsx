@@ -17,18 +17,18 @@ export function StructureSegmentBadge({
     <Badge
       variant="outline"
       className={cn(
-        'max-w-[180px] truncate font-medium',
+        'max-w-full min-w-0 shrink font-medium',
         layerBadgeClass(segment.standardType),
         className,
       )}
       title={segment.nodeName}
     >
       {showLayer && (
-        <span className="mr-1 text-[10px] uppercase tracking-wide opacity-70">
+        <span className="mr-1 shrink-0 text-[10px] uppercase tracking-wide opacity-70">
           {segment.layerName}
         </span>
       )}
-      {segment.nodeName}
+      <span className="truncate">{segment.nodeName}</span>
     </Badge>
   )
 }

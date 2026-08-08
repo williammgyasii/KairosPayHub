@@ -36,6 +36,14 @@ public enum ContributionStatus
     Rejected,
 }
 
+public enum RemittanceMedium
+{
+    PastorBank,
+    ChurchMomo,
+    PastorMomo,
+    Other,
+}
+
 public class GivingProgram
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -84,8 +92,13 @@ public class Contribution
     public string AttachmentKey { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public Guid EnteredByAuthUserId { get; set; }
+    public Domain.Structure.ChurchRole? EnteredByRole { get; set; }
     public Guid MemberParentNodeId { get; set; }
     public ContributionStatus Status { get; set; } = ContributionStatus.PendingApproval;
+    public bool? SentToPastor { get; set; }
+    public RemittanceMedium? RemittanceMedium { get; set; }
+    public string? RemittanceMediumOther { get; set; }
+    public Guid? BatchId { get; set; }
     public Guid? ApprovedByAuthUserId { get; set; }
     public DateTimeOffset? ApprovedAt { get; set; }
     public string? RejectedReason { get; set; }

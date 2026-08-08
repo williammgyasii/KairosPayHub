@@ -24,7 +24,7 @@ import type { Contribution, GivingProgram, GivingProgramRollup } from '@/api/giv
 import { formatAmount } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { buildContributionStructureTree, selectRollupBreakdownRows, type ContributionStructureOptions } from '@/lib/contribution-structure'
-import { scopeKindLabel } from '@/lib/giving-ui'
+import { scopeKindLabel, formatGivingDate } from '@/lib/giving-ui'
 import { ContributionStatusBadge } from '@/components/giving/giving-badges'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -33,6 +33,7 @@ export type ProgramDetailTab =
   | 'dashboard'
   | 'subgivings'
   | 'pending'
+  | 'approved'
   | 'log'
   | 'contributions'
   | 'history'
@@ -44,10 +45,13 @@ interface ProgramDashboardProps {
   children: GivingProgram[]
   tree: StructureTree | null
   pending: Contribution[]
+  allPending: Contribution[]
   acceptsContributions: boolean
   isPastor: boolean
   isFellowshipLeader: boolean
+  isPfccManager: boolean
   isCellLeader: boolean
+  viewerRole: string
   structureOptions?: ContributionStructureOptions
   onTabChange: (tab: ProgramDetailTab) => void
 }
@@ -66,10 +70,13 @@ export function ProgramDashboard({
   children,
   tree,
   pending,
+  allPending,
   acceptsContributions,
   isPastor,
   isFellowshipLeader,
+  isPfccManager,
   isCellLeader,
+  viewerRole,
   structureOptions,
   onTabChange,
 }: ProgramDashboardProps) {
@@ -84,11 +91,12 @@ export function ProgramDashboard({
       approvedTotal,
       approvedCount: rollup?.totalApprovedCount ?? approved.length,
       pendingCount: pending.length,
+      awaitingOthersCount: Math.max(0, allPending.length - pending.length),
       rejectedCount: rejected.length,
       paymentCount: contributions.length,
       memberCount: new Set(contributions.map((c) => c.memberId)).size,
     }
-  }, [contributions, pending.length, rollup])
+  }, [contributions, pending.length, allPending.length, rollup])
 
   const structureBreakdown = useMemo(() => {
     if (rollup && rollup.rows.length > 0) {
@@ -325,8 +333,13 @@ export function ProgramDashboard({
                       className="group flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm transition-all hover:bg-primary/[0.07] hover:pl-4"
                       style={{ animationDelay: `${140 + index * 30}ms` }}
                     >
-                      <span className="font-medium group-hover:text-primary">{child.title}</span>
-                      <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                      <span className="min-w-0 font-medium group-hover:text-primary">{child.title}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="text-xs font-semibold tabular-nums text-muted-foreground group-hover:text-foreground">
+                          {formatAmount(child.totalApprovedAmount ?? 0)}
+                        </span>
+                        <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                      </span>
                     </Link>
                   </li>
                 ))}
@@ -345,10 +358,10 @@ export function ProgramDashboard({
             </Panel>
           )}
 
-          {(isFellowshipLeader || isPastor) && stats.pendingCount > 0 && (
+          {(isFellowshipLeader || isPfccManager || isPastor) && stats.pendingCount > 0 && (
             <Panel
               title="Needs approval"
-              description={`${stats.pendingCount} waiting`}
+              description={`${stats.pendingCount} waiting on you`}
               className="animate-fade-up border-amber-500/20 bg-gradient-to-br from-amber-500/[0.08] to-transparent"
             >
               <Button type="button" className="w-full" onClick={() => onTabChange('pending')}>
@@ -357,7 +370,19 @@ export function ProgramDashboard({
             </Panel>
           )}
 
-          {isCellLeader && isOpen && acceptsContributions && (
+          {isPastor && stats.awaitingOthersCount > 0 && (
+            <Panel
+              title="In the pipeline"
+              description={`${stats.awaitingOthersCount} awaiting lower-level approval`}
+              className="animate-fade-up"
+            >
+              <Button type="button" variant="outline" className="w-full" onClick={() => onTabChange('contributions')}>
+                View contributions
+              </Button>
+            </Panel>
+          )}
+
+          {(isCellLeader || isFellowshipLeader || isPfccManager) && isOpen && acceptsContributions && (
             <Panel title="Log a payment" description="Submit with screenshot proof" className="animate-fade-up">
               <Button type="button" className="w-full" onClick={() => onTabChange('log')}>
                 Log giving
@@ -413,15 +438,16 @@ export function ProgramDashboard({
               >
                 <span className="min-w-0 truncate font-medium">{row.memberName}</span>
                 <span className="text-sm text-muted-foreground sm:text-right">
-                  {new Date(row.dateSent).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+                  {formatGivingDate(row.dateSent)}
                 </span>
                 <span className="font-semibold tabular-nums sm:text-right">
                   {formatAmount(row.amount, row.currency)}
                 </span>
-                <ContributionStatusBadge status={row.status} />
+                <ContributionStatusBadge
+                  status={row.status}
+                  viewerRole={viewerRole}
+                  pendingApproverRole={row.pendingApproverRole}
+                />
               </li>
             ))}
           </ul>

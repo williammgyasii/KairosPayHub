@@ -79,7 +79,8 @@ public class GivingController(
                 request.ScopeKind ?? string.Empty,
                 request.ScopeNodeId,
                 request.ScopeNodeIds,
-                request.ParentProgramId),
+                request.ParentProgramId,
+                request.MoveParentContributions ?? false),
             ct);
         return Ok(program);
     }
@@ -114,6 +115,39 @@ public class GivingController(
         return Ok(program);
     }
 
+    [HttpPost("programs/{programId:guid}/close")]
+    public async Task<IActionResult> CloseProgram(Guid programId, CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var program = await programs.CloseProgramAsync(actor, authUserId, programId, ct);
+        return Ok(program);
+    }
+
+    [HttpPost("programs/{programId:guid}/reopen")]
+    public async Task<IActionResult> ReopenProgram(Guid programId, CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var program = await programs.ReopenProgramAsync(actor, authUserId, programId, ct);
+        return Ok(program);
+    }
+
+    [HttpDelete("programs/{programId:guid}")]
+    public async Task<IActionResult> DeleteProgram(Guid programId, CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out _))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        await programs.DeleteProgramAsync(actor, programId, ct);
+        return NoContent();
+    }
+
     [HttpPost("attachments")]
     [RequestSizeLimit(5_242_880)]
     public async Task<IActionResult> UploadAttachment(IFormFile file, CancellationToken ct)
@@ -140,20 +174,62 @@ public class GivingController(
         {
             return StatusCode(503, new { error = "File storage is not configured on the server" });
         }
+        catch (Amazon.S3.AmazonS3Exception ex)
+        {
+            return StatusCode(502, new { error = $"Could not upload to storage: {ex.Message}" });
+        }
+    }
+
+    [HttpGet("attachments/content")]
+    public async Task<IActionResult> GetAttachmentContent([FromQuery] string key, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return BadRequest(new { error = "Attachment key is required" });
+
+        if (!Guid.TryParse(current.Sub, out _))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        try
+        {
+            var actor = await current.RequireAsync(ct);
+            var (stream, contentType) = await contributions.OpenAttachmentAsync(actor, key, ct);
+            return File(stream, contentType);
+        }
+        catch (ObjectStorageNotConfiguredException)
+        {
+            return StatusCode(503, new { error = "File storage is not configured on the server" });
+        }
     }
 
     [HttpGet("programs/{programId:guid}/contributions")]
     public async Task<IActionResult> ListContributions(
         Guid programId,
-        [FromQuery] ContributionStatus? status,
-        CancellationToken ct)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDir = null,
+        [FromQuery] ContributionStatus? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] bool awaitingMyApproval = false,
+        CancellationToken ct = default)
     {
         if (!Guid.TryParse(current.Sub, out var authUserId))
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        var list = await contributions.ListForProgramAsync(actor, authUserId, programId, status, ct);
-        return Ok(new ContributionListResponse(list));
+        var list = await contributions.ListForProgramAsync(
+            actor,
+            authUserId,
+            programId,
+            page,
+            pageSize,
+            sortBy,
+            sortDir,
+            status,
+            search,
+            awaitingMyApproval,
+            ct);
+        return Ok(list);
     }
 
     [HttpPost("programs/{programId:guid}/contributions")]
@@ -176,7 +252,11 @@ public class GivingController(
                 request.Currency,
                 request.DateSent,
                 request.AttachmentKey,
-                request.Notes),
+                request.Notes,
+                request.SentToPastor,
+                request.RemittanceMedium,
+                request.RemittanceMediumOther,
+                request.BatchId),
             ct);
         return Ok(contribution);
     }
@@ -240,7 +320,7 @@ public class GivingController(
 
         var actor = await current.RequireAsync(ct);
         var list = await contributions.ListMineAsync(actor, authUserId, ct);
-        return Ok(new ContributionListResponse(list));
+        return Ok(WrapContributionList(list));
     }
 
     [HttpGet("members/{memberId:guid}/contributions")]
@@ -251,6 +331,26 @@ public class GivingController(
 
         var actor = await current.RequireAsync(ct);
         var list = await contributions.ListForMemberAsync(actor, authUserId, memberId, ct);
-        return Ok(new ContributionListResponse(list));
+        return Ok(WrapContributionList(list));
+    }
+
+    private static ContributionListResponse WrapContributionList(IReadOnlyList<ContributionDto> list)
+    {
+        var pending = list.Where(c => c.Status == "PendingApproval").ToList();
+        var approved = list.Where(c => c.Status == "Approved").ToList();
+        var rejected = list.Where(c => c.Status == "Rejected").ToList();
+
+        return new ContributionListResponse(
+            list,
+            list.Count,
+            1,
+            Math.Max(list.Count, 1),
+            new ContributionListSummary(
+                pending.Count,
+                pending.Sum(c => c.Amount),
+                0,
+                approved.Count,
+                approved.Sum(c => c.Amount),
+                rejected.Count));
     }
 }

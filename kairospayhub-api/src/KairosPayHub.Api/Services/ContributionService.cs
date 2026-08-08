@@ -53,6 +53,35 @@ public class ContributionService(
         return new GivingAttachmentDto(key, url);
     }
 
+    public async Task<(Stream Stream, string ContentType)> OpenAttachmentAsync(
+        Actor actor,
+        string key,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+
+        if (string.IsNullOrWhiteSpace(key)
+            || !key.StartsWith($"giving/{churchId}/", StringComparison.Ordinal))
+        {
+            throw new ForbiddenException("Attachment not found");
+        }
+
+        if (!storage.IsConfigured)
+            throw new ObjectStorageNotConfiguredException();
+
+        var belongsToChurch = await db.Contributions.AsNoTracking()
+            .AnyAsync(
+                c => c.AttachmentKey == key && c.Program!.ChurchId == churchId,
+                ct);
+        if (!belongsToChurch)
+            throw new ForbiddenException("Attachment not found");
+
+        var opened = await storage.TryOpenReadAsync(key.Trim(), ct)
+            ?? throw new BadRequestException("Attachment file not found in storage");
+
+        return opened;
+    }
+
     public async Task<ContributionDto> CreateAsync(
         Actor actor,
         Guid authUserId,
@@ -94,27 +123,59 @@ public class ContributionService(
             AttachmentKey = input.AttachmentKey.Trim(),
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
             EnteredByAuthUserId = authUserId,
+            EnteredByRole = actor.StructureRole,
             MemberParentNodeId = member.ParentNodeId,
             Status = ContributionStatus.PendingApproval,
+            SentToPastor = input.SentToPastor,
+            RemittanceMedium = ParseRemittanceMedium(input.RemittanceMedium),
+            RemittanceMediumOther = string.IsNullOrWhiteSpace(input.RemittanceMediumOther)
+                ? null
+                : input.RemittanceMediumOther.Trim(),
+            BatchId = input.BatchId,
         };
 
         db.Contributions.Add(contribution);
         await db.SaveChangesAsync(ct);
 
+        var enterers = await GivingProgramCreatorResolver.ResolveForProgramsAsync(
+            db,
+            churchId,
+            [(authUserId, actor.StructureRole)],
+            ct);
+        enterers.TryGetValue(authUserId, out var enterer);
+
         await notifications.NotifyContributionPendingAsync(
             contribution,
             program,
             member.Name,
+            enterer?.Name,
+            enterer?.ScopeUnitName,
             ct);
 
         return await ToDtoAsync(contribution, ct);
     }
 
-    public async Task<IReadOnlyList<ContributionDto>> ListForProgramAsync(
+    private static RemittanceMedium? ParseRemittanceMedium(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return Enum.TryParse<RemittanceMedium>(value, ignoreCase: true, out var parsed)
+            ? parsed
+            : throw new BadRequestException($"Unknown remittance medium: {value}");
+    }
+
+    public async Task<ContributionListResponse> ListForProgramAsync(
         Actor actor,
         Guid authUserId,
         Guid programId,
+        int page,
+        int pageSize,
+        string? sortBy,
+        string? sortDir,
         ContributionStatus? status,
+        string? search,
+        bool awaitingMyApproval,
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
@@ -128,27 +189,133 @@ public class ContributionService(
             throw new ForbiddenException("Program not found");
         }
 
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
         var programIds = await scope.CollectDescendantProgramIdsIncludingSelfAsync(churchId, programId, ct);
 
-        var query = db.Contributions.AsNoTracking()
+        var baseQuery = db.Contributions.AsNoTracking()
             .Where(c => programIds.Contains(c.ProgramId));
-
-        if (status is not null)
-            query = query.Where(c => c.Status == status);
 
         if (!scope.IsPastor(actor))
         {
             var visibleNodes = await scope.GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
             if (visibleNodes.Count == 0)
-                return [];
-            query = query.Where(c => visibleNodes.Contains(c.MemberParentNodeId));
+            {
+                return new ContributionListResponse(
+                    [],
+                    0,
+                    page,
+                    pageSize,
+                    new ContributionListSummary(0, 0, 0, 0, 0, 0));
+            }
+
+            baseQuery = baseQuery.Where(c => visibleNodes.Contains(c.MemberParentNodeId));
         }
 
-        var rows = await query.OrderByDescending(c => c.CreatedAt).ToListAsync(ct);
-        var result = new List<ContributionDto>();
-        foreach (var row in rows)
-            result.Add(await ToDtoAsync(row, ct));
-        return result;
+        var summary = await BuildSummaryAsync(baseQuery, churchId, actor, ct);
+
+        var query = baseQuery;
+
+        if (status is not null)
+            query = query.Where(c => c.Status == status);
+
+        if (awaitingMyApproval)
+            query = await scope.ApplyAwaitingMyApprovalFilterAsync(query, churchId, actor, ct);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = $"%{search.Trim()}%";
+            query = query.Where(c =>
+                db.ChurchMembers.Any(m =>
+                    m.Id == c.MemberId
+                    && m.ChurchId == churchId
+                    && EF.Functions.ILike(m.Name, term))
+                || (c.Notes != null && EF.Functions.ILike(c.Notes, term))
+                || db.GivingPrograms.Any(p =>
+                    p.Id == c.ProgramId
+                    && (EF.Functions.ILike(p.Title, term)
+                        || EF.Functions.ILike(p.PeriodLabel, term))));
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        var rows = await ApplyContributionSort(query, sortBy, sortDir)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var contributions = await MapToDtosAsync(rows, ct);
+        return new ContributionListResponse(contributions, totalCount, page, pageSize, summary);
+    }
+
+    private async Task<ContributionListSummary> BuildSummaryAsync(
+        IQueryable<Contribution> baseQuery,
+        Guid churchId,
+        Actor actor,
+        CancellationToken ct)
+    {
+        var pending = baseQuery.Where(c => c.Status == ContributionStatus.PendingApproval);
+        var approved = baseQuery.Where(c => c.Status == ContributionStatus.Approved);
+        var rejected = baseQuery.Where(c => c.Status == ContributionStatus.Rejected);
+
+        var pendingCount = await pending.CountAsync(ct);
+        var pendingTotal = pendingCount == 0
+            ? 0
+            : await pending.SumAsync(c => c.Amount, ct);
+        var approvedCount = await approved.CountAsync(ct);
+        var approvedTotal = approvedCount == 0
+            ? 0
+            : await approved.SumAsync(c => c.Amount, ct);
+        var rejectedCount = await rejected.CountAsync(ct);
+
+        var awaitingQuery = await scope.ApplyAwaitingMyApprovalFilterAsync(
+            baseQuery,
+            churchId,
+            actor,
+            ct);
+        var awaitingMyApprovalCount = await awaitingQuery.CountAsync(ct);
+
+        return new ContributionListSummary(
+            pendingCount,
+            pendingTotal,
+            awaitingMyApprovalCount,
+            approvedCount,
+            approvedTotal,
+            rejectedCount);
+    }
+
+    private IQueryable<Contribution> ApplyContributionSort(
+        IQueryable<Contribution> query,
+        string? sortBy,
+        string? sortDir)
+    {
+        var desc = !string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase);
+
+        return sortBy?.ToLowerInvariant() switch
+        {
+            "amount" => desc
+                ? query.OrderByDescending(c => c.Amount).ThenByDescending(c => c.CreatedAt)
+                : query.OrderBy(c => c.Amount).ThenBy(c => c.CreatedAt),
+            "datesent" => desc
+                ? query.OrderByDescending(c => c.DateSent).ThenByDescending(c => c.CreatedAt)
+                : query.OrderBy(c => c.DateSent).ThenBy(c => c.CreatedAt),
+            "membername" => desc
+                ? query.OrderByDescending(c =>
+                    db.ChurchMembers.Where(m => m.Id == c.MemberId).Select(m => m.Name).FirstOrDefault())
+                    .ThenByDescending(c => c.CreatedAt)
+                : query.OrderBy(c =>
+                    db.ChurchMembers.Where(m => m.Id == c.MemberId).Select(m => m.Name).FirstOrDefault())
+                    .ThenBy(c => c.CreatedAt),
+            "status" => desc
+                ? query.OrderByDescending(c => c.Status).ThenByDescending(c => c.CreatedAt)
+                : query.OrderBy(c => c.Status).ThenBy(c => c.CreatedAt),
+            "approvedat" => desc
+                ? query.OrderByDescending(c => c.ApprovedAt).ThenByDescending(c => c.CreatedAt)
+                : query.OrderBy(c => c.ApprovedAt).ThenBy(c => c.CreatedAt),
+            _ => desc
+                ? query.OrderByDescending(c => c.CreatedAt)
+                : query.OrderBy(c => c.CreatedAt),
+        };
     }
 
     public async Task<ContributionDto> ApproveAsync(
@@ -245,7 +412,11 @@ public class ContributionService(
         }
 
         var programIds = await scope.CollectDescendantProgramIdsIncludingSelfAsync(churchId, programId, ct);
-        var includesDescendants = programIds.Count > 1;
+        var hasChildren = programIds.Count > 1;
+        if (hasChildren)
+            programIds = programIds.Where(id => id != programId).ToList();
+
+        var includesDescendants = hasChildren;
 
         var approved = await db.Contributions.AsNoTracking()
             .Where(c => programIds.Contains(c.ProgramId) && c.Status == ContributionStatus.Approved)
@@ -324,10 +495,7 @@ public class ContributionService(
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(ct);
 
-        var result = new List<ContributionDto>();
-        foreach (var row in rows)
-            result.Add(await ToDtoAsync(row, ct));
-        return result;
+        return await MapToDtosAsync(rows, ct);
     }
 
     public async Task<IReadOnlyList<ContributionDto>> ListForMemberAsync(
@@ -349,10 +517,7 @@ public class ContributionService(
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(ct);
 
-        var result = new List<ContributionDto>();
-        foreach (var row in rows)
-            result.Add(await ToDtoAsync(row, ct));
-        return result;
+        return await MapToDtosAsync(rows, ct);
     }
 
     private async Task<Contribution> LoadContributionAsync(
@@ -362,36 +527,121 @@ public class ContributionService(
         CancellationToken ct)
     {
         var churchId = RequireStructureChurch(actor);
+        var programIds = await scope.CollectDescendantProgramIdsIncludingSelfAsync(churchId, programId, ct);
+
         return await db.Contributions
             .Include(c => c.Program)
             .SingleOrDefaultAsync(
-                c => c.Id == contributionId && c.ProgramId == programId && c.Program!.ChurchId == churchId,
+                c => c.Id == contributionId
+                    && programIds.Contains(c.ProgramId)
+                    && c.Program!.ChurchId == churchId,
                 ct)
             ?? throw new ForbiddenException("Contribution not found");
     }
 
+    private async Task<IReadOnlyList<ContributionDto>> MapToDtosAsync(
+        IReadOnlyList<Contribution> contributions,
+        CancellationToken ct)
+    {
+        if (contributions.Count == 0)
+            return [];
+
+        var programIds = contributions.Select(c => c.ProgramId).Distinct().ToList();
+        var programs = await db.GivingPrograms.AsNoTracking()
+            .Where(p => programIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, ct);
+
+        var churchIds = programs.Values.Select(p => p.ChurchId).Distinct().ToList();
+        if (churchIds.Count != 1)
+            throw new InvalidOperationException("Contributions must belong to a single church");
+
+        var churchId = churchIds[0];
+        var parentIdsWithChildren = await db.GivingPrograms.AsNoTracking()
+            .Where(p => p.ChurchId == churchId && p.ParentProgramId != null)
+            .Select(p => p.ParentProgramId!.Value)
+            .Distinct()
+            .ToHashSetAsync(ct);
+
+        var memberIds = contributions.Select(c => c.MemberId).Distinct().ToList();
+        var memberNames = await db.ChurchMembers.AsNoTracking()
+            .Where(m => memberIds.Contains(m.Id))
+            .ToDictionaryAsync(m => m.Id, m => m.Name, ct);
+
+        var enterers = await GivingProgramCreatorResolver.ResolveForProgramsAsync(
+            db,
+            churchId,
+            contributions.Select(c => (c.EnteredByAuthUserId, c.EnteredByRole)),
+            ct);
+
+        var approvers = await GivingProgramCreatorResolver.ResolveForProgramsAsync(
+            db,
+            churchId,
+            contributions
+                .Where(c => c.ApprovedByAuthUserId is not null)
+                .Select(c => (c.ApprovedByAuthUserId!.Value, (ChurchRole?)null)),
+            ct);
+
+        var result = new List<ContributionDto>(contributions.Count);
+
+        foreach (var c in contributions)
+        {
+            programs.TryGetValue(c.ProgramId, out var program);
+            enterers.TryGetValue(c.EnteredByAuthUserId, out var enterer);
+            string? approvedByName = null;
+            if (c.ApprovedByAuthUserId is Guid approverId
+                && approvers.TryGetValue(approverId, out var approver))
+            {
+                approvedByName = approver.Name;
+            }
+
+            string? pendingApproverRole = null;
+            if (c.Status == ContributionStatus.PendingApproval && program is not null)
+            {
+                var approvingRole = await scope.ResolveContributionApprovingRoleAsync(
+                    program.ChurchId,
+                    c.EnteredByRole,
+                    ct);
+                pendingApproverRole = approvingRole?.ToString();
+            }
+
+            result.Add(new ContributionDto(
+                c.Id,
+                c.ProgramId,
+                program?.Title ?? "Giving",
+                program?.PeriodLabel ?? "",
+                program?.ParentProgramId is not null,
+                program?.ParentProgramId is null && parentIdsWithChildren.Contains(c.ProgramId),
+                c.MemberId,
+                memberNames.GetValueOrDefault(c.MemberId) ?? "Member",
+                c.Amount,
+                c.Currency,
+                c.DateSent,
+                c.AttachmentKey,
+                storage.PublicUrlForKey(c.AttachmentKey),
+                c.Notes,
+                c.MemberParentNodeId,
+                c.Status.ToString(),
+                c.EnteredByRole?.ToString(),
+                enterer?.Name,
+                enterer?.ScopeUnitName,
+                c.SentToPastor,
+                c.RemittanceMedium?.ToString(),
+                c.RemittanceMediumOther,
+                c.BatchId,
+                pendingApproverRole,
+                c.ApprovedAt,
+                approvedByName,
+                c.RejectedReason,
+                c.CreatedAt));
+        }
+
+        return result;
+    }
+
     private async Task<ContributionDto> ToDtoAsync(Contribution c, CancellationToken ct)
     {
-        var memberName = await db.ChurchMembers.AsNoTracking()
-            .Where(m => m.Id == c.MemberId)
-            .Select(m => m.Name)
-            .FirstOrDefaultAsync(ct) ?? "Member";
-
-        return new ContributionDto(
-            c.Id,
-            c.ProgramId,
-            c.MemberId,
-            memberName,
-            c.Amount,
-            c.Currency,
-            c.DateSent,
-            c.AttachmentKey,
-            c.Notes,
-            c.MemberParentNodeId,
-            c.Status.ToString(),
-            c.ApprovedAt,
-            c.RejectedReason,
-            c.CreatedAt);
+        var mapped = await MapToDtosAsync([c], ct);
+        return mapped[0];
     }
 
     private static List<StructureNode> AncestorChain(
@@ -435,4 +685,8 @@ public record CreateContributionInput(
     string? Currency,
     DateTimeOffset DateSent,
     string AttachmentKey,
-    string? Notes);
+    string? Notes,
+    bool? SentToPastor = null,
+    string? RemittanceMedium = null,
+    string? RemittanceMediumOther = null,
+    Guid? BatchId = null);

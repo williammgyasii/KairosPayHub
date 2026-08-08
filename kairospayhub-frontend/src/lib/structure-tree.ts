@@ -46,6 +46,64 @@ export function isDescendantOf(tree: StructureTree, ancestorId: string, nodeId: 
   return false
 }
 
+/** Org layers below a scoped leader's assigned unit (excludes the leader's own layer). */
+export function layersBelowScopeRoot(
+  tree: StructureTree,
+  scopeRootNodeId: string | null | undefined,
+): StructureLayer[] {
+  const layers = getLayers(tree)
+  if (!scopeRootNodeId) return layers
+
+  const scopeNode = nodeById(tree, scopeRootNodeId)
+  if (!scopeNode) return layers
+
+  const scopeLayer = layerById(tree, scopeNode.layerId)
+  if (!scopeLayer) return layers
+
+  return layers.filter((layer) => layer.sortOrder > scopeLayer.sortOrder)
+}
+
+export function nodesBelowScopeRoot(
+  tree: StructureTree,
+  nodes: StructureNode[],
+  scopeRootNodeId: string | null | undefined,
+): StructureNode[] {
+  if (!scopeRootNodeId) return nodes
+
+  return nodes.filter(
+    (node) => node.id !== scopeRootNodeId && isDescendantOf(tree, scopeRootNodeId, node.id),
+  )
+}
+
+export function nodePathBelowScopeRoot(
+  tree: StructureTree,
+  nodeId: string,
+  scopeRootNodeId?: string | null,
+): string {
+  const chain = parentChain(tree, nodeId)
+  if (!scopeRootNodeId) return chain.map((node) => node.name).join(' → ')
+
+  const scopeIndex = chain.findIndex((node) => node.id === scopeRootNodeId)
+  if (scopeIndex < 0) return chain.map((node) => node.name).join(' → ')
+
+  const below = chain.slice(scopeIndex + 1)
+  return below.map((node) => node.name).join(' → ') || nodeById(tree, nodeId)?.name || '—'
+}
+
+export function rosterBreadcrumbChain(
+  tree: StructureTree,
+  unitNodeId: string,
+  scopeRootNodeId?: string | null,
+): StructureNode[] {
+  const ancestors = parentChain(tree, unitNodeId).slice(0, -1)
+  if (!scopeRootNodeId) return ancestors
+
+  const scopeIndex = ancestors.findIndex((node) => node.id === scopeRootNodeId)
+  if (scopeIndex < 0) return ancestors
+
+  return ancestors.slice(scopeIndex + 1)
+}
+
 export function collectSubtreeNodeIds(tree: StructureTree, rootId: string): Set<string> {
   const ids = new Set<string>([rootId])
   let expanded = true

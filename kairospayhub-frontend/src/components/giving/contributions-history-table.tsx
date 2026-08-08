@@ -4,16 +4,19 @@ import type { Contribution } from '@/api/giving'
 import { formatAmount } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { groupContributionsByMember } from '@/lib/contribution-structure'
-import { ContributionStatusBadge } from '@/components/giving/giving-badges'
+import { formatGivingDate, contributionLegacyParentLabel } from '@/lib/giving-ui'
+import { ContributionStatusBadge, LegacyParentContributionBadge } from '@/components/giving/giving-badges'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 export function ContributionsHistoryTable({
   contributions,
   tree,
+  viewerRole,
 }: {
   contributions: Contribution[]
   tree: StructureTree | null
+  viewerRole?: string
 }) {
   const members = useMemo(
     () => groupContributionsByMember(tree, contributions),
@@ -68,6 +71,7 @@ export function ContributionsHistoryTable({
                       member={member}
                       open={open}
                       onToggle={() => toggle(member.memberId)}
+                      viewerRole={viewerRole}
                     />
                   )
                 })}
@@ -84,10 +88,12 @@ function MemberHistoryRows({
   member,
   open,
   onToggle,
+  viewerRole,
 }: {
   member: ReturnType<typeof groupContributionsByMember>[number]
   open: boolean
   onToggle: () => void
+  viewerRole?: string
 }) {
   return (
     <>
@@ -117,13 +123,7 @@ function MemberHistoryRows({
           {formatAmount(member.approvedTotal)}
         </td>
         <td className="px-4 py-3 align-middle text-muted-foreground">
-          {member.lastDateSent
-            ? new Date(member.lastDateSent).toLocaleDateString(undefined, {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })
-            : '—'}
+          {member.lastDateSent ? formatGivingDate(member.lastDateSent) : '—'}
         </td>
       </tr>
       {open && (
@@ -138,20 +138,25 @@ function MemberHistoryRows({
                   )}
                 >
                   <div>
-                    <p className="font-medium tabular-nums">
-                      {formatAmount(entry.amount, entry.currency)}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium tabular-nums">
+                        {formatAmount(entry.amount, entry.currency)}
+                      </p>
+                      {entry.isLegacyParentContribution && <LegacyParentContributionBadge />}
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Sent{' '}
-                      {new Date(entry.dateSent).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
+                      Sent {formatGivingDate(entry.dateSent)}
+                      {contributionLegacyParentLabel(entry)
+                        ? ` · ${contributionLegacyParentLabel(entry)}`
+                        : ''}
                       {entry.notes ? ` · ${entry.notes}` : ''}
                     </p>
                   </div>
-                  <ContributionStatusBadge status={entry.status} />
+                  <ContributionStatusBadge
+                    status={entry.status}
+                    viewerRole={viewerRole}
+                    pendingApproverRole={entry.pendingApproverRole}
+                  />
                 </li>
               ))}
             </ul>

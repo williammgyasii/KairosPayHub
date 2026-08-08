@@ -8,6 +8,7 @@ import {
   listMemberContributions,
   type Contribution,
 } from '@/api/giving'
+import { formatGivingDate } from '@/lib/giving-ui'
 import { ContributionStatusBadge } from '@/components/giving/giving-badges'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
@@ -73,7 +74,7 @@ export function MemberGivingTab({ memberId }: { memberId: string }) {
               <div>
                 <p className="font-medium">{formatAmount(row.amount, row.currency)}</p>
                 <p className="text-xs text-muted-foreground">
-                  Sent {new Date(row.dateSent).toLocaleDateString()} ·{' '}
+                  Sent {formatGivingDate(row.dateSent)} ·{' '}
                   {formatContributionStatus(row.status)}
                 </p>
                 {row.notes && (

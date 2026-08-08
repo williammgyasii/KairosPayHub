@@ -3,6 +3,7 @@ using System;
 using KairosPayHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace KairosPayHub.Api.Data.Migrations
 {
     [DbContext(typeof(KairosDbContext))]
-    partial class KairosDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260808223723_AddContributionEnteredByRole")]
+    partial class AddContributionEnteredByRole
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -228,9 +231,6 @@ namespace KairosPayHub.Api.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<Guid?>("BatchId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -263,15 +263,6 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.Property<string>("RejectedReason")
                         .HasColumnType("text");
-
-                    b.Property<int?>("RemittanceMedium")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("RemittanceMediumOther")
-                        .HasColumnType("text");
-
-                    b.Property<bool?>("SentToPastor")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("Status")
                         .IsRequired()

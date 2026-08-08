@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Me } from '@/api/me'
 import type { GivingType, ProgramScopeKind } from '@/api/giving'
 import { createProgram } from '@/api/giving'
@@ -23,6 +23,7 @@ import {
 import { Modal } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { nodesBelowScopeRoot } from '@/lib/structure-tree'
 
 type CreateProgramWizardProps = {
   open: boolean
@@ -33,13 +34,20 @@ type CreateProgramWizardProps = {
   onCreated: () => void
 }
 
+const SCOPE_OPTIONS = {
+  pastor: ['ChurchWide'] as const,
+  fellowshipLeader: ['Fellowship', 'FellowshipGroup'] as const,
+  pfccManager: ['PFCC'] as const,
+  none: [] as const,
+}
+
 function scopeOptionsForRole(
   role: (Me & { onboarded: true })['role'],
-): ProgramScopeKind[] {
-  if (role === 'Pastor') return ['ChurchWide']
-  if (role === 'FellowshipLeader') return ['Fellowship', 'FellowshipGroup']
-  if (role === 'PFCCManager') return ['PFCC']
-  return []
+): readonly ProgramScopeKind[] {
+  if (role === 'Pastor') return SCOPE_OPTIONS.pastor
+  if (role === 'FellowshipLeader') return SCOPE_OPTIONS.fellowshipLeader
+  if (role === 'PFCCManager') return SCOPE_OPTIONS.pfccManager
+  return SCOPE_OPTIONS.none
 }
 
 export function CreateProgramWizard({
@@ -52,7 +60,11 @@ export function CreateProgramWizard({
 }: CreateProgramWizardProps) {
   const scopeOptions = scopeOptionsForRole(me.role)
   const isPastor = me.role === 'Pastor'
-  const steps = isPastor
+  const isPfccManager = me.role === 'PFCCManager'
+  const skipsScopeStep = isPfccManager && Boolean(me.scopeNodeId)
+  const scopeRootNodeId = me.scopeNodeId ?? null
+  const defaultScopeKind = scopeOptions[0] ?? 'ChurchWide'
+  const steps = isPastor || skipsScopeStep
     ? (['Giving type', 'Details', 'Review'] as const)
     : (['Giving type', 'Details', 'Scope', 'Review'] as const)
 
@@ -64,53 +76,40 @@ export function CreateProgramWizard({
   const [givingType, setGivingType] = useState<GivingType>('Rhapsody')
   const [title, setTitle] = useState(defaultProgramTitle('Rhapsody'))
   const [periodLabel, setPeriodLabel] = useState(defaultPeriodLabel())
-  const [scopeKind, setScopeKind] = useState<ProgramScopeKind>(
-    scopeOptions[0] ?? 'ChurchWide',
+  const [scopeKind, setScopeKind] = useState<ProgramScopeKind>(defaultScopeKind)
+  const [scopeNodeId, setScopeNodeId] = useState(
+    () => (isPfccManager ? me.scopeNodeId ?? '' : ''),
   )
-  const [scopeNodeId, setScopeNodeId] = useState('')
   const [scopeNodeIds, setScopeNodeIds] = useState<string[]>([])
 
-  useEffect(() => {
-    if (!open) return
-    setStep(0)
-    setDirection('forward')
-    setError(null)
-    setGivingType('Rhapsody')
-    setTitle(defaultProgramTitle('Rhapsody'))
-    setPeriodLabel(defaultPeriodLabel())
-    setScopeKind(scopeOptions[0] ?? 'ChurchWide')
-    setScopeNodeId('')
-    setScopeNodeIds([])
-  }, [open, scopeOptions])
-
-  useEffect(() => {
-    setTitle(defaultProgramTitle(givingType))
-  }, [givingType])
-
-  const scopeNodes = useMemo(
-    () => (tree && !isPastor ? nodesForScopeKind(tree, scopeKind) : []),
-    [tree, scopeKind, isPastor],
-  )
+  const scopeNodes = useMemo(() => {
+    if (!tree || isPastor || skipsScopeStep) return []
+    let nodes = nodesForScopeKind(tree, scopeKind)
+    if (scopeRootNodeId) {
+      nodes = nodesBelowScopeRoot(tree, nodes, scopeRootNodeId)
+    }
+    return nodes
+  }, [tree, scopeKind, isPastor, skipsScopeStep, scopeRootNodeId])
 
   const scopePickerOptions = useMemo(
     () =>
       scopeNodes.map((node) => ({
         id: node.id,
         label: node.name,
-        hint: tree ? nodePathLabel(tree, node.id) : undefined,
+        hint: tree ? nodePathLabel(tree, node.id, scopeRootNodeId) : undefined,
       })),
-    [scopeNodes, tree],
+    [scopeNodes, tree, scopeRootNodeId],
   )
 
   const canProceed = useMemo(() => {
     if (step === 0) return Boolean(givingType)
     if (step === 1) return title.trim().length > 0 && periodLabel.trim().length > 0
-    if (!isPastor && step === 2) {
+    if (!isPastor && !skipsScopeStep && step === 2) {
       if (scopeKind === 'FellowshipGroup') return scopeNodeIds.length > 0
       if (scopeKind === 'Fellowship' || scopeKind === 'PFCC') return Boolean(scopeNodeId)
     }
     return true
-  }, [step, givingType, title, periodLabel, isPastor, scopeKind, scopeNodeId, scopeNodeIds])
+  }, [step, givingType, title, periodLabel, isPastor, skipsScopeStep, scopeKind, scopeNodeId, scopeNodeIds])
 
   function go(next: number) {
     setDirection(next > step ? 'forward' : 'back')
@@ -125,11 +124,16 @@ export function CreateProgramWizard({
         givingType,
         title: title.trim(),
         periodLabel: periodLabel.trim(),
-        scopeKind: isPastor ? 'ChurchWide' : scopeKind,
-        scopeNodeId:
-          !isPastor && scopeKind !== 'FellowshipGroup' ? scopeNodeId || null : null,
+        scopeKind: isPastor ? 'ChurchWide' : isPfccManager ? 'PFCC' : scopeKind,
+        scopeNodeId: isPastor
+          ? null
+          : isPfccManager
+            ? me.scopeNodeId ?? null
+            : scopeKind !== 'FellowshipGroup'
+              ? scopeNodeId || null
+              : null,
         scopeNodeIds:
-          !isPastor && scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
+          !isPastor && !isPfccManager && scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
       })
       onOpenChange(false)
       onCreated()
@@ -183,7 +187,10 @@ export function CreateProgramWizard({
                         ? 'border-primary bg-primary/10 ring-1 ring-primary/20'
                         : 'border-border/60 hover:bg-muted/40',
                     )}
-                    onClick={() => setGivingType(option.value)}
+                    onClick={() => {
+                      setGivingType(option.value)
+                      setTitle(defaultProgramTitle(option.value))
+                    }}
                   >
                     <p className="font-medium">{option.label}</p>
                     <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
@@ -215,10 +222,16 @@ export function CreateProgramWizard({
                   This will be church-wide — visible to all leaders in your structure.
                 </p>
               )}
+              {!isPastor && isPfccManager && me.scopeUnitName && (
+                <p className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                  This campaign will be scoped to{' '}
+                  <strong className="text-foreground">{me.scopeUnitName}</strong>.
+                </p>
+              )}
             </div>
           )}
 
-          {!isPastor && step === 2 && (
+          {!isPastor && !skipsScopeStep && step === 2 && (
             <div className="space-y-4">
               {scopeOptions.length > 1 && (
                 <div className="flex flex-wrap gap-2">
@@ -268,7 +281,7 @@ export function CreateProgramWizard({
                           <span>
                             <span className="block text-sm font-medium">{node.name}</span>
                             <span className="text-xs text-muted-foreground">
-                              {nodePathLabel(tree, node.id)}
+                              {nodePathLabel(tree, node.id, scopeRootNodeId)}
                             </span>
                           </span>
                         </label>

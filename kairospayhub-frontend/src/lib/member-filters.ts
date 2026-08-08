@@ -62,12 +62,18 @@ export function buildMemberFilterFields(
     { field: 'occupation', label: 'Occupation', kind: 'enum' },
     { field: 'role', label: 'Role', kind: 'enum' },
     { field: 'age', label: 'Age', kind: 'text' },
-    ...layers.map((layer) => ({
-      field: `layer:${layer.id}` as MemberFilterField,
-      label: layer.displayName,
-      kind: 'layer' as const,
-    })),
+    ...buildStructureFilterFields(layers),
   ]
+}
+
+export function buildStructureFilterFields(
+  layers: Pick<StructureLayer, 'id' | 'displayName' | 'standardType'>[],
+): MemberFilterFieldDef[] {
+  return layers.map((layer) => ({
+    field: `layer:${layer.id}` as MemberFilterField,
+    label: layer.displayName,
+    kind: 'layer' as const,
+  }))
 }
 
 export function operatorsForField(field: MemberFilterField | null): MemberFilterOperator[] {

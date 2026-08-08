@@ -73,18 +73,27 @@ export function WizardStepPanel({
   direction,
   children,
   className,
+  fill = false,
 }: {
   stepKey: string | number
   direction: 'forward' | 'back'
   children: React.ReactNode
   className?: string
+  fill?: boolean
 }) {
   return (
-    <div className={cn('relative min-h-[380px] overflow-hidden', className)}>
+    <div
+      className={cn(
+        'relative overflow-hidden',
+        fill ? 'min-h-0 flex-1' : 'min-h-[380px]',
+        className,
+      )}
+    >
       <div
         key={stepKey}
         className={cn(
-          'space-y-4 duration-500 ease-out fill-mode-both animate-in fade-in',
+          'duration-500 ease-out fill-mode-both animate-in fade-in',
+          fill ? 'flex h-full min-h-0 flex-col' : 'space-y-4',
           direction === 'forward' ? 'slide-in-from-right-6' : 'slide-in-from-left-6',
         )}
       >
@@ -104,6 +113,7 @@ export function WizardFooter({
   submitLabel = 'Save',
   isLastStep,
   canProceed,
+  busyLabel = 'Saving…',
 }: {
   step: number
   busy: boolean
@@ -114,9 +124,10 @@ export function WizardFooter({
   submitLabel?: string
   isLastStep: boolean
   canProceed: boolean
+  busyLabel?: string
 }) {
   return (
-    <div className="flex justify-between gap-2 border-t border-border/50 pt-4">
+    <div className="flex justify-between gap-2 pt-1">
       <Button type="button" variant="ghost" disabled={busy} onClick={step === 0 ? onCancel : onBack}>
         {step === 0 ? 'Cancel' : 'Back'}
       </Button>
@@ -126,7 +137,7 @@ export function WizardFooter({
           {busy ? (
             <>
               <InlineSpinner className="mr-2 text-primary-foreground" />
-              Saving…
+              {busyLabel}
             </>
           ) : (
             submitLabel

@@ -9,14 +9,17 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import { ArrowRight, ArrowUpDown } from 'lucide-react'
+import { ArrowUpDown } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { GivingProgram } from '@/api/giving'
 import { formatAmount } from '@/api/giving'
 import type { GivingCampaignStats } from '@/components/giving/giving-metrics'
+import {
+  GivingCampaignActionsMenu,
+  type CampaignAction,
+} from '@/components/giving/giving-campaign-actions-menu'
 import { givingTypeLabel, scopeKindLabel } from '@/lib/giving-ui'
 import { ProgramStatusBadge, ScopeKindBadge } from '@/components/giving/giving-badges'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
@@ -30,14 +33,18 @@ interface GivingTableProps {
   rows: GivingTableRow[]
   showTotals?: boolean
   emptyMessage?: string
+  canManage?: boolean
+  onCampaignAction?: (action: CampaignAction, program: GivingTableRow) => void
 }
 
 export function GivingTable({
   rows,
   showTotals = false,
   emptyMessage = 'No campaigns yet.',
+  canManage = false,
+  onCampaignAction,
 }: GivingTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }])
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'title', desc: false }])
   const [filter, setFilter] = useState('')
 
   const columns = useMemo((): ColumnDef<GivingTableRow>[] => {
@@ -99,16 +106,15 @@ export function GivingTable({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <Button type="button" variant="ghost" size="sm" className="h-8 px-2" asChild>
-            <Link to={`/givings/${row.original.id}`}>
-              Open
-              <ArrowRight className="ml-1 size-3.5" />
-            </Link>
-          </Button>
+          <GivingCampaignActionsMenu
+            program={row.original}
+            canManage={canManage}
+            onAction={onCampaignAction}
+          />
         ),
       }),
     ] as ColumnDef<GivingTableRow>[]
-  }, [showTotals])
+  }, [showTotals, canManage, onCampaignAction])
 
   const table = useReactTable({
     data: rows,
@@ -138,8 +144,8 @@ export function GivingTable({
         <div>
           <h2 className="text-sm font-semibold tracking-tight">Campaigns</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {rows.length} open campaign{rows.length === 1 ? '' : 's'} — select one to manage sub
-            givings and log contributions
+            {rows.length} campaign{rows.length === 1 ? '' : 's'} — use the menu to view, close, or
+            delete
           </p>
         </div>
         <Input

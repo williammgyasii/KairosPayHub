@@ -1,6 +1,6 @@
 import type { ContributionStatus, ProgramApprovalStatus, ProgramStatus } from '@/api/giving'
 import { formatApprovalStatus, formatContributionStatus } from '@/api/giving'
-import { contributionStatusTone, programStatusLabel, scopeKindLabel } from '@/lib/giving-ui'
+import { contributionStatusLabel, contributionStatusTone, programStatusLabel, scopeKindLabel } from '@/lib/giving-ui'
 import { Lock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -36,6 +36,20 @@ export function ScopeKindBadge({ scopeKind }: { scopeKind: string }) {
   )
 }
 
+export function LegacyParentContributionBadge({ className }: { className?: string }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'border-amber-200/80 bg-amber-500/10 font-normal text-amber-900 dark:text-amber-200',
+        className,
+      )}
+    >
+      Before sub-givings
+    </Badge>
+  )
+}
+
 export function SubGivingTagBadge({ tag }: { tag: 'locked' | 'yours' | 'church' }) {
   if (tag === 'locked') {
     return (
@@ -62,8 +76,19 @@ export function SubGivingTagBadge({ tag }: { tag: 'locked' | 'yours' | 'church' 
   )
 }
 
-export function ContributionStatusBadge({ status }: { status: ContributionStatus | string }) {
+export function ContributionStatusBadge({
+  status,
+  viewerRole,
+  pendingApproverRole,
+}: {
+  status: ContributionStatus | string
+  viewerRole?: string
+  pendingApproverRole?: string | null
+}) {
   const tone = contributionStatusTone(status)
+  const label = viewerRole
+    ? contributionStatusLabel(status, viewerRole, pendingApproverRole)
+    : formatContributionStatus(status)
   return (
     <Badge
       variant={tone === 'success' ? 'default' : 'secondary'}
@@ -72,7 +97,7 @@ export function ContributionStatusBadge({ status }: { status: ContributionStatus
         tone === 'destructive' && 'border-destructive/30 bg-destructive/10 text-destructive',
       )}
     >
-      {formatContributionStatus(status)}
+      {label}
     </Badge>
   )
 }

@@ -5,13 +5,21 @@ import type { DashboardOutletContext } from '@/components/layout/dashboard-layou
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { useApi } from '@/api/useApi'
 import {
+  closeProgram,
+  deleteProgram,
   getGivingDashboard,
   listPrograms,
+  reopenProgram,
   type GivingDashboard,
   type GivingProgram,
 } from '@/api/giving'
 import { useStructureTree } from '@/components/structure/structure-setup'
 import { CreateProgramWizard } from '@/components/giving/create-program-wizard'
+import {
+  GivingCampaignConfirmModal,
+  type CampaignConfirmAction,
+} from '@/components/giving/giving-campaign-confirm-modal'
+import type { CampaignAction } from '@/components/giving/giving-campaign-actions-menu'
 import {
   campaignStatsByProgramId,
   deriveGivingMetrics,
@@ -23,6 +31,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { isPastor, isScopedLeader } from '@/api/me'
+import { formatApiError } from '@/lib/structure-tree'
 
 function canCreateGiving(role: string) {
   return role === 'Pastor' || role === 'FellowshipLeader' || role === 'PFCCManager'
@@ -37,9 +46,14 @@ export function GivingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<CampaignConfirmAction | null>(null)
+  const [confirmProgram, setConfirmProgram] = useState<GivingProgram | null>(null)
+  const [actionBusy, setActionBusy] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const showTotals = isPastor(me.role) || isScopedLeader(me.role)
   const canCreate = canCreateGiving(me.role)
+  const canManageCampaigns = isPastor(me.role)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -74,6 +88,31 @@ export function GivingsPage() {
 
   const pageDescription = givingsPageDescription(me.role, metrics.scopeUnitName)
 
+  function handleCampaignAction(action: CampaignAction, program: GivingProgram) {
+    if (action === 'view' || action === 'subgivings') return
+    setActionError(null)
+    setConfirmProgram(program)
+    setConfirmAction(action)
+  }
+
+  async function handleConfirmAction() {
+    if (!confirmProgram || !confirmAction) return
+    setActionBusy(true)
+    setActionError(null)
+    try {
+      if (confirmAction === 'close') await closeProgram(api, confirmProgram.id)
+      if (confirmAction === 'reopen') await reopenProgram(api, confirmProgram.id)
+      if (confirmAction === 'delete') await deleteProgram(api, confirmProgram.id)
+      setConfirmAction(null)
+      setConfirmProgram(null)
+      await load()
+    } catch (err) {
+      setActionError(formatApiError(err))
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <DashboardPageHeader
@@ -91,6 +130,7 @@ export function GivingsPage() {
       />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {actionError && <p className="text-sm text-destructive">{actionError}</p>}
 
       {loading ? (
         <Spinner label="Loading campaigns…" />
@@ -121,18 +161,41 @@ export function GivingsPage() {
               </CardHeader>
             </Card>
           ) : (
-            <GivingTable rows={tableRows} showTotals={showTotals} />
+            <GivingTable
+              rows={tableRows}
+              showTotals={showTotals}
+              canManage={canManageCampaigns}
+              onCampaignAction={handleCampaignAction}
+            />
           )}
         </>
       )}
 
-      <CreateProgramWizard
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        me={me}
-        api={api}
-        tree={tree}
-        onCreated={() => void load()}
+      {createOpen ? (
+        <CreateProgramWizard
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setCreateOpen(false)
+          }}
+          me={me}
+          api={api}
+          tree={tree}
+          onCreated={() => void load()}
+        />
+      ) : null}
+
+      <GivingCampaignConfirmModal
+        open={confirmAction != null && confirmProgram != null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !actionBusy) {
+            setConfirmAction(null)
+            setConfirmProgram(null)
+          }
+        }}
+        action={confirmAction}
+        program={confirmProgram}
+        busy={actionBusy}
+        onConfirm={() => void handleConfirmAction()}
       />
     </div>
   )
