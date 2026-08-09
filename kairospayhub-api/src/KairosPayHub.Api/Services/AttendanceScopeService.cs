@@ -116,11 +116,11 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
         if (!await CanLeadScopeSubmissionAsync(actor, authUserId, submission, ct))
             return false;
 
-        // Testing: keep draft/rejected roll calls editable regardless of window/lock status.
-        if (submission.ApprovalStatus is AttendanceScopeApprovalStatus.Draft
-            or AttendanceScopeApprovalStatus.Rejected)
+        if (submission.ApprovalStatus is not (
+            AttendanceScopeApprovalStatus.Draft
+            or AttendanceScopeApprovalStatus.Rejected))
         {
-            return true;
+            return false;
         }
 
         var now = DateTimeOffset.UtcNow;

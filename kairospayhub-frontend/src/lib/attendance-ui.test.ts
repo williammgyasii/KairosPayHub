@@ -106,7 +106,7 @@ describe('rollCallState', () => {
     expect(isRollCallEditable(baseDetail, 'cell-1', new Date('2026-08-03T15:00:00Z'))).toBe(true)
   })
 
-  it('keeps draft roll calls editable after deadline and lock (testing)', () => {
+  it('locks draft roll calls after the submission deadline passes', () => {
     const lockedDraft = {
       ...baseDetail,
       submissionDeadlineAt: '2026-08-03T16:00:00Z',
@@ -118,8 +118,8 @@ describe('rollCallState', () => {
       ],
     }
     const state = rollCallState(lockedDraft, 'cell-1', new Date('2026-08-10T12:00:00Z'))
-    expect(state.editable).toBe(true)
-    expect(state.message).toBeNull()
+    expect(state.editable).toBe(false)
+    expect(state.reason).toBe('locked')
   })
 })
 

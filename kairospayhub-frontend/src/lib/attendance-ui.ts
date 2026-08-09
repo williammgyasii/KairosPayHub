@@ -227,11 +227,6 @@ export function rollCallState(
     }
   }
 
-  // Testing: draft/rejected roll calls stay editable regardless of window/lock status.
-  if (submission.approvalStatus === 'Draft' || submission.approvalStatus === 'Rejected') {
-    return { editable: true, reason: null, message: null }
-  }
-
   if (now < new Date(detail.submissionOpensAt)) {
     return {
       editable: false,
