@@ -150,6 +150,136 @@ public class GivingProgramApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Fellowship_leader_cannot_create_sub_giving()
+    {
+        var pastor = PastorClient();
+        await OnboardAsync(pastor);
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "PFCC", displayName = "PFCC" },
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var pfccLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var fellowshipLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var pfccId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = pfccLayerId,
+            name = "PFCC 1",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = pfccId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Leader",
+                email = "jane.sub@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var rootId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var leader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.sub@example.com");
+        Assert.NotNull(leader.AuthUserId);
+
+        var fellowshipClient = ClientForAuthUser(
+            leader.AuthUserId!.Value,
+            "jane.sub@example.com",
+            "Jane Leader");
+
+        var blocked = await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
+        {
+            parentProgramId = rootId,
+            title = "January Rhapsody",
+            periodLabel = "January 2026",
+            scopeKind = "Fellowship",
+            scopeNodeId = fellowshipId,
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
+    }
+
+    [Fact]
+    public async Task Fellowship_leader_cannot_create_fellowship_scoped_program()
+    {
+        var pastor = PastorClient();
+        await OnboardAsync(pastor);
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "PFCC", displayName = "PFCC" },
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var pfccLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var fellowshipLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var pfccId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = pfccLayerId,
+            name = "PFCC 1",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = pfccId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Leader",
+                email = "jane.fellowship-scoped@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var leader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.fellowship-scoped@example.com");
+        Assert.NotNull(leader.AuthUserId);
+
+        var fellowshipClient = ClientForAuthUser(
+            leader.AuthUserId!.Value,
+            "jane.fellowship-scoped@example.com",
+            "Jane Leader");
+
+        var blocked = await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Titans Rhapsody",
+            periodLabel = "2026",
+            scopeKind = "Fellowship",
+            scopeNodeId = fellowshipId,
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
+    }
+
+    [Fact]
     public async Task Pastor_lists_created_programs()
     {
         var client = PastorClient();

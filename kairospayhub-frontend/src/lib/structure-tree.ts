@@ -270,6 +270,14 @@ export function childLayersFromUnit(tree: StructureTree, unitNodeId: string) {
   return getLayers(tree).filter((layer) => layer.sortOrder > unitLayer.sortOrder)
 }
 
+export function directChildLayer(tree: StructureTree, unitNodeId: string) {
+  const unit = nodeById(tree, unitNodeId)
+  if (!unit) return null
+  const unitLayer = layerById(tree, unit.layerId)
+  if (!unitLayer) return null
+  return getLayers(tree).find((layer) => layer.sortOrder === unitLayer.sortOrder + 1) ?? null
+}
+
 export function nodesUnderUnitAtLayer(
   tree: StructureTree,
   unitNodeId: string,

@@ -10,7 +10,7 @@ import {
 } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { givingTypeLabel, contributionsAwaitingMyApproval } from '@/lib/giving-ui'
-import { isPastor, isScopedLeader } from '@/api/me'
+import { canCreateSubGiving, isPastor, isScopedLeader } from '@/api/me'
 import { structureOptionsForLeader } from '@/lib/contribution-structure'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
@@ -54,6 +54,7 @@ export function ProgramDetailView({
 }: ProgramDetailViewProps) {
   const isPastorRole = isPastor(me.role)
   const isScopedLeaderRole = isScopedLeader(me.role)
+  const canCreateSubGivingRole = canCreateSubGiving(me.role)
   const isFellowshipLeader = me.role === 'FellowshipLeader'
   const isPfccManager = me.role === 'PFCCManager'
   const isCellLeader = me.role === 'CellLeader'
@@ -305,7 +306,7 @@ export function ProgramDetailView({
           api={api}
           onRefresh={onRefresh}
           onCreateClick={
-            (isPastorRole || isScopedLeaderRole) && !program.parentProgramId
+            canCreateSubGivingRole && !program.parentProgramId
               ? () => setSubGivingOpen(true)
               : undefined
           }
@@ -376,7 +377,7 @@ export function ProgramDetailView({
         <ContributionsHistoryTable contributions={contributions} tree={tree} viewerRole={me.role} />
       )}
 
-      {(isPastorRole || isScopedLeaderRole) && subGivingOpen ? (
+      {canCreateSubGivingRole && subGivingOpen ? (
         <CreateSubPeriodWizard
           open
           onOpenChange={(nextOpen) => {
@@ -386,7 +387,7 @@ export function ProgramDetailView({
           api={api}
           tree={tree}
           requiresPastorApproval={!isPastorRole}
-          scopeRootNodeId={isScopedLeaderRole ? me.scopeNodeId : null}
+          scopeRootNodeId={isPfccManager ? me.scopeNodeId : null}
           onCreated={() => void onRefresh()}
         />
       ) : null}

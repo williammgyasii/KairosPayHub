@@ -30,11 +30,11 @@ import { GivingTable, type GivingTableRow } from '@/components/giving/giving-tab
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
-import { isPastor, isScopedLeader } from '@/api/me'
+import { canCreateGivingProgram, isPastor, isScopedLeader } from '@/api/me'
 import { formatApiError } from '@/lib/structure-tree'
 
 function canCreateGiving(role: string) {
-  return role === 'Pastor' || role === 'FellowshipLeader' || role === 'PFCCManager'
+  return canCreateGivingProgram(role)
 }
 
 export function GivingsPage() {

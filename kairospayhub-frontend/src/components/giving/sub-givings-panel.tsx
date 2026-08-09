@@ -189,7 +189,7 @@ export function SubGivingsPanel({
               {isScopedLeader ? ' · locked rows are pastor-defined' : ''}
             </p>
           </div>
-          {(isPastor || isScopedLeader) && onCreateClick && (
+          {(isPastor || meRole === 'PFCCManager') && onCreateClick && (
             <Button type="button" size="sm" onClick={onCreateClick}>
               Add sub-giving
             </Button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyMemberFilterRules, applyMemberSearch, createMemberFilterRule } from '@/lib/member-filters'
+import { applyMemberFilterRules, applyMemberSearch, createMemberFilterRule, leadersMemberFilterPreset } from '@/lib/member-filters'
 import type { StructureMemberRow } from '@/lib/structure-table-rows'
 
 const sampleRows: StructureMemberRow[] = [
@@ -17,6 +17,35 @@ const sampleRows: StructureMemberRow[] = [
     path: 'PFCC 1 / Titans / Cell 1',
     parentNodeId: 'cell-1',
     position: 'Member',
+    structure: [
+      {
+        layerId: 'pfcc',
+        layerName: 'PFCC',
+        standardType: 'PFCC',
+        nodeName: 'PFCC 1',
+      },
+      {
+        layerId: 'cell',
+        layerName: 'Cell',
+        standardType: 'Cell',
+        nodeName: 'Cell 1',
+      },
+    ],
+  },
+  {
+    id: '2',
+    member: 'Leader One',
+    email: 'leader@example.com',
+    phone: '',
+    dateOfBirth: '',
+    residence: '',
+    occupationStatus: 'Working',
+    schoolOrWorkplace: '',
+    age: '30',
+    role: 'Cell leader',
+    path: 'PFCC 1 / Cell 1',
+    parentNodeId: 'cell-1',
+    position: 'CellLeader',
     structure: [
       {
         layerId: 'pfcc',
@@ -61,11 +90,19 @@ describe('applyMemberFilterRules', () => {
         value: 'Cell 1',
       },
     ]
-    expect(applyMemberFilterRules(sampleRows, rules)).toHaveLength(1)
+    expect(applyMemberFilterRules(sampleRows, rules)).toHaveLength(2)
   })
 
   it('ignores rules without a selected field', () => {
-    expect(applyMemberFilterRules(sampleRows, [createMemberFilterRule()])).toHaveLength(1)
+    expect(applyMemberFilterRules(sampleRows, [createMemberFilterRule()])).toHaveLength(2)
+  })
+})
+
+describe('leadersMemberFilterPreset', () => {
+  it('excludes regular members', () => {
+    const filtered = applyMemberFilterRules(sampleRows, leadersMemberFilterPreset())
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.position).toBe('CellLeader')
   })
 })
 

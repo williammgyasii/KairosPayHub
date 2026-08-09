@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Plus } from 'lucide-react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '@/api/useApi'
 import type { StructureTree } from '@/api/structure'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { MemberFormSheet, type MemberSheetState } from '@/components/structure/member-form-sheet'
+import { MemberTableToolbar } from '@/components/structure/member-table-toolbar'
 import { StructureMemberTable } from '@/components/structure/structure-member-table'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
 import { StructureUnitNodeTable } from '@/components/structure/structure-unit-node-table'
@@ -16,6 +17,13 @@ import { FellowshipCreateWizard } from '@/components/structure/fellowship-create
 import { CellCreateWizard } from '@/components/structure/cell-create-wizard'
 import { UnitDeleteModal } from '@/components/structure/unit-delete-modal'
 import { Button } from '@/components/ui/button'
+import {
+  applyMemberFilterRules,
+  applyMemberSearch,
+  leadersMemberFilterPreset,
+  type MemberFilterField,
+  type MemberFilterRule,
+} from '@/lib/member-filters'
 import {
   buildMemberRows,
   buildUnitNodeRows,
@@ -55,6 +63,7 @@ export function RosterUnitView({
 }: RosterUnitViewProps) {
   const api = useApi()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const unit = nodeById(tree, unitNodeId)
   const layer = unit ? layerById(tree, unit.layerId) : undefined
   const tabs = useMemo(() => unitDetailTabs(tree, unitNodeId), [tree, unitNodeId])
@@ -68,6 +77,9 @@ export function RosterUnitView({
     [tabs],
   )
   const [activeTabId, setActiveTabId] = useState(tabs[0]?.id ?? 'members')
+  const [filterRules, setFilterRules] = useState<MemberFilterRule[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchField, setSearchField] = useState<MemberFilterField | 'all'>('all')
   const [memberSheet, setMemberSheet] = useState<MemberSheetState | null>(null)
   const [nodeSheet, setNodeSheet] = useState<UnitNodeSheetState | null>(null)
   const [fellowshipWizardOpen, setFellowshipWizardOpen] = useState(false)
@@ -81,9 +93,35 @@ export function RosterUnitView({
     )
   }, [tree, unit])
 
+  const filteredMemberRows = useMemo(() => {
+    let rows = applyMemberFilterRules(memberRows, filterRules)
+    rows = applyMemberSearch(rows, searchQuery, searchField)
+    return rows
+  }, [memberRows, filterRules, searchQuery, searchField])
+
+  const tabFromUrl = searchParams.get('tab')
+  const presetFromUrl = searchParams.get('preset')
+
   useEffect(() => {
-    setActiveTabId(tabs[0]?.id ?? 'members')
-  }, [unitNodeId, tabs])
+    const defaultTabId = tabs[0]?.id ?? 'members'
+    const allowedTabIds = new Set(tabs.map((tab) => tab.id))
+    const nextTabId =
+      tabFromUrl && allowedTabIds.has(tabFromUrl) ? tabFromUrl : defaultTabId
+    setActiveTabId(nextTabId)
+    setFilterRules(presetFromUrl === 'leaders' && nextTabId === 'members' ? leadersMemberFilterPreset() : [])
+    setSearchQuery('')
+    setSearchField('all')
+  }, [unitNodeId, tabs, tabFromUrl, presetFromUrl])
+
+  function handleTabChange(nextTabId: string) {
+    setActiveTabId(nextTabId)
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', nextTabId)
+    if (nextTabId !== 'members') {
+      params.delete('preset')
+    }
+    setSearchParams(params, { replace: true })
+  }
 
   if (!unit || !layer) {
     return <Navigate to="/roster" replace />
@@ -186,7 +224,7 @@ export function RosterUnitView({
         }
       />
 
-      <StructurePageTabs tabs={pageTabs} activeId={activeTabId} onChange={setActiveTabId} />
+      <StructurePageTabs tabs={pageTabs} activeId={activeTabId} onChange={handleTabChange} />
 
       {error && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -196,6 +234,7 @@ export function RosterUnitView({
 
       {activeTab?.kind === 'layer' && (
         <StructureUnitNodeTable
+          tree={tree}
           rows={buildUnitNodeRows(tree, unit.id, activeTab.layer.id)}
           layer={activeTab.layer}
           childLayer={getLayers(tree).find((l) => l.sortOrder === activeTab.layer.sortOrder + 1)}
@@ -212,12 +251,28 @@ export function RosterUnitView({
 
       {activeTab?.kind === 'members' && (
         <StructureMemberTable
-          rows={memberRows}
+          rows={filteredMemberRows}
           structureLayers={getLayers(tree)}
           emptyMessage={`No members under ${unit.name} yet.${readOnly ? '' : ' Add cells first if needed, then click Add member.'}`}
           onEdit={(member) => setMemberSheet({ mode: 'edit', member })}
           embedded
           readOnly={readOnly}
+          showSearch={false}
+          toolbar={
+            <MemberTableToolbar
+              rows={memberRows}
+              structureLayers={getLayers(tree)}
+              rules={filterRules}
+              onChangeRules={setFilterRules}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              searchField={searchField}
+              onSearchFieldChange={setSearchField}
+              filteredCount={filteredMemberRows.length}
+              totalCount={memberRows.length}
+              compact
+            />
+          }
         />
       )}
 

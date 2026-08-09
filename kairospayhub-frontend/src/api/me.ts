@@ -34,6 +34,14 @@ export function isScopedLeader(role: string): boolean {
   return role === 'PFCCManager' || role === 'FellowshipLeader'
 }
 
+export function canCreateSubGiving(role: string): boolean {
+  return canCreateGivingProgram(role)
+}
+
+export function canCreateGivingProgram(role: string): boolean {
+  return isPastor(role) || role === 'PFCCManager'
+}
+
 export function displayName(me: Me, sessionEmail?: string | null): string {
   return me.name ?? me.email ?? sessionEmail ?? ''
 }

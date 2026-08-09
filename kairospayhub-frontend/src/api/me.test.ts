@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { displayName, isPastor, isScopedLeader, needsOnboarding, type Me } from './me'
+import { displayName, canCreateGivingProgram, canCreateSubGiving, isPastor, isScopedLeader, needsOnboarding, type Me } from './me'
 
 const notOnboarded: Me = { onboarded: false, email: 'p@example.com', name: null }
 
@@ -55,5 +55,22 @@ describe('isScopedLeader', () => {
     expect(isScopedLeader('PFCCManager')).toBe(true)
     expect(isScopedLeader('FellowshipLeader')).toBe(true)
     expect(isScopedLeader('Pastor')).toBe(false)
+  })
+})
+
+describe('canCreateSubGiving', () => {
+  it('allows pastors and PFCC managers only', () => {
+    expect(canCreateSubGiving('Pastor')).toBe(true)
+    expect(canCreateSubGiving('PFCCManager')).toBe(true)
+    expect(canCreateSubGiving('FellowshipLeader')).toBe(false)
+    expect(canCreateSubGiving('CellLeader')).toBe(false)
+  })
+})
+
+describe('canCreateGivingProgram', () => {
+  it('matches campaign and sub-giving create permissions', () => {
+    expect(canCreateGivingProgram('Pastor')).toBe(true)
+    expect(canCreateGivingProgram('PFCCManager')).toBe(true)
+    expect(canCreateGivingProgram('FellowshipLeader')).toBe(false)
   })
 })

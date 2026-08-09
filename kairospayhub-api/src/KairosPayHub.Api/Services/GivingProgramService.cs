@@ -411,7 +411,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
                     input.ScopeNodeIds,
                     ct);
             }
-            else if (actor.StructureRole is ChurchRole.PFCCManager or ChurchRole.FellowshipLeader)
+            else if (actor.StructureRole == ChurchRole.PFCCManager)
             {
                 await ValidateCreatePermissionAsync(actor, createdByAuthUserId, scopeKind, input, ct);
                 await scope.ValidateChildScopeWithinParentAsync(
@@ -424,7 +424,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
             }
             else
             {
-                throw new ForbiddenException("Only pastors and scoped leaders can create sub-givings");
+                throw new ForbiddenException("Only pastors and PFCC managers can create sub-givings");
             }
         }
         else
@@ -715,10 +715,11 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
 
         if (scopeKind == ProgramScopeKind.Fellowship)
         {
-            if (!await scope.HasRoleAsync(actor, authUserId, ChurchRole.FellowshipLeader, ct)
+            if (!await scope.HasRoleAsync(actor, authUserId, ChurchRole.PFCCManager, ct)
                 && !scope.IsPastor(actor))
             {
-                throw new ForbiddenException("Only a fellowship leader can create fellowship-scoped programs");
+                throw new ForbiddenException(
+                    "Only a pastor or PFCC manager can create fellowship-scoped programs");
             }
             await ValidateScopeNodeAsync(actor, authUserId, input.ScopeNodeId, ct);
             return;
@@ -737,11 +738,10 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
 
         if (scopeKind == ProgramScopeKind.FellowshipGroup)
         {
-            if (!await scope.HasRoleAsync(actor, authUserId, ChurchRole.FellowshipLeader, ct)
-                && !await scope.HasRoleAsync(actor, authUserId, ChurchRole.PFCCManager, ct)
+            if (!await scope.HasRoleAsync(actor, authUserId, ChurchRole.PFCCManager, ct)
                 && !scope.IsPastor(actor))
             {
-                throw new ForbiddenException("You cannot create grouped fellowship programs");
+                throw new ForbiddenException("Only a pastor or PFCC manager can create grouped fellowship programs");
             }
 
             foreach (var nodeId in input.ScopeNodeIds ?? [])

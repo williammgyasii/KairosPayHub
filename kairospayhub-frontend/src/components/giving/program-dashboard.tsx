@@ -204,7 +204,9 @@ export function ProgramDashboard({
               ? ' Open a sub-giving below to see live contributions.'
               : isPastor
                 ? ' Add a sub-giving to start collecting.'
-                : ' Ask your pastor or create an internal sub-giving for your unit.'}
+                : isPfccManager
+                  ? ' Add a sub-giving for your PFCC or ask your pastor.'
+                  : ' Ask your pastor to add sub-givings for your fellowship.'}
           </p>
           {children.length > 0 && (
             <Button type="button" variant="outline" size="sm" className="shrink-0" asChild>

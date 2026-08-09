@@ -35,6 +35,16 @@ export type MemberFilterFieldDef = {
 
 let ruleCounter = 0
 
+export function leadersMemberFilterPreset(): MemberFilterRule[] {
+  return [
+    {
+      ...createMemberFilterRule('role'),
+      operator: 'is_not',
+      value: 'Member',
+    },
+  ]
+}
+
 export function createMemberFilterRule(field?: MemberFilterField): MemberFilterRule {
   ruleCounter += 1
   const defaultOperator: MemberFilterOperator =

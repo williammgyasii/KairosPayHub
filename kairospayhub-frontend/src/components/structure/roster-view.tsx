@@ -14,6 +14,7 @@ import { useApi } from '@/api/useApi'
 import type { StructureLayer, StructureTree } from '@/api/structure'
 import { getLayers, layersBelowScopeRoot, nodesAtLayer, parentOptionsForLayer } from '@/lib/structure-tree'
 import { buildNodeRows, type StructureNodeRow } from '@/lib/structure-table-rows'
+import { RosterUnitActionsMenu } from '@/components/structure/roster-unit-actions-menu'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -176,13 +177,14 @@ function AddLayerButton({
 
 function LayerRosterTable({ tree, layer }: { tree: StructureTree; layer: StructureLayer }) {
   const rows = useMemo(() => buildNodeRows(tree, layer.id), [tree, layer.id])
+  const columns = useMemo(() => createRosterNodeColumns(tree), [tree])
 
   return (
     <RosterDataTable
       title={layer.displayName}
-      description={`Org units at the ${layer.displayName} layer. Click a row to view members.`}
+      description={`Org units at the ${layer.displayName} layer. Click a row or use the menu to drill in.`}
       data={rows}
-      columns={nodeColumns}
+      columns={columns}
       searchPlaceholder={`Search ${layer.displayName.toLowerCase()}…`}
       searchColumn="name"
       emptyMessage={`No ${layer.displayName.toLowerCase()} yet. Use Add new ${layer.displayName} above.`}
@@ -205,31 +207,41 @@ export function RosterEmptyState() {
 }
 
 const nodeHelper = createColumnHelper<StructureNodeRow>()
-const nodeColumns = [
-  nodeHelper.accessor('name', {
-    header: 'Name',
-    cell: ({ row, getValue }) => (
-      <Link
-        to={`/roster/units/${row.original.id}`}
-        className="font-medium text-foreground hover:text-primary hover:underline"
-      >
-        {getValue()}
-      </Link>
-    ),
-  }),
-  nodeHelper.accessor('parent', { header: 'Parent' }),
-  nodeHelper.accessor('memberCount', {
-    header: 'Members',
-    cell: ({ row, getValue }) => (
-      <Link
-        to={`/roster/units/${row.original.id}`}
-        className="tabular-nums text-primary hover:underline"
-      >
-        {getValue()}
-      </Link>
-    ),
-  }),
-]
+
+function createRosterNodeColumns(tree: StructureTree) {
+  return [
+    nodeHelper.accessor('name', {
+      header: 'Name',
+      cell: ({ row, getValue }) => (
+        <Link
+          to={`/roster/units/${row.original.id}`}
+          className="font-medium text-foreground hover:text-primary hover:underline"
+        >
+          {getValue()}
+        </Link>
+      ),
+    }),
+    nodeHelper.accessor('parent', { header: 'Parent' }),
+    nodeHelper.accessor('memberCount', {
+      header: 'Members',
+      cell: ({ row, getValue }) => (
+        <Link
+          to={`/roster/units/${row.original.id}?tab=members`}
+          className="tabular-nums text-primary hover:underline"
+        >
+          {getValue()}
+        </Link>
+      ),
+    }),
+    nodeHelper.display({
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <RosterUnitActionsMenu tree={tree} unitId={row.original.id} unitName={row.original.name} readOnly />
+      ),
+    }),
+  ]
+}
 
 function RosterDataTable<T extends object>({
   title,
@@ -288,7 +300,7 @@ function RosterDataTable<T extends object>({
               <tr key={hg.id} className="border-b border-border/60 bg-muted/20 text-left">
                 {hg.headers.map((header) => (
                   <th key={header.id} className="px-5 py-2.5 font-medium text-muted-foreground">
-                    {header.isPlaceholder ? null : (
+                    {header.isPlaceholder ? null : header.column.id === 'actions' ? null : (
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 hover:text-foreground"

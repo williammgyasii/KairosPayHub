@@ -8,27 +8,21 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table'
-import { ArrowUpDown, MoreHorizontal } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
-import type { StructureLayer } from '@/api/structure'
+import { ArrowUpDown } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import type { StructureLayer, StructureTree } from '@/api/structure'
 import type { StructureUnitNodeRow } from '@/lib/structure-table-rows'
 import {
   CountBadge,
   StructurePathBadges,
   StructureSegmentBadge,
 } from '@/components/structure/structure-badges'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { RosterUnitActionsMenu } from '@/components/structure/roster-unit-actions-menu'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 interface StructureUnitNodeTableProps {
+  tree: StructureTree
   rows: StructureUnitNodeRow[]
   layer: Pick<StructureLayer, 'id' | 'displayName' | 'standardType'>
   childLayer?: Pick<StructureLayer, 'displayName' | 'standardType'>
@@ -43,6 +37,7 @@ interface StructureUnitNodeTableProps {
 }
 
 export function StructureUnitNodeTable({
+  tree,
   rows,
   layer,
   childLayer,
@@ -55,18 +50,16 @@ export function StructureUnitNodeTable({
   className,
   readOnly = false,
 }: StructureUnitNodeTableProps) {
-  const navigate = useNavigate()
   const [sorting, setSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
 
   const columns = useMemo(
     () =>
-      createUnitNodeColumns(layer, childLayer, { hidePathColumn, hideParentColumn, readOnly }, {
+      createUnitNodeColumns(tree, layer, childLayer, { hidePathColumn, hideParentColumn, readOnly }, {
         onEdit,
         onDelete,
-        onOpen: (row) => navigate(`/roster/units/${row.id}`),
       }),
-    [layer, childLayer, hidePathColumn, hideParentColumn, onEdit, onDelete, navigate, readOnly],
+    [tree, layer, childLayer, hidePathColumn, hideParentColumn, onEdit, onDelete, readOnly],
   )
 
   const table = useReactTable({
@@ -167,13 +160,13 @@ export function StructureUnitNodeTable({
 }
 
 function createUnitNodeColumns(
+  tree: StructureTree,
   _layer: Pick<StructureLayer, 'displayName' | 'standardType'>,
   childLayer: Pick<StructureLayer, 'displayName' | 'standardType'> | undefined,
   options: { hidePathColumn: boolean; hideParentColumn: boolean; readOnly?: boolean },
   actions: {
     onEdit: (row: StructureUnitNodeRow) => void
     onDelete: (row: StructureUnitNodeRow) => void
-    onOpen: (row: StructureUnitNodeRow) => void
   },
 ) {
   const helper = createColumnHelper<StructureUnitNodeRow>()
@@ -251,34 +244,19 @@ function createUnitNodeColumns(
         </div>
       ),
     }),
-    ...(readOnly
-      ? []
-      : [
-          helper.display({
-            id: 'actions',
-            header: '',
-            cell: ({ row }) => (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="size-8">
-                    <MoreHorizontal className="size-4" />
-                    <span className="sr-only">Actions</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => actions.onOpen(row.original)}>Open</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => actions.onEdit(row.original)}>Edit</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => actions.onDelete(row.original)}
-                  >
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ),
-          }),
-        ]),
+    helper.display({
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <RosterUnitActionsMenu
+          tree={tree}
+          unitId={row.original.id}
+          unitName={row.original.name}
+          readOnly={readOnly}
+          onEdit={readOnly ? undefined : () => actions.onEdit(row.original)}
+          onDelete={readOnly ? undefined : () => actions.onDelete(row.original)}
+        />
+      ),
+    }),
   ]
 }

@@ -33,7 +33,7 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Leader_sub_giving_pending_notifies_pastor_approve_notifies_leader()
+    public async Task Pfcc_manager_sub_giving_pending_notifies_pastor_approve_notifies_manager()
     {
         var pastor = PastorClient();
         await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Notify Church" });
@@ -42,17 +42,33 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         {
             layers = new[]
             {
+                new { standardType = "PFCC", displayName = "PFCC" },
                 new { standardType = "Fellowship", displayName = "Fellowship" },
                 new { standardType = "Cell", displayName = "Cell" },
             },
         });
 
         var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
-        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var pfccLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var fellowshipLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var pfccId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = pfccLayerId,
+            name = "PFCC 1",
+            newLeader = new
+            {
+                name = "Paul PFCC",
+                email = "paul.pfcc@example.com",
+                phone = "+233241111111",
+                dateOfBirth = "1988-01-01",
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
         {
             layerId = fellowshipLayerId,
+            parentNodeId = pfccId,
             name = "Titans",
             newLeader = new
             {
@@ -64,8 +80,8 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         await using var db = fx.CreateContext();
-        var fellowshipLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.fellowship@example.com");
-        Assert.NotNull(fellowshipLeader.AuthUserId);
+        var pfccManager = await db.ChurchMembers.SingleAsync(m => m.Email == "paul.pfcc@example.com");
+        Assert.NotNull(pfccManager.AuthUserId);
 
         var rootId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
         {
@@ -75,12 +91,12 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
             scopeKind = "ChurchWide",
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var fellowshipClient = ClientForAuthUser(
-            fellowshipLeader.AuthUserId!.Value,
-            "jane.fellowship@example.com",
-            "Jane Fellowship");
+        var pfccClient = ClientForAuthUser(
+            pfccManager.AuthUserId!.Value,
+            "paul.pfcc@example.com",
+            "Paul PFCC");
 
-        var subResp = await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
+        var subResp = await pfccClient.PostAsJsonAsync("/api/giving/programs", new
         {
             parentProgramId = rootId,
             title = "January Rhapsody",
@@ -92,29 +108,29 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         var subBody = await subResp.Content.ReadFromJsonAsync<JsonElement>();
         var subId = subBody.GetProperty("id").GetGuid();
         Assert.Equal("PendingPastorApproval", subBody.GetProperty("approvalStatus").GetString());
-        Assert.Equal("Jane Fellowship", subBody.GetProperty("createdByName").GetString());
-        Assert.Equal("Titans", subBody.GetProperty("createdByScopeUnitName").GetString());
+        Assert.Equal("Paul PFCC", subBody.GetProperty("createdByName").GetString());
+        Assert.Equal("PFCC 1", subBody.GetProperty("createdByScopeUnitName").GetString());
 
         var pastorNotifications = await pastor.GetFromJsonAsync<JsonElement>("/api/notifications");
         Assert.Equal(1, pastorNotifications.GetProperty("unreadCount").GetInt32());
         var pastorItem = pastorNotifications.GetProperty("notifications")[0];
         Assert.Equal("SubGivingPendingApproval", pastorItem.GetProperty("kind").GetString());
-        Assert.Contains("Jane Fellowship", pastorItem.GetProperty("body").GetString());
+        Assert.Contains("Paul PFCC", pastorItem.GetProperty("body").GetString());
         Assert.Contains("January Rhapsody", pastorItem.GetProperty("body").GetString());
         Assert.Equal($"givings/{rootId}?tab=subgivings", pastorItem.GetProperty("linkPath").GetString());
 
         var children = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/children");
         var childRow = children.GetProperty("programs")[0];
-        Assert.Equal("Jane Fellowship", childRow.GetProperty("createdByName").GetString());
+        Assert.Equal("Paul PFCC", childRow.GetProperty("createdByName").GetString());
 
         var approve = await pastor.PostAsync($"/api/giving/programs/{subId}/approve", null);
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
 
-        var leaderNotifications = await fellowshipClient.GetFromJsonAsync<JsonElement>("/api/notifications");
-        Assert.Equal(1, leaderNotifications.GetProperty("unreadCount").GetInt32());
-        var leaderItem = leaderNotifications.GetProperty("notifications")[0];
-        Assert.Equal("SubGivingApproved", leaderItem.GetProperty("kind").GetString());
-        Assert.Contains("January Rhapsody", leaderItem.GetProperty("body").GetString());
+        var managerNotifications = await pfccClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(1, managerNotifications.GetProperty("unreadCount").GetInt32());
+        var managerItem = managerNotifications.GetProperty("notifications")[0];
+        Assert.Equal("SubGivingApproved", managerItem.GetProperty("kind").GetString());
+        Assert.Contains("January Rhapsody", managerItem.GetProperty("body").GetString());
     }
 
     [Fact]
@@ -244,29 +260,38 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         {
             layers = new[]
             {
+                new { standardType = "PFCC", displayName = "PFCC" },
                 new { standardType = "Fellowship", displayName = "Fellowship" },
                 new { standardType = "Cell", displayName = "Cell" },
             },
         });
 
         var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
-        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var pfccLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var fellowshipLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var pfccId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = pfccLayerId,
+            name = "PFCC 1",
+            newLeader = new
+            {
+                name = "Paul PFCC",
+                email = "paul.read@example.com",
+                phone = "+233241111111",
+                dateOfBirth = "1988-01-01",
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
         {
             layerId = fellowshipLayerId,
+            parentNodeId = pfccId,
             name = "Titans",
-            newLeader = new
-            {
-                name = "Jane Fellowship",
-                email = "jane.fellowship@example.com",
-                phone = "+233241234567",
-                dateOfBirth = "1995-03-15",
-            },
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
         await using var db = fx.CreateContext();
-        var fellowshipLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.fellowship@example.com");
+        var pfccManager = await db.ChurchMembers.SingleAsync(m => m.Email == "paul.read@example.com");
 
         var rootId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
         {
@@ -276,12 +301,12 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
             scopeKind = "ChurchWide",
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var fellowshipClient = ClientForAuthUser(
-            fellowshipLeader.AuthUserId!.Value,
-            "jane.fellowship@example.com",
-            "Jane Fellowship");
+        var pfccClient = ClientForAuthUser(
+            pfccManager.AuthUserId!.Value,
+            "paul.read@example.com",
+            "Paul PFCC");
 
-        await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
+        await pfccClient.PostAsJsonAsync("/api/giving/programs", new
         {
             parentProgramId = rootId,
             title = "February Rhapsody",
@@ -289,7 +314,7 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
             scopeKind = "Fellowship",
             scopeNodeId = fellowshipId,
         });
-        await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
+        await pfccClient.PostAsJsonAsync("/api/giving/programs", new
         {
             parentProgramId = rootId,
             title = "March Rhapsody",
