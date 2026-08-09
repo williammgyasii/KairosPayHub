@@ -9,7 +9,6 @@ import {
 } from '@/store/attendanceApi'
 import { AttendanceApprovalDetailModal } from '@/components/attendance/attendance-approval-detail-modal'
 import { AttendanceApprovalQueue } from '@/components/attendance/attendance-approval-queue'
-import { rollCallPendingApproverLabel } from '@/lib/attendance-ui'
 import { cn } from '@/lib/utils'
 
 function StatusBanner({
@@ -48,15 +47,11 @@ export function AttendanceApprovalsPage() {
     setError(null)
     setMessage(null)
     try {
-      const result = await approveOccurrenceScope({
+      await approveOccurrenceScope({
         occurrenceId: item.occurrenceId,
         scopeNodeId: item.scopeNodeId,
       }).unwrap()
-      setMessage(
-        result.isFinal
-          ? `Approved roll call for ${item.cellName}.`
-          : `Approved roll call for ${item.cellName} and sent to ${rollCallPendingApproverLabel(result.pendingApproverRole)} for final approval.`,
-      )
+      setMessage(`Approved roll call for ${item.cellName}.`)
       setViewOpen(false)
       setViewItem(null)
     } catch (err) {

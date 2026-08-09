@@ -28,7 +28,25 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
         Guid churchId,
         ChurchRole? enteredByRole,
         CancellationToken ct = default) =>
-        givingScope.ResolveContributionApprovingRoleAsync(churchId, enteredByRole, ct);
+        ResolveAttendancePendingApproverRoleAsync(churchId, enteredByRole, ct);
+
+    /// <summary>
+    /// Primary pending approver label for a cell-submitted roll call. PFCC managers may also
+    /// approve in parallel; this is not an escalation chain.
+    /// </summary>
+    public Task<ChurchRole?> ResolveAttendancePendingApproverRoleAsync(
+        Guid churchId,
+        ChurchRole? enteredByRole,
+        CancellationToken ct = default)
+    {
+        _ = churchId;
+        _ = ct;
+        return Task.FromResult<ChurchRole?>(enteredByRole switch
+        {
+            null or ChurchRole.CellLeader => ChurchRole.FellowshipLeader,
+            _ => null,
+        });
+    }
 
     public Task<bool> ChurchHasPfccManagersAsync(Guid churchId, CancellationToken ct = default) =>
         givingScope.ChurchHasPfccManagersAsync(churchId, ct);
@@ -45,58 +63,41 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
         if (submission.ApprovalStatus != AttendanceScopeApprovalStatus.PendingApproval)
             return false;
 
-        var approvingRole = await ResolveApprovingRoleAsync(
-            actor.StructureChurchId,
-            submission.EnteredByRole,
-            ct);
-        if (approvingRole is null)
+        if (CanManageChurch(actor))
             return false;
 
-        if (CanManageChurch(actor))
-            return approvingRole == ChurchRole.Pastor;
+        if (submission.EnteredByRole is not (null or ChurchRole.CellLeader))
+            return false;
 
-        return approvingRole switch
+        if (actor.StructureRole == ChurchRole.FellowshipLeader)
         {
-            ChurchRole.FellowshipLeader => await MemberWithinRoleAssignmentsAsync(
+            return await MemberWithinRoleAssignmentsAsync(
                 actor.StructureChurchId,
                 authUserId,
                 ChurchRole.FellowshipLeader,
                 scopeNodeId,
-                ct),
-            ChurchRole.PFCCManager => await MemberWithinRoleAssignmentsAsync(
+                ct);
+        }
+
+        if (actor.StructureRole == ChurchRole.PFCCManager
+            && await ChurchHasPfccManagersAsync(actor.StructureChurchId, ct))
+        {
+            return await MemberWithinRoleAssignmentsAsync(
                 actor.StructureChurchId,
                 authUserId,
                 ChurchRole.PFCCManager,
                 scopeNodeId,
-                ct),
-            _ => false,
-        };
+                ct);
+        }
+
+        return false;
     }
 
-    public async Task<bool> IncludeSubmissionInOverviewRollupAsync(
+    public Task<bool> IncludeSubmissionInOverviewRollupAsync(
         Actor actor,
         AttendanceScopeSubmission submission,
-        CancellationToken ct = default)
-    {
-        if (submission.ApprovalStatus == AttendanceScopeApprovalStatus.Approved)
-            return true;
-
-        if (submission.ApprovalStatus != AttendanceScopeApprovalStatus.PendingApproval)
-            return false;
-
-        if (CanManageChurch(actor))
-            return false;
-
-        var hasPfcc = await ChurchHasPfccManagersAsync(actor.StructureChurchId, ct);
-        return actor.StructureRole switch
-        {
-            ChurchRole.FellowshipLeader =>
-                submission.EnteredByRole is ChurchRole.FellowshipLeader or ChurchRole.PFCCManager,
-            ChurchRole.PFCCManager when hasPfcc =>
-                submission.EnteredByRole == ChurchRole.PFCCManager,
-            _ => false,
-        };
-    }
+        CancellationToken ct = default) =>
+        Task.FromResult(submission.ApprovalStatus == AttendanceScopeApprovalStatus.Approved);
 
     public async Task<bool> CanEditScopeSubmissionAsync(
         Actor actor,
@@ -143,15 +144,13 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
             return query.Where(_ => false);
 
         query = query.Where(s => s.ApprovalStatus == AttendanceScopeApprovalStatus.PendingApproval);
-        var hasPfcc = await ChurchHasPfccManagersAsync(churchId, ct);
 
         return role switch
         {
-            ChurchRole.FellowshipLeader => query.Where(s => s.EnteredByRole == ChurchRole.CellLeader),
-            ChurchRole.PFCCManager when hasPfcc => query.Where(s => s.EnteredByRole == ChurchRole.FellowshipLeader),
-            ChurchRole.Pastor => query.Where(s =>
-                s.EnteredByRole == ChurchRole.PFCCManager
-                || (s.EnteredByRole == ChurchRole.FellowshipLeader && !hasPfcc)),
+            ChurchRole.FellowshipLeader => query.Where(s =>
+                s.EnteredByRole == null || s.EnteredByRole == ChurchRole.CellLeader),
+            ChurchRole.PFCCManager => query.Where(s =>
+                s.EnteredByRole == null || s.EnteredByRole == ChurchRole.CellLeader),
             _ => query.Where(_ => false),
         };
     }

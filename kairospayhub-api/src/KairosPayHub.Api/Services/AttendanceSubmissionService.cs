@@ -632,24 +632,13 @@ public class AttendanceSubmissionService(
         var approverRole = actor.StructureRole
             ?? throw new BadRequestException("Your account is not linked to a structure role");
 
-        var nextRoleAfterApproval = await scope.ResolveApprovingRoleAsync(
-            churchId,
-            approverRole,
-            ct);
-
         submission.EnteredByRole = approverRole;
         submission.RejectionReason = null;
         submission.RejectedByAuthUserId = null;
         submission.RejectedAt = null;
-
-        var isFinal = false;
-        if (nextRoleAfterApproval is null or ChurchRole.Pastor)
-        {
-            submission.ApprovalStatus = AttendanceScopeApprovalStatus.Approved;
-            submission.ApprovedByAuthUserId = authUserId;
-            submission.ApprovedAt = DateTimeOffset.UtcNow;
-            isFinal = true;
-        }
+        submission.ApprovalStatus = AttendanceScopeApprovalStatus.Approved;
+        submission.ApprovedByAuthUserId = authUserId;
+        submission.ApprovedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
 
@@ -657,37 +646,18 @@ public class AttendanceSubmissionService(
         var occurrence = submission.Occurrence
             ?? throw new InvalidOperationException("Occurrence not loaded");
 
-        if (isFinal)
-        {
-            await notifications.NotifyAttendanceReviewedAsync(
-                submission,
-                occurrence,
-                cellName,
-                approved: true,
-                ct);
-        }
-        else
-        {
-            await notifications.NotifyAttendancePendingAsync(
-                submission,
-                occurrence,
-                cellName,
-                ct);
-        }
-
-        var pendingApproverRole = isFinal
-            ? null
-            : await PendingApproverRoleAsync(
-                churchId,
-                submission.ApprovalStatus,
-                submission.EnteredByRole,
-                ct);
+        await notifications.NotifyAttendanceReviewedAsync(
+            submission,
+            occurrence,
+            cellName,
+            approved: true,
+            ct);
 
         return new AttendanceApproveResult(
             Ok: true,
-            IsFinal: isFinal,
+            IsFinal: true,
             ApprovalStatus: submission.ApprovalStatus.ToString(),
-            PendingApproverRole: pendingApproverRole);
+            PendingApproverRole: null);
     }
 
     public async Task RejectAsync(

@@ -171,10 +171,12 @@ export function rollCallStatusLabel(
   pendingApproverRole?: string | null,
 ) {
   if (status === 'PendingApproval') {
-    if (pendingApproverRole === viewerRole) return 'Pending approval'
-    if (pendingApproverRole === 'PFCCManager') return 'Awaiting PFCC approval'
-    if (pendingApproverRole === 'FellowshipLeader') return 'Awaiting fellowship approval'
-    if (pendingApproverRole === 'Pastor') return 'Awaiting pastor approval'
+    if (viewerRole === 'PFCCManager' || viewerRole === 'FellowshipLeader') {
+      return 'Pending approval'
+    }
+    if (pendingApproverRole === 'FellowshipLeader') {
+      return 'Awaiting fellowship approval'
+    }
     return 'Awaiting approval'
   }
   if (status === 'Approved') return 'Approved'
@@ -183,19 +185,8 @@ export function rollCallStatusLabel(
   return status
 }
 
-export function rollCallPendingMessage(
-  pendingApproverRole?: string | null,
-) {
-  if (pendingApproverRole === 'PFCCManager') {
-    return 'Roll call approved by fellowship — awaiting PFCC approval.'
-  }
-  if (pendingApproverRole === 'FellowshipLeader') {
-    return 'Roll call submitted — awaiting fellowship approval.'
-  }
-  if (pendingApproverRole === 'Pastor') {
-    return 'Roll call awaiting pastor approval.'
-  }
-  return 'Roll call is awaiting approval.'
+export function rollCallPendingMessage() {
+  return 'Roll call submitted — awaiting fellowship or PFCC approval.'
 }
 
 export function rollCallState(
@@ -224,7 +215,7 @@ export function rollCallState(
     return {
       editable: false,
       reason: 'submitted',
-      message: rollCallPendingMessage(submission.pendingApproverRole),
+      message: rollCallPendingMessage(),
     }
   }
 

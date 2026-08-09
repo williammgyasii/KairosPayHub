@@ -293,9 +293,8 @@ public class NotificationService(
         string cellName,
         CancellationToken ct = default)
     {
-        var recipients = await ContributionApprovalRecipientAuthUserIdsAsync(
+        var recipients = await AttendanceApprovalRecipientAuthUserIdsAsync(
             occurrence.ChurchId,
-            submission.EnteredByRole,
             submission.ScopeNodeId,
             ct);
 
@@ -392,6 +391,21 @@ public class NotificationService(
             .Select(r => r.AuthUserId)
             .Distinct()
             .ToListAsync(ct);
+
+    private async Task<List<Guid>> AttendanceApprovalRecipientAuthUserIdsAsync(
+        Guid churchId,
+        Guid scopeNodeId,
+        CancellationToken ct)
+    {
+        var recipients = await FellowshipLeaderAuthUserIdsForMemberAsync(churchId, scopeNodeId, ct);
+
+        if (await scope.ChurchHasPfccManagersAsync(churchId, ct))
+        {
+            recipients.AddRange(await PfccManagerAuthUserIdsForMemberAsync(churchId, scopeNodeId, ct));
+        }
+
+        return recipients.Distinct().ToList();
+    }
 
     private async Task<List<Guid>> ContributionApprovalRecipientAuthUserIdsAsync(
         Guid churchId,

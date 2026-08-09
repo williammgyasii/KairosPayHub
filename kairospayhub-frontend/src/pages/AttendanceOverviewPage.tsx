@@ -229,7 +229,7 @@ export function AttendanceOverviewPage() {
 
   const provisionalTooltip =
     rollup && rollup.pendingCellCount > 0 && rollup.totalPresent > 0
-      ? `${rollup.pendingCellCount} roll call(s) still need final approval. Totals include roll calls you have already approved.`
+      ? `${rollup.pendingCellCount} roll call(s) still awaiting approval. Totals include approved cells only.`
       : null
 
   const emptyTableMessage =

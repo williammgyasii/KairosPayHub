@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using KairosPayHub.Api.Domain.Attendance;
+using KairosPayHub.Api.Domain.Structure;
 using Microsoft.EntityFrameworkCore;
 
 namespace KairosPayHub.Tests.Integration;
@@ -98,29 +99,37 @@ public class AttendanceApprovalApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task PFCC_manager_approves_as_final_step_when_church_has_pfcc()
+    public async Task Fellowship_leader_approves_as_final_step_when_church_has_pfcc()
     {
         var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: true);
         await AttendanceApprovalSeed.OpenAndSubmitCellRollCallAsync(fx, seed);
 
-        var fellowshipApproveResp = await seed.FellowshipClient.PostAsync(
+        var approveResp = await seed.FellowshipClient.PostAsync(
             $"/api/attendance/occurrences/{seed.OccurrenceId}/scopes/{seed.CellNodeId}/approve",
             null);
-        Assert.Equal(HttpStatusCode.OK, fellowshipApproveResp.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, approveResp.StatusCode);
 
-        await using (var db = fx.CreateContext())
-        {
-            var mid = await db.AttendanceScopeSubmissions.AsNoTracking()
-                .SingleAsync(s => s.OccurrenceId == seed.OccurrenceId && s.ScopeNodeId == seed.CellNodeId);
-            Assert.Equal(AttendanceScopeApprovalStatus.PendingApproval, mid.ApprovalStatus);
-        }
+        await using var db = fx.CreateContext();
+        var submission = await db.AttendanceScopeSubmissions.AsNoTracking()
+            .SingleAsync(s => s.OccurrenceId == seed.OccurrenceId && s.ScopeNodeId == seed.CellNodeId);
+        Assert.Equal(AttendanceScopeApprovalStatus.Approved, submission.ApprovalStatus);
 
-        var midRollupResp = await seed.FellowshipClient.GetAsync(
+        var pfccQueueResp = await seed.PfccClient!.GetAsync("/api/attendance/approval-queue");
+        var pfccQueue = await pfccQueueResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, pfccQueue.GetArrayLength());
+
+        var rollupResp = await seed.FellowshipClient.GetAsync(
             $"/api/attendance/occurrences/{seed.OccurrenceId}/rollup");
-        var midRollup = await midRollupResp.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, midRollup.GetProperty("pendingCellCount").GetInt32());
-        Assert.True(midRollup.GetProperty("totalPresent").GetInt32() >= 1);
-        Assert.Equal(0, midRollup.GetProperty("approvedCellCount").GetInt32());
+        var rollup = await rollupResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, rollup.GetProperty("approvedCellCount").GetInt32());
+        Assert.True(rollup.GetProperty("totalPresent").GetInt32() >= 1);
+    }
+
+    [Fact]
+    public async Task PFCC_manager_can_approve_cell_roll_call_directly_when_church_has_pfcc()
+    {
+        var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: true);
+        await AttendanceApprovalSeed.OpenAndSubmitCellRollCallAsync(fx, seed);
 
         var pfccQueueResp = await seed.PfccClient!.GetAsync("/api/attendance/approval-queue");
         var pfccQueue = await pfccQueueResp.Content.ReadFromJsonAsync<JsonElement>();
@@ -131,20 +140,15 @@ public class AttendanceApprovalApiTests(PostgresFixture fx) : IAsyncLifetime
             null);
         Assert.Equal(HttpStatusCode.OK, pfccApproveResp.StatusCode);
 
-        var rollupResp = await seed.FellowshipClient.GetAsync(
-            $"/api/attendance/occurrences/{seed.OccurrenceId}/rollup");
-        Assert.Equal(HttpStatusCode.OK, rollupResp.StatusCode);
-        var rollup = await rollupResp.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, rollup.GetProperty("approvedCellCount").GetInt32());
-        Assert.True(rollup.GetProperty("totalPresent").GetInt32() >= 1);
-        Assert.Contains(
-            rollup.GetProperty("items").EnumerateArray().ToList(),
-            row => row.GetProperty("name").GetString() == "Member Kay");
-
-        await using var verifyDb = fx.CreateContext();
-        var final = await verifyDb.AttendanceScopeSubmissions.AsNoTracking()
+        await using var db = fx.CreateContext();
+        var submission = await db.AttendanceScopeSubmissions.AsNoTracking()
             .SingleAsync(s => s.OccurrenceId == seed.OccurrenceId && s.ScopeNodeId == seed.CellNodeId);
-        Assert.Equal(AttendanceScopeApprovalStatus.Approved, final.ApprovalStatus);
+        Assert.Equal(AttendanceScopeApprovalStatus.Approved, submission.ApprovalStatus);
+        Assert.Equal(ChurchRole.PFCCManager, submission.EnteredByRole);
+
+        var fellowshipQueueResp = await seed.FellowshipClient.GetAsync("/api/attendance/approval-queue");
+        var fellowshipQueue = await fellowshipQueueResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, fellowshipQueue.GetArrayLength());
     }
 }
 

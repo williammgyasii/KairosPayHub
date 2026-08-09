@@ -207,22 +207,23 @@ def seed_cell_roll_call(
             first_timers += 1
 
     entered_by = "FellowshipLeader" if fellowship_approved else "CellLeader"
+    approval_status = "Approved" if fellowship_approved else "PendingApproval"
     cur.execute(
         """
         UPDATE attendance_scope_submissions
-        SET "ApprovalStatus" = 'PendingApproval',
+        SET "ApprovalStatus" = %s,
             "EnteredByRole" = %s,
             "LockStatus" = 'Editable',
             "SubmittedAt" = %s,
             "SubmittedByAuthUserId" = NULL,
             "ApprovedByAuthUserId" = NULL,
-            "ApprovedAt" = NULL,
+            "ApprovedAt" = CASE WHEN %s = 'Approved' THEN %s ELSE NULL END,
             "RejectedByAuthUserId" = NULL,
             "RejectedAt" = NULL,
             "RejectionReason" = NULL
         WHERE "OccurrenceId" = %s AND "ScopeNodeId" = %s
         """,
-        (entered_by, now, occurrence_id, cell_id),
+        (approval_status, entered_by, now, approval_status, approval_status, now, occurrence_id, cell_id),
     )
 
     return members_present, members_absent, invitees_present
