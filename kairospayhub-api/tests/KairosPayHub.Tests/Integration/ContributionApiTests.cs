@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using KairosPayHub.Api.Domain.Structure;
@@ -461,7 +462,9 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
         await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Upload Church" });
 
         using var form = new MultipartFormDataContent();
-        form.Add(new ByteArrayContent([0xFF, 0xD8, 0xFF, 0xD9]), "file", "receipt.jpg");
+        var fileContent = new ByteArrayContent([0xFF, 0xD8, 0xFF, 0xD9]);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        form.Add(fileContent, "file", "receipt.jpg");
 
         var upload = await pastor.PostAsync("/api/giving/attachments", form);
         Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
@@ -494,9 +497,20 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
             layerId = (await GetLayerIdAsync(pastor, "Cell")),
             parentNodeId = fellowshipId,
             name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob Cell",
+                email = "bob.upload@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+            },
         });
         var cellId = (await cellResp.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("node").GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "bob.upload@example.com");
+        Assert.NotNull(cellLeader.AuthUserId);
 
         var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
         {
@@ -515,7 +529,12 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
         var programId = (await programResp.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("id").GetGuid();
 
-        var create = await pastor.PostAsJsonAsync($"/api/giving/programs/{programId}/contributions", new
+        var cellClient = ClientForAuthUser(
+            cellLeader.AuthUserId!.Value,
+            "bob.upload@example.com",
+            "Bob Cell");
+
+        var create = await cellClient.PostAsJsonAsync($"/api/giving/programs/{programId}/contributions", new
         {
             memberId,
             amount = 25m,
@@ -532,8 +551,8 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
 
     private static async Task<Guid> GetLayerIdAsync(HttpClient client, string standardType)
     {
-        var tree = await client.GetFromJsonAsync<JsonElement>("/api/structure/tree");
-        foreach (var layer in tree.GetProperty("layers").EnumerateArray())
+        var template = await client.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        foreach (var layer in template.GetProperty("layers").EnumerateArray())
         {
             if (layer.GetProperty("standardType").GetString() == standardType)
                 return layer.GetProperty("id").GetGuid();

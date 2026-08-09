@@ -242,7 +242,11 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
-            layers = new[] { new { standardType = "Fellowship", displayName = "Fellowship" } },
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
         });
 
         var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");

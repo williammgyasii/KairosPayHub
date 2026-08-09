@@ -558,9 +558,6 @@ public class GivingScopeService(KairosDbContext db)
         if (IsPastor(actor))
             return approvingRole == ChurchRole.Pastor;
 
-        if (actor.StructureRole != approvingRole)
-            return false;
-
         return approvingRole switch
         {
             ChurchRole.FellowshipLeader => await MemberWithinRoleAssignmentsAsync(

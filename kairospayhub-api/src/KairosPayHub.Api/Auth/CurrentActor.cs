@@ -15,6 +15,15 @@ public class NotOnboardedException(string message = "User has not completed onbo
 /// </summary>
 public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
 {
+    private static readonly ChurchRole[] RolePrecedenceOrder =
+    [
+        ChurchRole.Pastor,
+        ChurchRole.PFCCManager,
+        ChurchRole.FellowshipLeader,
+        ChurchRole.CellLeader,
+        ChurchRole.Member,
+    ];
+
     private Actor? _cached;
 
     private ClaimsPrincipal Principal =>
@@ -38,12 +47,16 @@ public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
         var sub = Sub;
         Guid? authUserId = Guid.TryParse(sub, out var parsed) ? parsed : null;
 
-        RoleAssignment? assignment = authUserId is not null
-            ? await db.RoleAssignments.AsNoTracking()
+        RoleAssignment? assignment = null;
+        if (authUserId is not null)
+        {
+            var assignments = await db.RoleAssignments.AsNoTracking()
                 .Where(r => r.AuthUserId == authUserId)
-                .OrderBy(r => r.Role)
-                .FirstOrDefaultAsync(ct)
-            : null;
+                .ToListAsync(ct);
+            assignment = assignments
+                .OrderBy(r => RoleRank(r.Role))
+                .FirstOrDefault();
+        }
 
         var legacyUser = await db.AppUsers.AsNoTracking()
             .FirstOrDefaultAsync(u => u.AuthSubject == sub, ct);
@@ -80,4 +93,10 @@ public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
             ChurchRole.Pastor => Role.Pastor,
             _ => Role.Leader,
         };
+
+    private static int RoleRank(ChurchRole role)
+    {
+        var index = Array.IndexOf(RolePrecedenceOrder, role);
+        return index >= 0 ? index : int.MaxValue;
+    }
 }
