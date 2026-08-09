@@ -52,10 +52,31 @@ describe('isSidebarNavItemActive', () => {
     expect(isSidebarNavItemActive('/givings', { to: 'givings/overall', end: true })).toBe(false)
   })
 
-  it('uses exact matching for overview and settings', () => {
+  it('highlights settings on any settings sub-route', () => {
+    expect(isSidebarNavItemActive('/settings', { to: 'settings' })).toBe(true)
+    expect(isSidebarNavItemActive('/settings/branding', { to: 'settings' })).toBe(true)
+    expect(isSidebarNavItemActive('/settings/account', { to: 'settings' })).toBe(true)
+    expect(isSidebarNavItemActive('/settings/administrators', { to: 'settings' })).toBe(true)
+    expect(isSidebarNavItemActive('/givings', { to: 'settings' })).toBe(false)
+  })
+
+  it('uses exact matching for overview', () => {
     expect(isSidebarNavItemActive('/', { to: '.', end: true })).toBe(true)
     expect(isSidebarNavItemActive('/givings', { to: '.', end: true })).toBe(false)
-    expect(isSidebarNavItemActive('/settings', { to: 'settings', end: true })).toBe(true)
-    expect(isSidebarNavItemActive('/settings/profile', { to: 'settings', end: true })).toBe(false)
+  })
+
+  it('highlights attendance approvals and overview on their routes only', () => {
+    expect(
+      isSidebarNavItemActive('/attendance/approvals', { to: 'attendance/approvals', end: true }),
+    ).toBe(true)
+    expect(
+      isSidebarNavItemActive('/attendance/overview', { to: 'attendance/overview', end: true }),
+    ).toBe(true)
+    expect(isSidebarNavItemActive('/attendance/submissions', { to: 'attendance', end: true })).toBe(
+      false,
+    )
+    expect(isSidebarNavItemActive('/attendance/approvals', { to: 'attendance/overview', end: true })).toBe(
+      false,
+    )
   })
 })

@@ -9,7 +9,15 @@ import { TransactionsPage } from './pages/TransactionsPage'
 import { ProgramDetailPage } from './pages/ProgramDetailPage'
 import { ProgramStructureContributionsPage } from './pages/ProgramStructureContributionsPage'
 import { MembershipPage, OverviewPage, RosterPage, RosterUnitPage, StructurePage } from './pages/DashboardPages'
-import { SettingsPage } from './pages/SettingsPage'
+import { SettingsLayout } from './components/settings/settings-layout'
+import { SettingsBrandingPage } from './pages/SettingsBrandingPage'
+import { SettingsAccountPage } from './pages/SettingsAccountPage'
+import { SettingsAdministratorsPage } from './pages/SettingsAdministratorsPage'
+import { AttendanceApprovalsPage } from './pages/AttendanceApprovalsPage'
+import { AttendanceOverviewPage } from './pages/AttendanceOverviewPage'
+import { AttendanceSubmissionsPage } from './pages/AttendanceSubmissionsPage'
+import { AttendanceMeetingTypesPage } from './pages/AttendanceMeetingTypesPage'
+import { AttendanceApproverRoute, AttendanceOverviewRoute } from './auth/AttendanceRoute'
 import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword, SetPassword } from './pages/PasswordPages'
 import { ConfirmEmail } from './pages/ConfirmEmail'
@@ -74,13 +82,44 @@ export default function App() {
         <Route path="programs" element={<Navigate to="/givings" replace />} />
         <Route path="programs/:programId" element={<LegacyProgramsRedirect />} />
         <Route
-          path="settings"
+          path="attendance/overview"
+          element={
+            <AttendanceOverviewRoute>
+              <AttendanceOverviewPage />
+            </AttendanceOverviewRoute>
+          }
+        />
+        <Route
+          path="attendance/approvals"
+          element={
+            <AttendanceApproverRoute>
+              <AttendanceApprovalsPage />
+            </AttendanceApproverRoute>
+          }
+        />
+        <Route path="attendance/overall" element={<Navigate to="/attendance/overview" replace />} />
+        <Route path="attendance/submissions" element={<AttendanceSubmissionsPage />} />
+        <Route
+          path="attendance"
           element={
             <PastorRoute>
-              <SettingsPage />
+              <AttendanceMeetingTypesPage />
             </PastorRoute>
           }
         />
+        <Route
+          path="settings"
+          element={
+            <PastorRoute>
+              <SettingsLayout />
+            </PastorRoute>
+          }
+        >
+          <Route index element={<SettingsBrandingPage />} />
+          <Route path="branding" element={<Navigate to="/settings" replace />} />
+          <Route path="account" element={<SettingsAccountPage />} />
+          <Route path="administrators" element={<SettingsAdministratorsPage />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

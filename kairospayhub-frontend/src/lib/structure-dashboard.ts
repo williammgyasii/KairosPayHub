@@ -142,6 +142,19 @@ export function dashboardQuickStatsForFellowshipLeader(tree: StructureTree) {
   ]
 }
 
+export function dashboardQuickStatsForCellLeader(tree: StructureTree) {
+  const memberCount = tree.members.length
+  const withPhone = tree.members.filter((member) => member.phone?.trim()).length
+  const leaders = tree.members.filter((member) => member.position === 'CellLeader').length
+
+  return [
+    { label: 'Members in cell', value: String(memberCount) },
+    { label: 'With phone on file', value: String(withPhone) },
+    { label: 'Cell leaders listed', value: String(leaders) },
+    { label: 'Roster units', value: String(tree.nodes.length) },
+  ]
+}
+
 export function dashboardRecommendations(tree: StructureTree | null): string[] {
   if (!tree) return ['Loading your church data…']
   const tips: string[] = []

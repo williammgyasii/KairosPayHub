@@ -5,6 +5,7 @@ import type { ApiClient } from '@/api/client'
 import type { GivingProgram } from '@/api/giving'
 import { approveSubGiving, formatAmount, rejectSubGiving } from '@/api/giving'
 import type { ChurchRole } from '@/api/me'
+import { canManageChurch } from '@/api/me'
 import {
   ProgramApprovalBadge,
   ProgramStatusBadge,
@@ -24,7 +25,7 @@ interface SubGivingsPanelProps {
 }
 
 function isChurchDefined(row: GivingProgram) {
-  return !row.createdByRole || row.createdByRole === 'Pastor'
+  return !row.createdByRole || row.createdByRole === 'Pastor' || row.createdByRole === 'ChurchAdmin'
 }
 
 function sortSubGivings(rows: GivingProgram[]) {
@@ -43,7 +44,7 @@ export function SubGivingsPanel({
   onRefresh,
   onCreateClick,
 }: SubGivingsPanelProps) {
-  const isPastor = meRole === 'Pastor'
+  const churchManager = canManageChurch(meRole)
   const isScopedLeader = meRole === 'PFCCManager' || meRole === 'FellowshipLeader'
 
   const rows = useMemo(() => sortSubGivings(children), [children])
@@ -84,7 +85,7 @@ export function SubGivingsPanel({
   function rowTags(row: GivingProgram) {
     const tags: Array<'locked' | 'yours' | 'church'> = []
     if (isChurchDefined(row)) {
-      tags.push(isPastor ? 'church' : 'locked')
+      tags.push(churchManager ? 'church' : 'locked')
     } else if (row.createdByRole === meRole) {
       tags.push('yours')
     }
@@ -92,7 +93,7 @@ export function SubGivingsPanel({
   }
 
   function rowActions(row: GivingProgram) {
-    if (isPastor && row.approvalStatus === 'PendingPastorApproval') {
+    if (churchManager && row.approvalStatus === 'PendingPastorApproval') {
       if (rejectingId === row.id) {
         return (
           <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
@@ -189,7 +190,7 @@ export function SubGivingsPanel({
               {isScopedLeader ? ' · locked rows are pastor-defined' : ''}
             </p>
           </div>
-          {(isPastor || meRole === 'PFCCManager') && onCreateClick && (
+          {(churchManager || meRole === 'PFCCManager') && onCreateClick && (
             <Button type="button" size="sm" onClick={onCreateClick}>
               Add sub-giving
             </Button>
@@ -198,7 +199,7 @@ export function SubGivingsPanel({
 
         {rows.length === 0 ? (
           <p className="px-5 py-10 text-sm text-muted-foreground">
-            {isPastor
+            {churchManager
               ? 'No sub givings yet. Add one to start collecting under this campaign.'
               : 'No sub givings in your scope yet.'}
           </p>
@@ -216,7 +217,7 @@ export function SubGivingsPanel({
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Scope
                   </th>
-                  {isPastor && (
+                  {churchManager && (
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Created by
                     </th>
@@ -253,7 +254,7 @@ export function SubGivingsPanel({
                     <td className="px-4 py-3 align-middle">
                       <ScopeKindBadge scopeKind={row.scopeKind} />
                     </td>
-                    {isPastor && (
+                    {churchManager && (
                       <td className="px-4 py-3 align-middle text-muted-foreground">
                         {programCreatorLabel(row)}
                       </td>

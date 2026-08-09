@@ -30,7 +30,7 @@ import { GivingTable, type GivingTableRow } from '@/components/giving/giving-tab
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
-import { canCreateGivingProgram, isPastor, isScopedLeader } from '@/api/me'
+import { canCreateGivingProgram, canManageChurch, isScopedLeader } from '@/api/me'
 import { formatApiError } from '@/lib/structure-tree'
 
 function canCreateGiving(role: string) {
@@ -51,9 +51,9 @@ export function GivingsPage() {
   const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const showTotals = isPastor(me.role) || isScopedLeader(me.role)
+  const showTotals = canManageChurch(me.role) || isScopedLeader(me.role)
   const canCreate = canCreateGiving(me.role)
-  const canManageCampaigns = isPastor(me.role)
+  const canManageCampaigns = canManageChurch(me.role)
 
   const load = useCallback(async () => {
     setLoading(true)

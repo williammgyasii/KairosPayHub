@@ -47,7 +47,7 @@ public class StructureService(
             .OrderBy(n => n.Name)
             .ToListAsync(ct);
 
-        if (!givingScope.IsPastor(actor))
+        if (!givingScope.CanManageChurch(actor))
         {
             var subtreeIds = await givingScope.GetActorStructureSubtreeNodeIdsAsync(actor, authUserId, ct);
             if (subtreeIds.Count == 0)
@@ -68,7 +68,7 @@ public class StructureService(
                 .OrderBy(m => m.Name)
                 .ToListAsync(ct);
 
-            if (!givingScope.IsPastor(actor))
+            if (!givingScope.CanManageChurch(actor))
             {
                 var subtreeIds = await givingScope.GetActorStructureSubtreeNodeIdsAsync(actor, authUserId, ct);
                 members = subtreeIds.Count == 0
@@ -113,23 +113,32 @@ public class StructureService(
         var query = db.ChurchMembers.AsNoTracking()
             .Where(m => m.ChurchId == churchId);
 
-        if (!givingScope.IsPastor(actor))
+        if (!givingScope.CanManageChurch(actor))
         {
-            var scopeNodeId = await givingScope.GetActorScopeNodeIdAsync(actor, authUserId, ct)
-                ?? throw new ForbiddenException("You do not have a scope assignment");
+            var visibleNodeIds = await givingScope.GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
+            if (visibleNodeIds.Count == 0)
+                throw new ForbiddenException("You do not have a scope assignment");
 
             if (parentNodeId is null)
             {
-                parentNodeId = scopeNodeId;
-                includeDescendants = true;
+                query = query.Where(m => visibleNodeIds.Contains(m.ParentNodeId));
             }
             else
             {
                 await givingScope.CanAccessStructureNodeAsync(actor, authUserId, parentNodeId.Value, ct);
+
+                if (includeDescendants)
+                {
+                    var nodeIds = await CollectSubtreeNodeIdsAsync(churchId, parentNodeId.Value, ct);
+                    query = query.Where(m => nodeIds.Contains(m.ParentNodeId));
+                }
+                else
+                {
+                    query = query.Where(m => m.ParentNodeId == parentNodeId);
+                }
             }
         }
-
-        if (parentNodeId is not null)
+        else if (parentNodeId is not null)
         {
             var nodeExists = await db.StructureNodes.AnyAsync(
                 n => n.Id == parentNodeId && n.ChurchId == churchId, ct);
@@ -175,7 +184,7 @@ public class StructureService(
         IReadOnlyList<StructureLayerInput> layers,
         CancellationToken ct = default)
     {
-        RequirePastor(actor);
+        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
         ValidateLayerInputs(layers);
         var templateName = NormalizeTemplateName(name);
@@ -227,7 +236,7 @@ public class StructureService(
         EvolveStructureTemplateRequest request,
         CancellationToken ct = default)
     {
-        RequirePastor(actor);
+        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
 
         var template = await db.StructureTemplates
@@ -728,7 +737,7 @@ public class StructureService(
 
     public async Task DeleteTemplateAsync(Actor actor, CancellationToken ct = default)
     {
-        RequirePastor(actor);
+        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
 
         if (await db.StructureNodes.AnyAsync(n => n.ChurchId == churchId, ct))
@@ -759,7 +768,7 @@ public class StructureService(
         NewStructureNodeLeaderRequest? newLeader,
         CancellationToken ct = default)
     {
-        RequirePastor(actor);
+        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
@@ -801,7 +810,7 @@ public class StructureService(
         NewStructureNodeLeaderRequest? newLeader,
         CancellationToken ct = default)
     {
-        RequirePastor(actor);
+        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
@@ -825,7 +834,7 @@ public class StructureService(
 
     public async Task DeleteNodeAsync(Actor actor, Guid nodeId, CancellationToken ct = default)
     {
-        RequirePastor(actor);
+        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
 
         var node = await db.StructureNodes
@@ -874,7 +883,7 @@ public class StructureService(
         Guid? parentNodeId,
         CancellationToken ct = default)
     {
-        RequirePastor(actor);
+        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
@@ -1515,10 +1524,10 @@ public class StructureService(
         return actor.StructureChurchId;
     }
 
-    private static void RequirePastor(Actor actor)
+    private void RequireChurchManager(Actor actor)
     {
-        if (actor.StructureRole != ChurchRole.Pastor && actor.Role != Role.Pastor)
-            throw new ForbiddenException("Only a pastor can manage church structure");
+        if (!givingScope.CanManageChurch(actor))
+            throw new ForbiddenException("Only a pastor or church admin can manage church structure");
     }
 
     private async Task RequireMemberManageAsync(
@@ -1527,7 +1536,7 @@ public class StructureService(
         Guid parentNodeId,
         CancellationToken ct)
     {
-        if (givingScope.IsPastor(actor))
+        if (givingScope.CanManageChurch(actor))
             return;
 
         if (!givingScope.IsScopedStructureLeader(actor))

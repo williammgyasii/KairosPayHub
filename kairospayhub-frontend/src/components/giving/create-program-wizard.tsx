@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Me } from '@/api/me'
+import { canManageChurch } from '@/api/me'
 import type { GivingType, ProgramScopeKind } from '@/api/giving'
 import { createProgram } from '@/api/giving'
 import type { ApiClient } from '@/api/client'
@@ -59,12 +60,12 @@ export function CreateProgramWizard({
   onCreated,
 }: CreateProgramWizardProps) {
   const scopeOptions = scopeOptionsForRole(me.role)
-  const isPastor = me.role === 'Pastor'
+  const churchWideManager = canManageChurch(me.role)
   const isPfccManager = me.role === 'PFCCManager'
   const skipsScopeStep = isPfccManager && Boolean(me.scopeNodeId)
   const scopeRootNodeId = me.scopeNodeId ?? null
   const defaultScopeKind = scopeOptions[0] ?? 'ChurchWide'
-  const steps = isPastor || skipsScopeStep
+  const steps = churchWideManager || skipsScopeStep
     ? (['Giving type', 'Details', 'Review'] as const)
     : (['Giving type', 'Details', 'Scope', 'Review'] as const)
 
@@ -83,13 +84,13 @@ export function CreateProgramWizard({
   const [scopeNodeIds, setScopeNodeIds] = useState<string[]>([])
 
   const scopeNodes = useMemo(() => {
-    if (!tree || isPastor || skipsScopeStep) return []
+    if (!tree || churchWideManager || skipsScopeStep) return []
     let nodes = nodesForScopeKind(tree, scopeKind)
     if (scopeRootNodeId) {
       nodes = nodesBelowScopeRoot(tree, nodes, scopeRootNodeId)
     }
     return nodes
-  }, [tree, scopeKind, isPastor, skipsScopeStep, scopeRootNodeId])
+  }, [tree, scopeKind, churchWideManager, skipsScopeStep, scopeRootNodeId])
 
   const scopePickerOptions = useMemo(
     () =>
@@ -104,12 +105,12 @@ export function CreateProgramWizard({
   const canProceed = useMemo(() => {
     if (step === 0) return Boolean(givingType)
     if (step === 1) return title.trim().length > 0 && periodLabel.trim().length > 0
-    if (!isPastor && !skipsScopeStep && step === 2) {
+    if (!churchWideManager && !skipsScopeStep && step === 2) {
       if (scopeKind === 'FellowshipGroup') return scopeNodeIds.length > 0
       if (scopeKind === 'Fellowship' || scopeKind === 'PFCC') return Boolean(scopeNodeId)
     }
     return true
-  }, [step, givingType, title, periodLabel, isPastor, skipsScopeStep, scopeKind, scopeNodeId, scopeNodeIds])
+  }, [step, givingType, title, periodLabel, churchWideManager, skipsScopeStep, scopeKind, scopeNodeId, scopeNodeIds])
 
   function go(next: number) {
     setDirection(next > step ? 'forward' : 'back')
@@ -124,8 +125,8 @@ export function CreateProgramWizard({
         givingType,
         title: title.trim(),
         periodLabel: periodLabel.trim(),
-        scopeKind: isPastor ? 'ChurchWide' : isPfccManager ? 'PFCC' : scopeKind,
-        scopeNodeId: isPastor
+        scopeKind: churchWideManager ? 'ChurchWide' : isPfccManager ? 'PFCC' : scopeKind,
+        scopeNodeId: churchWideManager
           ? null
           : isPfccManager
             ? me.scopeNodeId ?? null
@@ -133,7 +134,7 @@ export function CreateProgramWizard({
               ? scopeNodeId || null
               : null,
         scopeNodeIds:
-          !isPastor && !isPfccManager && scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
+          !churchWideManager && !isPfccManager && scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
       })
       onOpenChange(false)
       onCreated()
@@ -217,12 +218,12 @@ export function CreateProgramWizard({
                   placeholder="e.g. 2026 or January 2026"
                 />
               </WizardField>
-              {isPastor && (
+              {churchWideManager && (
                 <p className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                   This will be church-wide — visible to all leaders in your structure.
                 </p>
               )}
-              {!isPastor && isPfccManager && me.scopeUnitName && (
+              {!churchWideManager && isPfccManager && me.scopeUnitName && (
                 <p className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                   This campaign will be scoped to{' '}
                   <strong className="text-foreground">{me.scopeUnitName}</strong>.
@@ -231,7 +232,7 @@ export function CreateProgramWizard({
             </div>
           )}
 
-          {!isPastor && !skipsScopeStep && step === 2 && (
+          {!churchWideManager && !skipsScopeStep && step === 2 && (
             <div className="space-y-4">
               {scopeOptions.length > 1 && (
                 <div className="flex flex-wrap gap-2">
@@ -319,7 +320,7 @@ export function CreateProgramWizard({
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Scope</dt>
                 <dd className="text-right font-medium">
-                  {isPastor
+                  {churchWideManager
                     ? 'Church-wide'
                     : scopeKind === 'FellowshipGroup'
                       ? `${scopeNodeIds.length} fellowships`

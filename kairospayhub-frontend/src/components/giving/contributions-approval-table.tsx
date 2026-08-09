@@ -5,7 +5,7 @@ import type { SortingState } from '@tanstack/react-table'
 import type { ApiClient } from '@/api/client'
 import type { Contribution, ContributionListQuery, GivingProgram } from '@/api/giving'
 import { formatAmount, listAllContributions, listProgramContributions } from '@/api/giving'
-import { isPastor } from '@/api/me'
+import { canManageChurch } from '@/api/me'
 import type { StructureTree } from '@/api/structure'
 import { memberPfccName, nodePfccName } from '@/lib/contribution-structure'
 import {
@@ -92,7 +92,7 @@ export function ContributionsApprovalTable({
   onSummaryChange,
 }: ContributionsApprovalTableProps) {
   const isChurchScope = scope === 'church'
-  const usePastorPendingColumns = mode === 'pending' && isPastor(viewerRole ?? '')
+  const usePastorPendingColumns = mode === 'pending' && canManageChurch(viewerRole ?? '')
   const [rows, setRows] = useState<Contribution[]>([])
   const [displayRows, setDisplayRows] = useState<ApprovalDisplayRow[]>([])
   const [totalCount, setTotalCount] = useState(0)

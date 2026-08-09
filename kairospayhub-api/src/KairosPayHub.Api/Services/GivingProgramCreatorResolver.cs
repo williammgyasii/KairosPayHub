@@ -80,7 +80,7 @@ public static class GivingProgramCreatorResolver
 
         string? ScopeFor(Guid authUserId, ChurchRole? role)
         {
-            if (role == ChurchRole.Pastor)
+            if (role is ChurchRole.Pastor or ChurchRole.ChurchAdmin)
                 return null;
 
             var assignment = assignments.FirstOrDefault(a =>

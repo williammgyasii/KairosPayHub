@@ -7,10 +7,11 @@ import {
   OverviewDashboard,
   OverviewSetupPreview,
 } from '@/components/overview/overview-dashboard'
+import { CellLeaderOverviewDashboard } from '@/components/overview/cell-leader-overview-dashboard'
 import { LeaderOverviewDashboard } from '@/components/overview/leader-overview-dashboard'
 import { StructureSetupCallout } from '@/components/overview/structure-setup-callout'
 import { getGivingDashboard, type GivingDashboard } from '@/api/giving'
-import { isPastor, isScopedLeader, canManageMembers } from '@/api/me'
+import { canManageChurch, isCellLeader, isScopedLeader, canManageMembers, rollCallScopesFor } from '@/api/me'
 import { filterTreeToSubtree } from '@/lib/structure-tree'
 import { MembershipEmptyState, MembershipView } from '@/components/structure/membership-view'
 import { RosterEmptyState, RosterView } from '@/components/structure/roster-view'
@@ -59,7 +60,11 @@ function scopedRosterTree(
   me: DashboardOutletContext['me'],
 ) {
   if (!tree) return tree
-  if (isPastor(me.role)) return tree
+  if (canManageChurch(me.role)) return tree
+  if (isCellLeader(me.role)) {
+    const cellScopeId = rollCallScopesFor(me)[0]?.scopeNodeId ?? me.scopeNodeId ?? null
+    return cellScopeId ? filterTreeToSubtree(tree, cellScopeId) : tree
+  }
   if (isScopedLeader(me.role) && me.scopeNodeId) {
     return filterTreeToSubtree(tree, me.scopeNodeId)
   }
@@ -71,14 +76,16 @@ export function OverviewPage() {
   const api = useApi()
   const { tree } = useStructureTree()
   const showDashboard = hasTemplate(tree)
-  const pastor = isPastor(me.role)
+  const churchManager = canManageChurch(me.role)
   const scopedLeader = isScopedLeader(me.role)
+  const cellLeader = isCellLeader(me.role)
+  const leaderDashboardRole = scopedLeader || cellLeader
   const [leaderDashboard, setLeaderDashboard] = useState<GivingDashboard | null>(null)
-  const [dashboardLoading, setDashboardLoading] = useState(scopedLeader)
+  const [dashboardLoading, setDashboardLoading] = useState(leaderDashboardRole)
   const [dashboardError, setDashboardError] = useState<string | null>(null)
 
   const loadLeaderDashboard = useCallback(async () => {
-    if (!scopedLeader) return
+    if (!leaderDashboardRole) return
     setDashboardLoading(true)
     setDashboardError(null)
     try {
@@ -88,40 +95,55 @@ export function OverviewPage() {
     } finally {
       setDashboardLoading(false)
     }
-  }, [api, scopedLeader])
+  }, [api, leaderDashboardRole])
 
   useEffect(() => {
     void loadLeaderDashboard()
   }, [loadLeaderDashboard])
 
-  const scopedTree =
-    scopedLeader && tree && me.scopeNodeId
-      ? filterTreeToSubtree(tree, me.scopeNodeId)
-      : tree
+  const scopedTree = useMemo(() => {
+    if (!tree) return tree
+    if (cellLeader) {
+      const cellScopeId =
+        rollCallScopesFor(me)[0]?.scopeNodeId ?? me.scopeNodeId ?? null
+      return cellScopeId ? filterTreeToSubtree(tree, cellScopeId) : tree
+    }
+    if (scopedLeader && me.scopeNodeId) {
+      return filterTreeToSubtree(tree, me.scopeNodeId)
+    }
+    return tree
+  }, [tree, cellLeader, scopedLeader, me])
 
-  const scopeTitle = me.scopeUnitName ?? me.churchName ?? 'Your church'
+  const scopeTitle =
+    leaderDashboard?.scopeUnitName ??
+    rollCallScopesFor(me)[0]?.scopeUnitName ??
+    me.scopeUnitName ??
+    me.churchName ??
+    'Your church'
 
   return (
     <div className="space-y-8">
       <DashboardPageHeader
         breadcrumbs={[{ label: 'Overview' }]}
-        title={scopedLeader ? scopeTitle : (me.churchName ?? 'Your church')}
+        title={leaderDashboardRole ? scopeTitle : (me.churchName ?? 'Your church')}
         description={
-          scopedLeader
-            ? me.role === 'FellowshipLeader'
-              ? 'Live metrics for your cells, members, and giving approvals.'
-              : 'Live metrics and giving totals for your PFCC scope.'
-            : pastor
-              ? showDashboard
-                ? tree?.nodes.length || tree?.members.length
-                  ? 'Live metrics, charts, and recommendations from your church structure.'
-                  : `${tree?.template?.name ?? 'Your structure'} is saved. Add org units in Roster and people in Membership.`
-                : 'Define your structure chain, populate Roster, then register members in Membership.'
-              : 'Your overview and giving activity.'
+          cellLeader
+            ? 'Your cell at a glance — members, givings, and attendance.'
+            : scopedLeader
+              ? me.role === 'FellowshipLeader'
+                ? 'Live metrics for your cells, members, and giving approvals.'
+                : 'Live metrics and giving totals for your PFCC scope.'
+              : churchManager
+                ? showDashboard
+                  ? tree?.nodes.length || tree?.members.length
+                    ? 'Live metrics, charts, and recommendations from your church structure.'
+                    : `${tree?.template?.name ?? 'Your structure'} is saved. Add org units in Roster and people in Membership.`
+                  : 'Define your structure chain, populate Roster, then register members in Membership.'
+                : 'Your overview and giving activity.'
         }
       />
 
-      {pastor && <StructureSetupCallout tree={tree} churchName={me.churchName} />}
+      {churchManager && <StructureSetupCallout tree={tree} churchName={me.churchName} />}
 
       {scopedLeader && showDashboard && scopedTree ? (
         dashboardLoading ? (
@@ -135,9 +157,17 @@ export function OverviewPage() {
             role={me.role}
           />
         ) : null
-      ) : pastor && showDashboard && scopedTree ? (
+      ) : cellLeader && showDashboard && scopedTree ? (
+        dashboardLoading ? (
+          <Spinner label="Loading your dashboard…" />
+        ) : dashboardError ? (
+          <p className="text-sm text-destructive">{dashboardError}</p>
+        ) : leaderDashboard ? (
+          <CellLeaderOverviewDashboard tree={scopedTree} dashboard={leaderDashboard} />
+        ) : null
+      ) : churchManager && showDashboard && scopedTree ? (
         <OverviewDashboard tree={scopedTree} churchName={me.churchName} />
-      ) : pastor ? (
+      ) : churchManager ? (
         <OverviewSetupPreview tree={tree} />
       ) : (
         <LeaderOverviewFallback />
@@ -325,7 +355,7 @@ function ModalPickAddLayer({
 export function RosterPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
-  const readOnly = !isPastor(me.role)
+  const readOnly = !canManageChurch(me.role)
   const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
   useEffect(() => {
@@ -388,7 +418,7 @@ export function RosterUnitPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const { nodeId } = useParams<{ nodeId: string }>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
-  const structureReadOnly = !isPastor(me.role)
+  const structureReadOnly = !canManageChurch(me.role)
   const membersReadOnly = !canManageMembers(me.role)
   const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
@@ -427,7 +457,10 @@ export function MembershipPage() {
   const { tree, error, busy, loading, load, submit } = useStructureTree()
   const [addOpen, setAddOpen] = useState(false)
   const canManage = canManageMembers(me.role)
-  const scopeParentNodeId = isPastor(me.role) ? null : me.scopeNodeId
+  const cellScope = isCellLeader(me.role)
+    ? rollCallScopesFor(me)[0]?.scopeNodeId ?? me.scopeNodeId
+    : me.scopeNodeId
+  const scopeParentNodeId = canManageChurch(me.role) ? null : cellScope
   const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
   useEffect(() => {
@@ -461,7 +494,8 @@ export function MembershipPage() {
   }
 
   const hasRosterUnits = displayTree.nodes.length > 0
-  const scopeLabel = me.scopeUnitName ?? 'your unit'
+  const scopeLabel =
+    rollCallScopesFor(me)[0]?.scopeUnitName ?? me.scopeUnitName ?? 'your unit'
 
   return (
     <div className="space-y-5">

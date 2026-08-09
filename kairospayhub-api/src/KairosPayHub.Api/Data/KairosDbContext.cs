@@ -30,6 +30,24 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         Set<Domain.Giving.GivingProgramScopeNode>();
     public DbSet<Domain.Giving.Contribution> Contributions => Set<Domain.Giving.Contribution>();
     public DbSet<Domain.Notifications.Notification> Notifications => Set<Domain.Notifications.Notification>();
+    public DbSet<Domain.Attendance.AttendanceMeetingType> AttendanceMeetingTypes =>
+        Set<Domain.Attendance.AttendanceMeetingType>();
+    public DbSet<Domain.Attendance.AttendanceMeetingTypeScopeNode> AttendanceMeetingTypeScopeNodes =>
+        Set<Domain.Attendance.AttendanceMeetingTypeScopeNode>();
+    public DbSet<Domain.Attendance.AttendanceOccurrence> AttendanceOccurrences =>
+        Set<Domain.Attendance.AttendanceOccurrence>();
+    public DbSet<Domain.Attendance.AttendanceScopeSubmission> AttendanceScopeSubmissions =>
+        Set<Domain.Attendance.AttendanceScopeSubmission>();
+    public DbSet<Domain.Attendance.AttendanceEntry> AttendanceEntries =>
+        Set<Domain.Attendance.AttendanceEntry>();
+    public DbSet<Domain.Attendance.AttendanceFirstTimer> AttendanceFirstTimers =>
+        Set<Domain.Attendance.AttendanceFirstTimer>();
+    public DbSet<Domain.Attendance.AttendanceCellInvitee> AttendanceCellInvitees =>
+        Set<Domain.Attendance.AttendanceCellInvitee>();
+    public DbSet<Domain.Attendance.AttendanceInviteeEntry> AttendanceInviteeEntries =>
+        Set<Domain.Attendance.AttendanceInviteeEntry>();
+    public DbSet<Domain.Administrators.ChurchAdministrator> ChurchAdministrators =>
+        Set<Domain.Administrators.ChurchAdministrator>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -100,6 +118,152 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         ConfigureStructure(b);
         ConfigureGiving(b);
         ConfigureNotifications(b);
+        ConfigureAttendance(b);
+        ConfigureAdministrators(b);
+    }
+
+    private static void ConfigureAdministrators(ModelBuilder b)
+    {
+        b.Entity<Domain.Administrators.ChurchAdministrator>(e =>
+        {
+            e.ToTable("church_administrators");
+            e.Property(x => x.FirstName).IsRequired().HasMaxLength(100);
+            e.Property(x => x.LastName).IsRequired().HasMaxLength(100);
+            e.Property(x => x.Email).IsRequired().HasMaxLength(256);
+            e.Property(x => x.AffiliationKind).HasConversion<string>().IsRequired();
+            e.HasIndex(x => x.ChurchId);
+            e.HasIndex(x => x.AuthUserId);
+            e.HasIndex(x => new { x.ChurchId, x.AuthUserId }).IsUnique();
+            e.HasIndex(x => x.Email);
+            e.HasOne(x => x.Church)
+                .WithMany()
+                .HasForeignKey(x => x.ChurchId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Member)
+                .WithMany()
+                .HasForeignKey(x => x.MemberId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+    }
+
+    private static void ConfigureAttendance(ModelBuilder b)
+    {
+        b.Entity<Domain.Attendance.AttendanceMeetingType>(e =>
+        {
+            e.ToTable("attendance_meeting_types");
+            e.Property(x => x.Title).IsRequired().HasMaxLength(200);
+            e.Property(x => x.RecurrenceKind).HasConversion<string>().IsRequired();
+            e.Property(x => x.ScopeKind).HasConversion<string>().IsRequired();
+            e.HasIndex(x => x.ChurchId);
+            e.HasOne(x => x.Church)
+                .WithMany()
+                .HasForeignKey(x => x.ChurchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceMeetingTypeScopeNode>(e =>
+        {
+            e.ToTable("attendance_meeting_type_scope_nodes");
+            e.HasIndex(x => x.MeetingTypeId);
+            e.HasIndex(x => new { x.MeetingTypeId, x.StructureNodeId }).IsUnique();
+            e.HasOne(x => x.MeetingType)
+                .WithMany(t => t.ScopeNodes)
+                .HasForeignKey(x => x.MeetingTypeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceOccurrence>(e =>
+        {
+            e.ToTable("attendance_occurrences");
+            e.Property(x => x.Status).HasConversion<string>().IsRequired();
+            e.HasIndex(x => x.ChurchId);
+            e.HasIndex(x => x.MeetingTypeId);
+            e.HasIndex(x => new { x.MeetingTypeId, x.MeetingDate }).IsUnique();
+            e.HasOne(x => x.MeetingType)
+                .WithMany(t => t.Occurrences)
+                .HasForeignKey(x => x.MeetingTypeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceScopeSubmission>(e =>
+        {
+            e.ToTable("attendance_scope_submissions");
+            e.Property(x => x.ApprovalStatus).HasConversion<string>().IsRequired();
+            e.Property(x => x.LockStatus).HasConversion<string>().IsRequired();
+            e.Property(x => x.EnteredByRole).HasConversion<string>();
+            e.HasIndex(x => x.OccurrenceId);
+            e.HasIndex(x => new { x.OccurrenceId, x.ScopeNodeId }).IsUnique();
+            e.HasOne(x => x.Occurrence)
+                .WithMany(o => o.ScopeSubmissions)
+                .HasForeignKey(x => x.OccurrenceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceEntry>(e =>
+        {
+            e.ToTable("attendance_entries");
+            e.Property(x => x.Status).HasConversion<string>().IsRequired();
+            e.HasIndex(x => x.OccurrenceId);
+            e.HasIndex(x => x.MemberId);
+            e.HasIndex(x => new { x.OccurrenceId, x.MemberId }).IsUnique();
+            e.HasOne(x => x.Occurrence)
+                .WithMany(o => o.Entries)
+                .HasForeignKey(x => x.OccurrenceId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Member)
+                .WithMany()
+                .HasForeignKey(x => x.MemberId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceFirstTimer>(e =>
+        {
+            e.ToTable("attendance_first_timers");
+            e.Property(x => x.Name).IsRequired().HasMaxLength(200);
+            e.Property(x => x.Phone).HasMaxLength(40);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.OccurrenceId, x.ScopeNodeId });
+            e.HasOne(x => x.Occurrence)
+                .WithMany()
+                .HasForeignKey(x => x.OccurrenceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceCellInvitee>(e =>
+        {
+            e.ToTable("attendance_cell_invitees");
+            e.Property(x => x.Name).IsRequired().HasMaxLength(200);
+            e.Property(x => x.Phone).HasMaxLength(40);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.Residence).HasMaxLength(200);
+            e.Property(x => x.OccupationStatus).HasConversion<string>();
+            e.Property(x => x.SchoolOrWorkplace).HasMaxLength(200);
+            e.Property(x => x.PriorChurchAttendance).HasConversion<string>();
+            e.HasIndex(x => new { x.ChurchId, x.CellScopeNodeId, x.IsActive });
+            e.HasOne(x => x.GraduatedMember)
+                .WithMany()
+                .HasForeignKey(x => x.GraduatedMemberId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.InvitedByMember)
+                .WithMany()
+                .HasForeignKey(x => x.InvitedByMemberId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceInviteeEntry>(e =>
+        {
+            e.ToTable("attendance_invitee_entries");
+            e.Property(x => x.Status).HasConversion<string>().IsRequired();
+            e.HasIndex(x => new { x.OccurrenceId, x.InviteeId }).IsUnique();
+            e.HasOne(x => x.Occurrence)
+                .WithMany()
+                .HasForeignKey(x => x.OccurrenceId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Invitee)
+                .WithMany()
+                .HasForeignKey(x => x.InviteeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     private static void ConfigureNotifications(ModelBuilder b)

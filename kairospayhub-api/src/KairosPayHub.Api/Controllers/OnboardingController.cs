@@ -135,15 +135,16 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         }
 
         var newChurch = new Domain.Structure.Church { Name = churchName };
-        var newAssignment = new RoleAssignment
+        var pastorAssignment = new RoleAssignment
         {
             ChurchId = newChurch.Id,
             AuthUserId = authUserId,
             Role = ChurchRole.Pastor,
+            IsPrimaryPastor = true,
         };
 
         db.StructureChurches.Add(newChurch);
-        db.RoleAssignments.Add(newAssignment);
+        db.RoleAssignments.Add(pastorAssignment);
         await db.SaveChangesAsync(ct);
 
         return new
@@ -163,6 +164,7 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
             ChurchId = church.Id,
             AuthUserId = authUserId,
             Role = ChurchRole.Pastor,
+            IsPrimaryPastor = true,
         };
         var legacyUser = new User
         {

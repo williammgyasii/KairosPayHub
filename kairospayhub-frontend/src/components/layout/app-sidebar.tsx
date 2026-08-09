@@ -1,6 +1,8 @@
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
+  ClipboardCheck,
   Gift,
   LayoutDashboard,
   Network,
@@ -9,7 +11,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isSidebarNavItemActive } from '@/lib/sidebar-nav'
-import { isPastor, isScopedLeader, type Me } from '@/api/me'
+import { canApproveAttendance, canManageChurch, canSubmitRollCall, isCellLeader, isScopedLeader, type Me } from '@/api/me'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
@@ -47,6 +49,60 @@ const GIVINGS_NAV_GROUP: NavEntry = {
   ],
 }
 
+function attendanceNavForRole(me: Me & { onboarded: true }): NavEntry {
+  const role = me.role
+  const children: { to: string; label: string; end?: boolean }[] = []
+
+  if (canManageChurch(role)) {
+    children.push({ to: 'attendance', label: 'Meeting types', end: true })
+  }
+
+  if (canSubmitRollCall(me)) {
+    children.push({ to: 'attendance/submissions', label: 'Submissions', end: true })
+  }
+
+  if (canApproveAttendance(role)) {
+    children.push({ to: 'attendance/overview', label: 'Overview', end: true })
+    children.push({ to: 'attendance/approvals', label: 'Approvals', end: true })
+  }
+
+  if (children.length === 0) {
+    return {
+      kind: 'item',
+      to: 'attendance/submissions',
+      label: 'Attendance',
+      icon: ClipboardCheck,
+      end: true,
+    }
+  }
+
+  if (children.length === 1 && isCellLeader(role) && !isScopedLeader(role) && !canManageChurch(role)) {
+    return {
+      kind: 'item',
+      to: children[0].to,
+      label: 'Attendance',
+      icon: ClipboardCheck,
+      end: true,
+    }
+  }
+
+  return {
+    kind: 'group',
+    label: 'Attendance',
+    icon: ClipboardCheck,
+    children,
+  }
+}
+
+function navWithAttendance(entries: NavEntry[], me: Me & { onboarded: true }): NavEntry[] {
+  const givingsIndex = entries.findIndex(
+    (entry) => entry.kind === 'group' && entry.label === 'Givings',
+  )
+  const attendance = attendanceNavForRole(me)
+  if (givingsIndex === -1) return [...entries, attendance]
+  return [...entries.slice(0, givingsIndex + 1), attendance, ...entries.slice(givingsIndex + 1)]
+}
+
 const NAV: NavEntry[] = [
   { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
   { kind: 'item', to: 'structure', label: 'Structure', icon: Network, end: true },
@@ -60,11 +116,25 @@ const NAV: NavEntry[] = [
     ],
   },
   GIVINGS_NAV_GROUP,
-  { kind: 'item', to: 'settings', label: 'Settings', icon: Settings, end: true },
+  { kind: 'item', to: 'settings', label: 'Settings', icon: Settings },
 ]
 
 const LEADER_NAV: NavEntry[] = [
   { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
+  GIVINGS_NAV_GROUP,
+]
+
+const CELL_LEADER_NAV: NavEntry[] = [
+  { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
+  {
+    kind: 'group',
+    label: 'Roster',
+    icon: Users,
+    children: [
+      { to: 'roster', label: 'Units', end: true },
+      { to: 'roster/membership', label: 'Membership', end: true },
+    ],
+  },
   GIVINGS_NAV_GROUP,
 ]
 
@@ -82,10 +152,11 @@ const SCOPED_LEADER_NAV: NavEntry[] = [
   GIVINGS_NAV_GROUP,
 ]
 
-function navForRole(role: string): NavEntry[] {
-  if (isPastor(role)) return NAV
-  if (isScopedLeader(role)) return SCOPED_LEADER_NAV
-  return LEADER_NAV
+function navForRole(me: Me & { onboarded: true }): NavEntry[] {
+  if (canManageChurch(me.role)) return navWithAttendance(NAV, me)
+  if (isScopedLeader(me.role)) return navWithAttendance(SCOPED_LEADER_NAV, me)
+  if (isCellLeader(me.role)) return navWithAttendance(CELL_LEADER_NAV, me)
+  return navWithAttendance(LEADER_NAV, me)
 }
 
 function isNavGroupActive(pathname: string, group: NavGroup) {
@@ -104,7 +175,7 @@ export function AppSidebar({ me, className, expanded = false }: AppSidebarProps)
   const collapsed = expanded ? false : contextCollapsed
   const churchLabel = me.churchName ?? 'Your church'
   const showCollapseControl = !expanded
-  const nav = navForRole(me.role)
+  const nav = navForRole(me)
 
   return (
     <aside
@@ -269,6 +340,12 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
   const isActive = isNavGroupActive(pathname, group)
   const Icon = group.icon
   const defaultChild = group.children[0]
+  const isCollapsible = group.children.length > 2
+  const [open, setOpen] = useState(() => isActive)
+
+  useEffect(() => {
+    if (isActive) setOpen(true)
+  }, [isActive])
 
   if (collapsed) {
     const link = (
@@ -300,37 +377,60 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
 
   return (
     <div className="space-y-0.5">
-      <div
-        className={cn(
-          'flex items-center gap-3 px-3 py-2 text-xs font-semibold uppercase tracking-wide',
-          isActive ? 'text-primary' : 'text-muted-foreground',
-        )}
-      >
-        <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
-        {group.label}
-      </div>
-      <div className="ml-3 space-y-0.5 border-l border-border/60 pl-2">
-        {group.children.map((child) => {
-          const childActive = isSidebarNavItemActive(pathname, child)
-          return (
-            <NavLink
-              key={child.to}
-              to={child.to}
-              end={child.end}
-              relative="route"
-              aria-current={childActive ? 'page' : undefined}
-              className={cn(
-                'block rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                childActive
-                  ? 'bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/30'
-                  : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
-              )}
-            >
-              {child.label}
-            </NavLink>
-          )
-        })}
-      </div>
+      {isCollapsible ? (
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          aria-expanded={open}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide transition-colors hover:bg-accent/50',
+            isActive ? 'text-primary' : 'text-muted-foreground',
+          )}
+        >
+          <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+          <span className="flex-1">{group.label}</span>
+          <ChevronDown
+            className={cn(
+              'size-4 shrink-0 transition-transform duration-200',
+              open && 'rotate-180',
+            )}
+          />
+        </button>
+      ) : (
+        <div
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 text-xs font-semibold uppercase tracking-wide',
+            isActive ? 'text-primary' : 'text-muted-foreground',
+          )}
+        >
+          <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+          {group.label}
+        </div>
+      )}
+      {(!isCollapsible || open) && (
+        <div className="ml-3 space-y-0.5 border-l border-border/60 pl-2">
+          {group.children.map((child) => {
+            const childActive = isSidebarNavItemActive(pathname, child)
+            return (
+              <NavLink
+                key={child.to}
+                to={child.to}
+                end={child.end}
+                relative="route"
+                aria-current={childActive ? 'page' : undefined}
+                className={cn(
+                  'block rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  childActive
+                    ? 'bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/30'
+                    : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
+                )}
+              >
+                {child.label}
+              </NavLink>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

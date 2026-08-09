@@ -15,7 +15,7 @@ import {
 } from '@/api/giving'
 import { ProgramDetailView } from '@/components/giving/program-detail-view'
 import type { ProgramDetailTab } from '@/components/giving/program-dashboard'
-import { isPastor, isScopedLeader } from '@/api/me'
+import { canManageChurch, isScopedLeader } from '@/api/me'
 import { Spinner } from '@/components/ui/spinner'
 
 export function ProgramDetailPage() {
@@ -47,7 +47,7 @@ export function ProgramDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const canSeeRollup = isPastor(me.role) || isScopedLeader(me.role)
+  const canSeeRollup = canManageChurch(me.role) || isScopedLeader(me.role)
 
   const load = useCallback(async () => {
     if (!programId) return

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   canCreateGivingProgram,
   canCreateSubGiving,
+  canManageChurch,
   canManageMembers,
   displayName,
+  isCellLeader,
   isPastor,
   isScopedLeader,
   needsOnboarding,
@@ -59,6 +61,22 @@ describe('isPastor', () => {
   })
 })
 
+describe('canManageChurch', () => {
+  it('is true for pastor and church admin', () => {
+    expect(canManageChurch('Pastor')).toBe(true)
+    expect(canManageChurch('ChurchAdmin')).toBe(true)
+    expect(canManageChurch('PFCCManager')).toBe(false)
+  })
+})
+
+describe('isCellLeader', () => {
+  it('is true only for cell leaders', () => {
+    expect(isCellLeader('CellLeader')).toBe(true)
+    expect(isCellLeader('FellowshipLeader')).toBe(false)
+    expect(isCellLeader('PFCCManager')).toBe(false)
+  })
+})
+
 describe('isScopedLeader', () => {
   it('is true for PFCC and fellowship leaders', () => {
     expect(isScopedLeader('PFCCManager')).toBe(true)
@@ -68,8 +86,9 @@ describe('isScopedLeader', () => {
 })
 
 describe('canCreateSubGiving', () => {
-  it('allows pastors and PFCC managers only', () => {
+  it('allows pastors, church admins, and PFCC managers', () => {
     expect(canCreateSubGiving('Pastor')).toBe(true)
+    expect(canCreateSubGiving('ChurchAdmin')).toBe(true)
     expect(canCreateSubGiving('PFCCManager')).toBe(true)
     expect(canCreateSubGiving('FellowshipLeader')).toBe(false)
     expect(canCreateSubGiving('CellLeader')).toBe(false)
@@ -79,14 +98,16 @@ describe('canCreateSubGiving', () => {
 describe('canCreateGivingProgram', () => {
   it('matches campaign and sub-giving create permissions', () => {
     expect(canCreateGivingProgram('Pastor')).toBe(true)
+    expect(canCreateGivingProgram('ChurchAdmin')).toBe(true)
     expect(canCreateGivingProgram('PFCCManager')).toBe(true)
     expect(canCreateGivingProgram('FellowshipLeader')).toBe(false)
   })
 })
 
 describe('canManageMembers', () => {
-  it('allows pastors and scoped roster leaders', () => {
+  it('allows pastors, church admins, and scoped roster leaders', () => {
     expect(canManageMembers('Pastor')).toBe(true)
+    expect(canManageMembers('ChurchAdmin')).toBe(true)
     expect(canManageMembers('PFCCManager')).toBe(true)
     expect(canManageMembers('FellowshipLeader')).toBe(true)
     expect(canManageMembers('CellLeader')).toBe(false)

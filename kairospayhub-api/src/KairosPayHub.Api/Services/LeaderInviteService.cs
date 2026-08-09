@@ -17,6 +17,7 @@ public class LeaderInviteService(
     AuthService auth,
     KairosDbContext db,
     ChurchService churches,
+    GivingScopeService scope,
     IEmailSender mailSender,
     Microsoft.Extensions.Options.IOptions<EmailOptions> emailOptions)
 {
@@ -27,8 +28,8 @@ public class LeaderInviteService(
         Guid churchId,
         CancellationToken ct = default)
     {
-        if (actor.Role != Role.Pastor)
-            throw new ForbiddenException("Only a pastor can invite leaders");
+        if (!scope.CanManageChurch(actor))
+            throw new ForbiddenException("Only a pastor or church admin can invite leaders");
 
         var church = await churches.FindInOrgAsync(actor, churchId, ct)
             ?? throw new ForbiddenException("Church not found in your organization");

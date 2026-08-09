@@ -10,7 +10,7 @@ import {
 } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { givingTypeLabel, contributionsAwaitingMyApproval } from '@/lib/giving-ui'
-import { canCreateSubGiving, isPastor } from '@/api/me'
+import { canCreateSubGiving, canManageChurch } from '@/api/me'
 import { structureOptionsForLeader } from '@/lib/contribution-structure'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
@@ -52,7 +52,7 @@ export function ProgramDetailView({
   onRefreshChildren,
   initialTab,
 }: ProgramDetailViewProps) {
-  const isPastorRole = isPastor(me.role)
+  const churchManager = canManageChurch(me.role)
   const canCreateSubGivingRole = canCreateSubGiving(me.role)
   const isFellowshipLeader = me.role === 'FellowshipLeader'
   const isPfccManager = me.role === 'PFCCManager'
@@ -90,12 +90,12 @@ export function ProgramDetailView({
     contributions.filter((c) => c.status === 'Approved').length
 
   const pendingTabCount =
-    awaitingMyApprovalCount + (isPastorRole ? pendingSubGivingsCount : 0)
+    awaitingMyApprovalCount + (churchManager ? pendingSubGivingsCount : 0)
 
   const tabs = useMemo(() => {
     const items: { id: DetailTab; label: string; badge?: number }[] = [{ id: 'dashboard', label: 'Dashboard' }]
     if (program.hasChildren || !program.parentProgramId) {
-      const badge = isPastorRole
+      const badge = churchManager
         ? pendingSubGivingsCount || children.length || undefined
         : children.length || undefined
       items.push({ id: 'subgivings', label: 'Sub givings', badge })
@@ -103,7 +103,7 @@ export function ProgramDetailView({
     if (pendingTabCount > 0) {
       items.push({ id: 'pending', label: 'Pending', badge: pendingTabCount })
     }
-    if (isPastorRole && approvedCount > 0) {
+    if (churchManager && approvedCount > 0) {
       items.push({ id: 'approved', label: 'Approved', badge: approvedCount })
     }
     if (canLogContributions) {
@@ -115,7 +115,7 @@ export function ProgramDetailView({
     }
     return items
   }, [
-    isPastorRole,
+    churchManager,
     isFellowshipLeader,
     isCellLeader,
     isPfccManager,
@@ -288,7 +288,7 @@ export function ProgramDetailView({
           pending={myPendingContributions}
           allPending={pendingContributions}
           acceptsContributions={acceptsContributions}
-          isPastor={isPastorRole}
+          isPastor={churchManager}
           isFellowshipLeader={isFellowshipLeader}
           isPfccManager={isPfccManager}
           isCellLeader={isCellLeader}
@@ -321,7 +321,7 @@ export function ProgramDetailView({
           mode="pending"
           viewerRole={me.role}
           canAct
-          canApproveSubGivings={isPastorRole}
+          canApproveSubGivings={churchManager}
           busy={busy}
           onApprove={handleApprove}
           onReject={handleReject}
@@ -331,7 +331,7 @@ export function ProgramDetailView({
         />
       )}
 
-      {tab === 'approved' && isPastorRole && (
+      {tab === 'approved' && churchManager && (
         <ContributionsApprovalTable
           api={api}
           tree={tree}
@@ -387,7 +387,7 @@ export function ProgramDetailView({
           parent={program}
           api={api}
           tree={tree}
-          requiresPastorApproval={!isPastorRole}
+          requiresPastorApproval={!churchManager}
           scopeRootNodeId={isPfccManager ? me.scopeNodeId : null}
           onCreated={() => void onRefresh()}
         />

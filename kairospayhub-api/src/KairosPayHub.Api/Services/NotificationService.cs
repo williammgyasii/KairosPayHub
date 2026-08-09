@@ -1,4 +1,5 @@
 using KairosPayHub.Api.Data;
+using KairosPayHub.Api.Domain.Attendance;
 using KairosPayHub.Api.Domain.Giving;
 using KairosPayHub.Api.Domain.Notifications;
 using KairosPayHub.Api.Domain.Structure;
@@ -283,6 +284,71 @@ public class NotificationService(
             LinkPath: $"givings/{program.Id}?tab=contributions",
             programId: program.Id,
             relatedEntityId: contribution.Id,
+            ct);
+    }
+
+    public async Task NotifyAttendancePendingAsync(
+        AttendanceScopeSubmission submission,
+        AttendanceOccurrence occurrence,
+        string cellName,
+        CancellationToken ct = default)
+    {
+        var recipients = await ContributionApprovalRecipientAuthUserIdsAsync(
+            occurrence.ChurchId,
+            submission.EnteredByRole,
+            submission.ScopeNodeId,
+            ct);
+
+        if (recipients.Count == 0)
+            return;
+
+        var meetingTitle = occurrence.MeetingType?.Title ?? "Service";
+        var body =
+            $"{cellName} · {meetingTitle} · {occurrence.MeetingDate:dddd, d MMMM yyyy}. Review the roll call on Attendance Approvals.";
+
+        await CreateManyAsync(
+            occurrence.ChurchId,
+            recipients,
+            NotificationKind.AttendancePendingApproval,
+            "Roll call awaiting approval",
+            body,
+            LinkPath: "attendance/approvals",
+            programId: null,
+            relatedEntityId: submission.Id,
+            ct);
+    }
+
+    public async Task NotifyAttendanceReviewedAsync(
+        AttendanceScopeSubmission submission,
+        AttendanceOccurrence occurrence,
+        string cellName,
+        bool approved,
+        CancellationToken ct = default)
+    {
+        if (submission.SubmittedByAuthUserId is null)
+            return;
+
+        var meetingTitle = occurrence.MeetingType?.Title ?? "Service";
+        var kind = approved
+            ? NotificationKind.AttendanceApproved
+            : NotificationKind.AttendanceRejected;
+        var title = approved ? "Roll call approved" : "Roll call rejected";
+        var body = approved
+            ? $"Your roll call for {cellName} ({meetingTitle} · {occurrence.MeetingDate:dddd, d MMMM yyyy}) was approved."
+            : $"Your roll call for {cellName} ({meetingTitle} · {occurrence.MeetingDate:dddd, d MMMM yyyy}) was rejected"
+              + (string.IsNullOrWhiteSpace(submission.RejectionReason)
+                  ? "."
+                  : $": {submission.RejectionReason}");
+
+        await CreateManyAsync(
+            occurrence.ChurchId,
+            [submission.SubmittedByAuthUserId.Value],
+            kind,
+            title,
+            body,
+            LinkPath: "attendance/submissions",
+            programId: null,
+            relatedEntityId: submission.Id,
             ct);
     }
 

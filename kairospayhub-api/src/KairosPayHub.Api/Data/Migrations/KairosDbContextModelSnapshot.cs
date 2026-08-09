@@ -184,6 +184,442 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Administrators.ChurchAdministrator", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AffiliationKind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("AuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeactivatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeactivatedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthUserId");
+
+                    b.HasIndex("ChurchId");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("MemberId");
+
+                    b.HasIndex("ChurchId", "AuthUserId")
+                        .IsUnique();
+
+                    b.ToTable("church_administrators", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceCellInvitee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CellScopeNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("GraduatedMemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("InvitedByMemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFirstTimer")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("OccupationStatus")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("PriorChurchAttendance")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Residence")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SchoolOrWorkplace")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GraduatedMemberId");
+
+                    b.HasIndex("InvitedByMemberId");
+
+                    b.HasIndex("ChurchId", "CellScopeNodeId", "IsActive");
+
+                    b.ToTable("attendance_cell_invitees", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AutoMarkedAbsentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("MarkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("MarkedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MemberScopeNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MemberId");
+
+                    b.HasIndex("OccurrenceId");
+
+                    b.HasIndex("OccurrenceId", "MemberId")
+                        .IsUnique();
+
+                    b.ToTable("attendance_entries", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceFirstTimer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("ScopeNodeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurrenceId", "ScopeNodeId");
+
+                    b.ToTable("attendance_first_timers", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceInviteeEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InviteeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ScopeNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("WasFirstTimer")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InviteeId");
+
+                    b.HasIndex("OccurrenceId", "InviteeId")
+                        .IsUnique();
+
+                    b.ToTable("attendance_invitee_entries", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AutoGenerateWeeksAhead")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DeadlineDayOffset")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("DeadlineTimeUtc")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("OpensDayOffset")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("OpensTimeUtc")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("RecurrenceKind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ScopeKind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ScopeNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChurchId");
+
+                    b.ToTable("attendance_meeting_types", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingTypeScopeNode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MeetingTypeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StructureNodeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeetingTypeId");
+
+                    b.HasIndex("MeetingTypeId", "StructureNodeId")
+                        .IsUnique();
+
+                    b.ToTable("attendance_meeting_type_scope_nodes", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ExcusedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ExcusedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ExcusedReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("MeetingDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("MeetingTypeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("SubmissionDeadlineAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("SubmissionOpensAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChurchId");
+
+                    b.HasIndex("MeetingTypeId");
+
+                    b.HasIndex("MeetingTypeId", "MeetingDate")
+                        .IsUnique();
+
+                    b.ToTable("attendance_occurrences", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceScopeSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ApprovedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedLeaderAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EnteredByRole")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("GraceDeadlineAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LockStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("LockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RejectedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ReopenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReopenedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ScopeNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SubmittedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurrenceId");
+
+                    b.HasIndex("OccurrenceId", "ScopeNodeId")
+                        .IsUnique();
+
+                    b.ToTable("attendance_scope_submissions", (string)null);
+                });
+
             modelBuilder.Entity("KairosPayHub.Api.Domain.Church", b =>
                 {
                     b.Property<Guid>("Id")
@@ -641,6 +1077,9 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsPrimaryPastor")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("text");
@@ -958,6 +1397,134 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Administrators.ChurchAdministrator", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithMany()
+                        .HasForeignKey("ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Member", "Member")
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Church");
+
+                    b.Navigation("Member");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceCellInvitee", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Member", "GraduatedMember")
+                        .WithMany()
+                        .HasForeignKey("GraduatedMemberId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Member", "InvitedByMember")
+                        .WithMany()
+                        .HasForeignKey("InvitedByMemberId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("GraduatedMember");
+
+                    b.Navigation("InvitedByMember");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceEntry", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Member", "Member")
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", "Occurrence")
+                        .WithMany("Entries")
+                        .HasForeignKey("OccurrenceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Member");
+
+                    b.Navigation("Occurrence");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceFirstTimer", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", "Occurrence")
+                        .WithMany()
+                        .HasForeignKey("OccurrenceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Occurrence");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceInviteeEntry", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceCellInvitee", "Invitee")
+                        .WithMany()
+                        .HasForeignKey("InviteeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", "Occurrence")
+                        .WithMany()
+                        .HasForeignKey("OccurrenceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invitee");
+
+                    b.Navigation("Occurrence");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingType", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
+                        .WithMany()
+                        .HasForeignKey("ChurchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Church");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingTypeScopeNode", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingType", "MeetingType")
+                        .WithMany("ScopeNodes")
+                        .HasForeignKey("MeetingTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MeetingType");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingType", "MeetingType")
+                        .WithMany("Occurrences")
+                        .HasForeignKey("MeetingTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MeetingType");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceScopeSubmission", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", "Occurrence")
+                        .WithMany("ScopeSubmissions")
+                        .HasForeignKey("OccurrenceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Occurrence");
+                });
+
             modelBuilder.Entity("KairosPayHub.Api.Domain.Church", b =>
                 {
                     b.HasOne("KairosPayHub.Api.Domain.Organization", "Organization")
@@ -1248,6 +1815,20 @@ namespace KairosPayHub.Api.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingType", b =>
+                {
+                    b.Navigation("Occurrences");
+
+                    b.Navigation("ScopeNodes");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", b =>
+                {
+                    b.Navigation("Entries");
+
+                    b.Navigation("ScopeSubmissions");
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.Giving.GivingProgram", b =>

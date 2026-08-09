@@ -12,7 +12,7 @@ import {
   type GivingProgram,
 } from '@/api/giving'
 import { useStructureTree } from '@/components/structure/structure-setup'
-import { isPastor, isScopedLeader } from '@/api/me'
+import { canManageChurch, isScopedLeader } from '@/api/me'
 import { ContributionsApprovalTable } from '@/components/giving/contributions-approval-table'
 import { GivingTransactionsLedger } from '@/components/giving/giving-transactions-ledger'
 import { cn } from '@/lib/utils'
@@ -31,9 +31,9 @@ export function TransactionsPage() {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const isPastorRole = isPastor(me.role)
-  const canAct = isPastorRole || isScopedLeader(me.role)
-  const showApprovedTab = isPastorRole || isScopedLeader(me.role)
+  const churchManager = canManageChurch(me.role)
+  const canAct = churchManager || isScopedLeader(me.role)
+  const showApprovedTab = churchManager || isScopedLeader(me.role)
 
   const tabParam = searchParams.get('tab')
   const tab: TransactionsTab =
@@ -183,7 +183,7 @@ export function TransactionsPage() {
           mode="pending"
           viewerRole={me.role}
           canAct={canAct}
-          canApproveSubGivings={isPastorRole}
+          canApproveSubGivings={churchManager}
           pendingSubGivings={pendingSubGivings}
           busy={busy}
           onApprove={handleApprove}

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KairosPayHub.Api.Services;
 
-public class ChurchBrandingService(KairosDbContext db, IObjectStorage storage)
+public class ChurchBrandingService(KairosDbContext db, IObjectStorage storage, GivingScopeService scope)
 {
     private static readonly HashSet<string> AllowedTypes =
     [
@@ -25,8 +25,8 @@ public class ChurchBrandingService(KairosDbContext db, IObjectStorage storage)
         long contentLength,
         CancellationToken ct = default)
     {
-        if (actor.StructureRole != ChurchRole.Pastor && actor.Role != Role.Pastor)
-            throw new ForbiddenException("Only a pastor can update the church logo");
+        if (!scope.CanManageChurch(actor))
+            throw new ForbiddenException("Only a pastor or church admin can update the church logo");
 
         if (!storage.IsConfigured)
             throw new ObjectStorageNotConfiguredException();

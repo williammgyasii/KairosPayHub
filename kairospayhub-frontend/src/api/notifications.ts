@@ -7,6 +7,9 @@ export type NotificationKind =
   | 'ContributionPendingApproval'
   | 'ContributionApproved'
   | 'ContributionRejected'
+  | 'AttendancePendingApproval'
+  | 'AttendanceApproved'
+  | 'AttendanceRejected'
   | string
 
 export type Notification = {

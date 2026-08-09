@@ -89,5 +89,6 @@ public class RoleAssignment
     public Cell? ScopeCell { get; set; }
     public Guid? ScopeNodeId { get; set; }
     public StructureNode? ScopeNode { get; set; }
+    public bool IsPrimaryPastor { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

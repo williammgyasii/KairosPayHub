@@ -18,6 +18,7 @@ public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
     private static readonly ChurchRole[] RolePrecedenceOrder =
     [
         ChurchRole.Pastor,
+        ChurchRole.ChurchAdmin,
         ChurchRole.PFCCManager,
         ChurchRole.FellowshipLeader,
         ChurchRole.CellLeader,
@@ -90,7 +91,7 @@ public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
     private static Role MapLegacyRole(ChurchRole role) =>
         role switch
         {
-            ChurchRole.Pastor => Role.Pastor,
+            ChurchRole.Pastor or ChurchRole.ChurchAdmin => Role.Pastor,
             _ => Role.Leader,
         };
 

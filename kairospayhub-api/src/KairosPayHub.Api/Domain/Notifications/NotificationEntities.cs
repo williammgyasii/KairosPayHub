@@ -8,6 +8,9 @@ public enum NotificationKind
     ContributionPendingApproval,
     ContributionApproved,
     ContributionRejected,
+    AttendancePendingApproval,
+    AttendanceApproved,
+    AttendanceRejected,
 }
 
 public class Notification

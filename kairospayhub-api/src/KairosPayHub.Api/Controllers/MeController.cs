@@ -41,6 +41,7 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
 
         Guid? scopeNodeId = null;
         string? scopeUnitName = null;
+        object rollCallScopes = Array.Empty<object>();
         if (actor.StructureRole is not null
             && actor.StructureChurchId != default
             && Guid.TryParse(current.Sub, out var authUserId))
@@ -61,6 +62,18 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
                     .Select(n => n.Name)
                     .FirstOrDefaultAsync(ct);
             }
+
+            rollCallScopes = await (
+                from assignment in db.RoleAssignments.AsNoTracking()
+                join node in db.StructureNodes.AsNoTracking()
+                    on assignment.ScopeNodeId equals node.Id
+                where assignment.ChurchId == actor.StructureChurchId
+                    && assignment.AuthUserId == authUserId
+                    && assignment.Role == Domain.Structure.ChurchRole.CellLeader
+                    && assignment.ScopeNodeId != null
+                orderby node.Name
+                select new { scopeNodeId = node.Id, scopeUnitName = node.Name })
+                .ToListAsync(ct);
         }
 
         return Ok(new
@@ -74,6 +87,7 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
             role,
             scopeNodeId,
             scopeUnitName,
+            rollCallScopes,
             legacyChurchId = actor.ChurchId,
             email = current.Email,
             name = current.Name,

@@ -303,8 +303,56 @@ public class GivingScopeService(KairosDbContext db)
     public bool IsPastor(Actor actor) =>
         actor.StructureRole == ChurchRole.Pastor || actor.Role == Role.Pastor;
 
+    public bool CanManageChurch(Actor actor) =>
+        actor.StructureRole is ChurchRole.Pastor or ChurchRole.ChurchAdmin
+        || actor.Role == Role.Pastor;
+
     public bool IsScopedStructureLeader(Actor actor) =>
         actor.StructureRole is ChurchRole.PFCCManager or ChurchRole.FellowshipLeader;
+
+    public bool CanReadStructure(Actor actor) =>
+        CanManageChurch(actor)
+        || actor.StructureRole is ChurchRole.PFCCManager
+            or ChurchRole.FellowshipLeader
+            or ChurchRole.CellLeader;
+
+    public async Task CanAccessStructureReadAsync(
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        if (CanManageChurch(actor) || IsPastor(actor))
+            return;
+
+        if (!CanReadStructure(actor))
+            throw new ForbiddenException("Structure is not available for your role");
+
+        if (actor.StructureRole == ChurchRole.CellLeader)
+        {
+            if (!await HasRoleAsync(actor, authUserId, ChurchRole.CellLeader, ct))
+                throw new ForbiddenException("You do not have a cell assignment");
+            return;
+        }
+
+        _ = await GetActorScopeNodeIdAsync(actor, authUserId, ct)
+            ?? throw new ForbiddenException("You do not have a scope assignment");
+    }
+
+    public async Task CanAccessStructureNodeAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid nodeId,
+        CancellationToken ct)
+    {
+        if (CanManageChurch(actor) || IsPastor(actor))
+            return;
+
+        if (!CanReadStructure(actor))
+            throw new ForbiddenException("Structure is not available for your role");
+
+        if (!await IsNodeAccessibleViaAssignmentsAsync(actor.StructureChurchId, authUserId, nodeId, ct))
+            throw new ForbiddenException("Unit is outside your scope");
+    }
 
     public async Task<bool> ProgramVisibleToActorAsync(
         GivingProgram program,
@@ -312,7 +360,7 @@ public class GivingScopeService(KairosDbContext db)
         Guid authUserId,
         CancellationToken ct)
     {
-        if (IsPastor(actor))
+        if (CanManageChurch(actor))
             return true;
 
         if (actor.StructureRole is not (
@@ -383,7 +431,7 @@ public class GivingScopeService(KairosDbContext db)
         Guid authUserId,
         CancellationToken ct)
     {
-        if (IsPastor(actor))
+        if (CanManageChurch(actor))
             return true;
 
         if (program.ParentProgramId is null)
@@ -443,45 +491,10 @@ public class GivingScopeService(KairosDbContext db)
         Guid authUserId,
         CancellationToken ct)
     {
-        if (IsPastor(actor))
+        if (IsPastor(actor) || CanManageChurch(actor))
             return [];
 
-        var scopeNodeId = await GetActorScopeNodeIdAsync(actor, authUserId, ct);
-        if (scopeNodeId is not Guid rootId)
-            return [];
-
-        return (await CollectSubtreeNodeIdsAsync(actor.StructureChurchId, rootId, ct)).ToHashSet();
-    }
-
-    public async Task CanAccessStructureReadAsync(
-        Actor actor,
-        Guid authUserId,
-        CancellationToken ct)
-    {
-        if (IsPastor(actor))
-            return;
-
-        if (!IsScopedStructureLeader(actor))
-            throw new ForbiddenException("Structure is not available for your role");
-
-        _ = await GetActorScopeNodeIdAsync(actor, authUserId, ct)
-            ?? throw new ForbiddenException("You do not have a scope assignment");
-    }
-
-    public async Task CanAccessStructureNodeAsync(
-        Actor actor,
-        Guid authUserId,
-        Guid nodeId,
-        CancellationToken ct)
-    {
-        if (IsPastor(actor))
-            return;
-
-        if (!IsScopedStructureLeader(actor))
-            throw new ForbiddenException("Structure is not available for your role");
-
-        if (!await IsNodeAccessibleViaAssignmentsAsync(actor.StructureChurchId, authUserId, nodeId, ct))
-            throw new ForbiddenException("Unit is outside your scope");
+        return await GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
     }
 
     public async Task<bool> CanEnterContributionAsync(
@@ -555,7 +568,7 @@ public class GivingScopeService(KairosDbContext db)
         if (approvingRole is null)
             return false;
 
-        if (IsPastor(actor))
+        if (CanManageChurch(actor))
             return approvingRole == ChurchRole.Pastor;
 
         return approvingRole switch
@@ -613,7 +626,7 @@ public class GivingScopeService(KairosDbContext db)
     {
         if (member.ChurchId != actor.StructureChurchId)
             return false;
-        if (IsPastor(actor))
+        if (CanManageChurch(actor))
             return true;
 
         if (member.AuthUserId == authUserId)
