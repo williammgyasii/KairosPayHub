@@ -157,7 +157,7 @@ export function ContributionsApprovalTable({
   }, [debouncedSearch, mode, pageSize])
 
   const sortBy = SORT_MAP[sorting[0]?.id ?? 'createdAt'] ?? 'createdAt'
-  const sortDir = sorting[0]?.desc ? 'desc' : 'asc'
+  const sortDir: ContributionListQuery['sortDir'] = sorting[0]?.desc ? 'desc' : 'asc'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -832,29 +832,6 @@ export function ContributionsApprovalTable({
                                 <Eye className="size-3.5" />
                                 View
                               </Button>
-                              {mode === 'pending' && canAct && (
-                                <>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={busy}
-                                    onClick={() => void handleApprove(row.id, row.programId)}
-                                  >
-                                    <Check className="size-3.5" />
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={busy}
-                                    onClick={() => setRejectTarget(row)}
-                                  >
-                                    <X className="size-3.5" />
-                                    Reject
-                                  </Button>
-                                </>
-                              )}
                             </div>
                           </td>
                         </tr>

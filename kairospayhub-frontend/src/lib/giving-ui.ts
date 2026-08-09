@@ -75,9 +75,11 @@ export function findRootGivingProgram(
 export function givingProgramLabel(program: {
   title?: string | null
   periodLabel?: string | null
+  programTitle?: string | null
+  programPeriodLabel?: string | null
 }) {
-  const title = program.title?.trim() || 'Campaign'
-  const period = program.periodLabel?.trim()
+  const title = (program.title ?? program.programTitle)?.trim() || 'Campaign'
+  const period = (program.periodLabel ?? program.programPeriodLabel)?.trim()
   return period ? `${title} · ${period}` : title
 }
 
@@ -312,13 +314,14 @@ export function remittanceDestinationOptions(
           : mode.label,
         hint: mode.accountNumber?.trim() ?? undefined,
       })),
-      { value: 'Other' as RemittanceMedium, label: 'Other' },
+      { value: 'Other' as RemittanceMedium, label: 'Other', hint: undefined as string | undefined },
     ]
   }
 
   return REMITTANCE_MEDIUM_OPTIONS.map((option) => ({
     value: option.value,
     label: remittanceDestinationLabel(option.value, role),
+    hint: undefined as string | undefined,
   }))
 }
 

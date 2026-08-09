@@ -373,7 +373,9 @@ export async function listMemberGivingTotals(
       memberCount: Number(summary?.memberCount ?? 0),
       giversCount: Number(summary?.giversCount ?? 0),
       approvedPaymentCount: Number(
-        summary?.approvedPaymentCount ?? summary?.ApprovedPaymentCount ?? 0,
+        summary?.approvedPaymentCount ??
+          (summary as { ApprovedPaymentCount?: number } | undefined)?.ApprovedPaymentCount ??
+          0,
       ),
       pendingCount: Number(summary?.pendingCount ?? 0),
       pendingTotalAmount: Number(summary?.pendingTotalAmount ?? 0),
