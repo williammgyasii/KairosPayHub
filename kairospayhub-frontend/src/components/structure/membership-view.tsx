@@ -9,7 +9,8 @@ import type {
 import { buildMembersQuery } from '@/api/structure'
 import { useApi } from '@/api/useApi'
 import { MemberCreateWizard } from '@/components/structure/member-create-wizard'
-import { MemberDetailSheet } from '@/components/structure/member-detail-sheet'
+import { MemberDetailSheet, type MemberDetailTab } from '@/components/structure/member-detail-sheet'
+import { MemberDeleteModal } from '@/components/structure/member-delete-modal'
 import { MemberFormSheet, type MemberSheetState } from '@/components/structure/member-form-sheet'
 import { MemberTableToolbar } from '@/components/structure/member-table-toolbar'
 import { StructureMemberTable } from '@/components/structure/structure-member-table'
@@ -88,6 +89,10 @@ export function MembershipView({
   const setWizardOpen = onWizardOpenChange ?? setWizardOpenInternal
   const [sheet, setSheet] = useState<MemberSheetState | null>(null)
   const [detailMember, setDetailMember] = useState<ReturnType<typeof buildMemberRows>[number] | null>(
+    null,
+  )
+  const [detailTab, setDetailTab] = useState<MemberDetailTab>('overview')
+  const [deleteMember, setDeleteMember] = useState<ReturnType<typeof buildMemberRows>[number] | null>(
     null,
   )
   const [filterRules, setFilterRules] = useState<MemberFilterRule[]>([])
@@ -221,8 +226,12 @@ export function MembershipView({
             />
           )
         }
-        onView={(member) => setDetailMember(member)}
-        onEdit={readOnly ? () => {} : (member) => setSheet({ mode: 'edit', member })}
+        onView={(member, tab = 'overview') => {
+          setDetailTab(tab)
+          setDetailMember(member)
+        }}
+        onEdit={readOnly ? undefined : (member) => setSheet({ mode: 'edit', member })}
+        onDelete={readOnly ? undefined : (member) => setDeleteMember(member)}
       />
 
       {!readOnly && wizardOpen && (
@@ -249,9 +258,27 @@ export function MembershipView({
           member={detailMember}
           tree={listTree}
           open
+          initialTab={detailTab}
           onOpenChange={(open) => !open && setDetailMember(null)}
-          onEdit={(member) => setSheet({ mode: 'edit', member })}
+          onEdit={(member) => {
+            setDetailMember(null)
+            setSheet({ mode: 'edit', member })
+          }}
           readOnly={readOnly}
+        />
+      )}
+
+      {!readOnly && deleteMember && (
+        <MemberDeleteModal
+          member={deleteMember}
+          busy={busy}
+          onClose={() => setDeleteMember(null)}
+          onConfirm={() => {
+            void submitAndRefresh(async () => {
+              await api.delete(`/api/structure/members/${deleteMember.id}`)
+              setDeleteMember(null)
+            })
+          }}
         />
       )}
     </div>

@@ -14,12 +14,17 @@ import {
 import { CheckCircle2, Clock3, Coins, Network, Users } from 'lucide-react'
 import type { GivingDashboard } from '@/api/giving'
 import { formatAmount } from '@/api/giving'
+import type { ChurchRole } from '@/api/me'
 import type { StructureTree } from '@/api/structure'
 import {
+  cellBreakdownRows,
   dashboardQuickStats,
+  dashboardQuickStatsForFellowshipLeader,
   fellowshipBreakdown,
+  membersByCellChart,
   membersByFellowshipChart,
   structureLayerChartData,
+  structureLayerChartDataForFellowshipLeader,
 } from '@/lib/structure-dashboard'
 import { givingTypeLabel } from '@/lib/giving-ui'
 import { cn } from '@/lib/utils'
@@ -51,48 +56,87 @@ function ChartCard({
 export function LeaderOverviewDashboard({
   tree,
   dashboard,
+  role,
 }: {
   tree: StructureTree
   dashboard: GivingDashboard
+  role: ChurchRole | 'Leader'
 }) {
+  const isFellowshipLeader = role === 'FellowshipLeader'
   const unitName = dashboard.scopeUnitName ?? 'Your unit'
-  const layerData = structureLayerChartData(tree)
-  const pieData = membersByFellowshipChart(tree)
-  const rows = fellowshipBreakdown(tree)
-  const quickStats = dashboardQuickStats(tree)
+  const layerData = isFellowshipLeader
+    ? structureLayerChartDataForFellowshipLeader(tree)
+    : structureLayerChartData(tree)
+  const distributionData = isFellowshipLeader
+    ? membersByCellChart(tree)
+    : membersByFellowshipChart(tree)
+  const quickStats = isFellowshipLeader
+    ? dashboardQuickStatsForFellowshipLeader(tree)
+    : dashboardQuickStats(tree)
+  const fellowshipRows = fellowshipBreakdown(tree)
+  const cellRows = cellBreakdownRows(tree)
 
-  const kpis = [
-    {
-      label: 'Fellowships',
-      value: dashboard.fellowshipCount ?? 0,
-      icon: Network,
-    },
-    {
-      label: 'Cells',
-      value: dashboard.cellCount ?? 0,
-      icon: Network,
-    },
-    {
-      label: 'Members',
-      value: dashboard.memberCount ?? 0,
-      icon: Users,
-    },
-    {
-      label: 'Pending approval',
-      value: dashboard.pendingApprovalCount ?? 0,
-      icon: Clock3,
-      highlight: (dashboard.pendingApprovalCount ?? 0) > 0,
-    },
-    {
-      label: 'Approved giving',
-      value: formatAmount(dashboard.scopedApprovedTotal ?? 0),
-      icon: CheckCircle2,
-    },
-  ]
+  const kpis = isFellowshipLeader
+    ? [
+        {
+          label: 'Cells',
+          value: dashboard.cellCount ?? 0,
+          icon: Network,
+        },
+        {
+          label: 'Members',
+          value: dashboard.memberCount ?? 0,
+          icon: Users,
+        },
+        {
+          label: 'Pending approval',
+          value: dashboard.pendingApprovalCount ?? 0,
+          icon: Clock3,
+          highlight: (dashboard.pendingApprovalCount ?? 0) > 0,
+        },
+        {
+          label: 'Approved giving',
+          value: formatAmount(dashboard.scopedApprovedTotal ?? 0),
+          icon: CheckCircle2,
+        },
+      ]
+    : [
+        {
+          label: 'Fellowships',
+          value: dashboard.fellowshipCount ?? 0,
+          icon: Network,
+        },
+        {
+          label: 'Cells',
+          value: dashboard.cellCount ?? 0,
+          icon: Network,
+        },
+        {
+          label: 'Members',
+          value: dashboard.memberCount ?? 0,
+          icon: Users,
+        },
+        {
+          label: 'Pending approval',
+          value: dashboard.pendingApprovalCount ?? 0,
+          icon: Clock3,
+          highlight: (dashboard.pendingApprovalCount ?? 0) > 0,
+        },
+        {
+          label: 'Approved giving',
+          value: formatAmount(dashboard.scopedApprovedTotal ?? 0),
+          icon: CheckCircle2,
+        },
+      ]
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <section
+        className={cn(
+          'grid grid-cols-2 gap-4',
+          isFellowshipLeader ? 'lg:grid-cols-4' : 'lg:grid-cols-5',
+        )}
+      >
         {kpis.map((metric) => {
           const Icon = metric.icon
           return (
@@ -118,7 +162,14 @@ export function LeaderOverviewDashboard({
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard title="Structure in your scope" description={`Units under ${unitName}`}>
+        <ChartCard
+          title={isFellowshipLeader ? 'Your roster' : 'Structure in your scope'}
+          description={
+            isFellowshipLeader
+              ? 'Cells and members under your leadership'
+              : `Units under ${unitName}`
+          }
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={layerData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/60" />
@@ -134,8 +185,15 @@ export function LeaderOverviewDashboard({
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Members by fellowship" description="Roster split across fellowships">
-          {pieData.length === 0 ? (
+        <ChartCard
+          title={isFellowshipLeader ? 'Members by cell' : 'Members by fellowship'}
+          description={
+            isFellowshipLeader
+              ? 'How members are spread across your cells'
+              : 'Roster split across fellowships'
+          }
+        >
+          {distributionData.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               No members in your scope yet.
             </div>
@@ -143,7 +201,7 @@ export function LeaderOverviewDashboard({
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={pieData}
+                  data={distributionData}
                   dataKey="members"
                   nameKey="name"
                   cx="50%"
@@ -152,7 +210,7 @@ export function LeaderOverviewDashboard({
                   outerRadius={88}
                   paddingAngle={2}
                 >
-                  {pieData.map((entry) => (
+                  {distributionData.map((entry) => (
                     <Cell key={entry.fullName} fill={entry.fill} />
                   ))}
                 </Pie>
@@ -226,40 +284,75 @@ export function LeaderOverviewDashboard({
         ))}
       </div>
 
-      <section className="overflow-hidden rounded-xl border border-border/60 bg-background">
-        <div className="border-b border-border/60 px-5 py-3">
-          <h2 className="text-sm font-semibold tracking-tight">Fellowship breakdown</h2>
-          <p className="text-xs text-muted-foreground">Cells and members per fellowship</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] text-sm">
-            <thead>
-              <tr className="border-b border-border/60 bg-muted/10 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-5 py-2.5 font-medium">Fellowship</th>
-                <th className="px-5 py-2.5 font-medium">Cells</th>
-                <th className="px-5 py-2.5 font-medium">Members</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-5 py-8 text-muted-foreground">
-                    No fellowships in your scope yet.
-                  </td>
+      {isFellowshipLeader ? (
+        <section className="overflow-hidden rounded-xl border border-border/60 bg-background">
+          <div className="border-b border-border/60 px-5 py-3">
+            <h2 className="text-sm font-semibold tracking-tight">Cell breakdown</h2>
+            <p className="text-xs text-muted-foreground">Members registered in each cell</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[320px] text-sm">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/10 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-5 py-2.5 font-medium">Cell</th>
+                  <th className="px-5 py-2.5 font-medium">Members</th>
                 </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id} className="border-b border-border/40 last:border-0">
-                    <td className="px-5 py-3 font-medium">{row.name}</td>
-                    <td className="px-5 py-3 tabular-nums text-muted-foreground">{row.cells}</td>
-                    <td className="px-5 py-3 tabular-nums text-muted-foreground">{row.members}</td>
+              </thead>
+              <tbody>
+                {cellRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="px-5 py-8 text-muted-foreground">
+                      No cells in your roster yet.
+                    </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                ) : (
+                  cellRows.map((row) => (
+                    <tr key={row.id} className="border-b border-border/40 last:border-0">
+                      <td className="px-5 py-3 font-medium">{row.name}</td>
+                      <td className="px-5 py-3 tabular-nums text-muted-foreground">{row.members}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : (
+        <section className="overflow-hidden rounded-xl border border-border/60 bg-background">
+          <div className="border-b border-border/60 px-5 py-3">
+            <h2 className="text-sm font-semibold tracking-tight">Fellowship breakdown</h2>
+            <p className="text-xs text-muted-foreground">Cells and members per fellowship</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] text-sm">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/10 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-5 py-2.5 font-medium">Fellowship</th>
+                  <th className="px-5 py-2.5 font-medium">Cells</th>
+                  <th className="px-5 py-2.5 font-medium">Members</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fellowshipRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-5 py-8 text-muted-foreground">
+                      No fellowships in your scope yet.
+                    </td>
+                  </tr>
+                ) : (
+                  fellowshipRows.map((row) => (
+                    <tr key={row.id} className="border-b border-border/40 last:border-0">
+                      <td className="px-5 py-3 font-medium">{row.name}</td>
+                      <td className="px-5 py-3 tabular-nums text-muted-foreground">{row.cells}</td>
+                      <td className="px-5 py-3 tabular-nums text-muted-foreground">{row.members}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   )
 }

@@ -38,6 +38,49 @@ export function fellowshipBreakdown(tree: StructureTree) {
   return fellowshipBreakdownRows(tree)
 }
 
+export function cellBreakdownRows(tree: StructureTree) {
+  const cellLayer = getLayers(tree).find((l) => l.standardType === 'Cell')
+  if (!cellLayer) return []
+
+  return nodesAtLayer(tree, cellLayer.id).map((cell) => ({
+    id: cell.id,
+    name: cell.name,
+    members: tree.members.filter((member) => member.parentNodeId === cell.id).length,
+  }))
+}
+
+export function membersByCellChart(tree: StructureTree) {
+  return cellBreakdownRows(tree)
+    .filter((cell) => cell.members > 0)
+    .map((cell, index) => ({
+      name: cell.name.length > 14 ? `${cell.name.slice(0, 14)}…` : cell.name,
+      fullName: cell.name,
+      members: cell.members,
+      fill: CHART_COLORS[index % CHART_COLORS.length],
+    }))
+}
+
+export function structureLayerChartDataForFellowshipLeader(tree: StructureTree) {
+  const cellLayer = getLayers(tree).find((layer) => layer.standardType === 'Cell')
+  const items = []
+
+  if (cellLayer) {
+    items.push({
+      layer: cellLayer.displayName,
+      count: nodesAtLayer(tree, cellLayer.id).length,
+      fill: CHART_COLORS[0],
+    })
+  }
+
+  items.push({
+    layer: 'Members',
+    count: tree.members.length,
+    fill: CHART_COLORS[4],
+  })
+
+  return items
+}
+
 export function structureLayerChartData(tree: StructureTree) {
   const layers = getLayers(tree)
   return [
@@ -79,6 +122,23 @@ export function dashboardQuickStats(tree: StructureTree) {
     { label: 'Empty cells', value: String(emptyCells) },
     { label: 'Org nodes', value: String(tree.nodes.length) },
     { label: 'Total roster', value: String(tree.members.length) },
+  ]
+}
+
+export function dashboardQuickStatsForFellowshipLeader(tree: StructureTree) {
+  const cellLayer = getLayers(tree).find((layer) => layer.standardType === 'Cell')
+  const cellNodes = cellLayer ? nodesAtLayer(tree, cellLayer.id) : []
+  const avgMembersPerCell =
+    cellNodes.length > 0 ? (tree.members.length / cellNodes.length).toFixed(1) : '—'
+  const emptyCells = cellNodes.filter(
+    (cell) => !tree.members.some((member) => member.parentNodeId === cell.id),
+  ).length
+
+  return [
+    { label: 'Avg members / cell', value: avgMembersPerCell },
+    { label: 'Empty cells', value: String(emptyCells) },
+    { label: 'Total cells', value: String(cellNodes.length) },
+    { label: 'Total members', value: String(tree.members.length) },
   ]
 }
 

@@ -10,7 +10,7 @@ import {
 import { LeaderOverviewDashboard } from '@/components/overview/leader-overview-dashboard'
 import { StructureSetupCallout } from '@/components/overview/structure-setup-callout'
 import { getGivingDashboard, type GivingDashboard } from '@/api/giving'
-import { isPastor, isScopedLeader } from '@/api/me'
+import { isPastor, isScopedLeader, canManageMembers } from '@/api/me'
 import { filterTreeToSubtree } from '@/lib/structure-tree'
 import { MembershipEmptyState, MembershipView } from '@/components/structure/membership-view'
 import { RosterEmptyState, RosterView } from '@/components/structure/roster-view'
@@ -108,7 +108,9 @@ export function OverviewPage() {
         title={scopedLeader ? scopeTitle : (me.churchName ?? 'Your church')}
         description={
           scopedLeader
-            ? `Live metrics and giving totals for your ${me.role === 'PFCCManager' ? 'PFCC' : 'fellowship'} scope.`
+            ? me.role === 'FellowshipLeader'
+              ? 'Live metrics for your cells, members, and giving approvals.'
+              : 'Live metrics and giving totals for your PFCC scope.'
             : pastor
               ? showDashboard
                 ? tree?.nodes.length || tree?.members.length
@@ -127,7 +129,11 @@ export function OverviewPage() {
         ) : dashboardError ? (
           <p className="text-sm text-destructive">{dashboardError}</p>
         ) : leaderDashboard ? (
-          <LeaderOverviewDashboard tree={scopedTree} dashboard={leaderDashboard} />
+          <LeaderOverviewDashboard
+            tree={scopedTree}
+            dashboard={leaderDashboard}
+            role={me.role}
+          />
         ) : null
       ) : pastor && showDashboard && scopedTree ? (
         <OverviewDashboard tree={scopedTree} churchName={me.churchName} />
@@ -382,7 +388,8 @@ export function RosterUnitPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const { nodeId } = useParams<{ nodeId: string }>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
-  const readOnly = !isPastor(me.role)
+  const structureReadOnly = !isPastor(me.role)
+  const membersReadOnly = !canManageMembers(me.role)
   const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
   useEffect(() => {
@@ -408,7 +415,8 @@ export function RosterUnitPage() {
       error={error}
       busy={busy}
       submit={submit}
-      readOnly={readOnly}
+      readOnly={structureReadOnly}
+      membersReadOnly={membersReadOnly}
       scopeRootNodeId={isScopedLeader(me.role) ? me.scopeNodeId : null}
     />
   )
@@ -418,7 +426,8 @@ export function MembershipPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
   const [addOpen, setAddOpen] = useState(false)
-  const readOnly = !isPastor(me.role)
+  const canManage = canManageMembers(me.role)
+  const scopeParentNodeId = isPastor(me.role) ? null : me.scopeNodeId
   const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
   useEffect(() => {
@@ -465,12 +474,12 @@ export function MembershipPage() {
         title="Membership"
         titleSize="hero"
         description={
-          readOnly
-            ? `Members registered under ${scopeLabel}.`
-            : `Register members with name, phone, age, and role — placed under a roster unit from ${displayTree.template!.name}.`
+          canManage
+            ? `Register members with name, phone, age, and role — placed under a roster unit from ${displayTree.template!.name}.`
+            : `Members registered under ${scopeLabel}.`
         }
         actions={
-          !readOnly && hasRosterUnits ? (
+          canManage && hasRosterUnits ? (
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="size-4" />
               Add member
@@ -480,7 +489,7 @@ export function MembershipPage() {
       />
 
       {!hasRosterUnits ? (
-        <MembershipEmptyState needsRoster pastorOnlyStructure={readOnly} />
+        <MembershipEmptyState needsRoster pastorOnlyStructure={!canManage} />
       ) : (
         <MembershipView
           tree={displayTree}
@@ -489,8 +498,8 @@ export function MembershipPage() {
           submit={submit}
           wizardOpen={addOpen}
           onWizardOpenChange={setAddOpen}
-          readOnly={readOnly}
-          scopeParentNodeId={readOnly ? me.scopeNodeId : null}
+          readOnly={!canManage}
+          scopeParentNodeId={scopeParentNodeId}
         />
       )}
     </div>

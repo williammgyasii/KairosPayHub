@@ -1,5 +1,6 @@
 import type {
   Contribution,
+  GivingProgram,
   GivingType,
   ProgramScopeKind,
   ProgramStatus,
@@ -31,6 +32,55 @@ export function scopeKindLabel(value: string) {
   return SCOPE_KIND_LABELS[value] ?? value
 }
 
+/** Root campaign id plus every sub-giving under it; all programs when root is empty. */
+export function collectProgramIdsInCampaign(
+  programs: GivingProgram[],
+  rootProgramId: string | null | undefined,
+): Set<string> {
+  if (!rootProgramId) {
+    return new Set(programs.map((program) => program.id))
+  }
+
+  const childrenByParent = new Map<string, GivingProgram[]>()
+  for (const program of programs) {
+    if (!program.parentProgramId) continue
+    const siblings = childrenByParent.get(program.parentProgramId) ?? []
+    siblings.push(program)
+    childrenByParent.set(program.parentProgramId, siblings)
+  }
+
+  const ids = new Set<string>()
+  function walk(id: string) {
+    ids.add(id)
+    for (const child of childrenByParent.get(id) ?? []) {
+      walk(child.id)
+    }
+  }
+  walk(rootProgramId)
+  return ids
+}
+
+export function findRootGivingProgram(
+  programs: GivingProgram[],
+  programId: string,
+): GivingProgram | null {
+  const byId = new Map(programs.map((program) => [program.id, program]))
+  let current = byId.get(programId) ?? null
+  while (current?.parentProgramId) {
+    current = byId.get(current.parentProgramId) ?? null
+  }
+  return current
+}
+
+export function givingProgramLabel(program: {
+  title?: string | null
+  periodLabel?: string | null
+}) {
+  const title = program.title?.trim() || 'Campaign'
+  const period = program.periodLabel?.trim()
+  return period ? `${title} · ${period}` : title
+}
+
 function givingDateOrdinal(day: number): string {
   const mod100 = day % 100
   if (mod100 >= 11 && mod100 <= 13) return `${day}TH`
@@ -53,6 +103,14 @@ export function formatGivingDate(value: string | Date | null | undefined): strin
   if (Number.isNaN(date.getTime())) return '—'
   const month = date.toLocaleString('en-US', { month: 'long' }).toUpperCase()
   return `${month} ${givingDateOrdinal(date.getDate())}`
+}
+
+/** e.g. Aug 29, 2026 — for approval tables */
+export function formatTableDate(value: string | Date | null | undefined): string {
+  if (!value) return '—'
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /** e.g. AUGUST 8TH · 6:30 PM */
@@ -129,6 +187,25 @@ export function contributionEntererLabel(contribution: {
   return parts.join(' · ') || createdByRoleLabel(contribution.enteredByRole) || 'Unknown'
 }
 
+/** Pastor pending queue — manager name, or the structure unit that submitted. */
+export function contributionSubmittedByLabel(contribution: {
+  enteredByName?: string | null
+  enteredByScopeUnitName?: string | null
+}) {
+  if (contribution.enteredByName?.trim()) return contribution.enteredByName.trim()
+  if (contribution.enteredByScopeUnitName?.trim()) return contribution.enteredByScopeUnitName.trim()
+  return '—'
+}
+
+export function programSubmittedByLabel(program: {
+  createdByName?: string | null
+  createdByScopeUnitName?: string | null
+}) {
+  if (program.createdByName?.trim()) return program.createdByName.trim()
+  if (program.createdByScopeUnitName?.trim()) return program.createdByScopeUnitName.trim()
+  return '—'
+}
+
 export function contributionAttachmentUrl(contribution: {
   attachmentUrl?: string | null
   attachmentKey?: string | null
@@ -140,13 +217,135 @@ export function contributionRemittanceSummary(contribution: {
   sentToPastor?: boolean | null
   remittanceMedium?: RemittanceMedium | string | null
   remittanceMediumOther?: string | null
+  enteredByRole?: string | null
 }) {
   if (contribution.sentToPastor !== true) return null
-  if (!contribution.remittanceMedium) return 'Sent to pastor'
+  if (!contribution.remittanceMedium) {
+    return contribution.enteredByRole === 'FellowshipLeader'
+      ? 'Sent to manager / level above'
+      : 'Sent to pastor'
+  }
   if (contribution.remittanceMedium === 'Other' && contribution.remittanceMediumOther?.trim()) {
     return contribution.remittanceMediumOther.trim()
   }
   return remittanceMediumLabel(contribution.remittanceMedium)
+}
+
+export function bulkRemittanceQuestion(role: string) {
+  if (role === 'FellowshipLeader') {
+    return 'Has this payment been sent to your manager or the structure above you?'
+  }
+  return 'Has this giving been sent to your pastor?'
+}
+
+export function bulkRemittanceAmountLabel(role: string) {
+  if (role === 'FellowshipLeader') {
+    return 'How much was sent to your manager or the level above? (GHS)'
+  }
+  return 'How much was sent to pastor? (GHS)'
+}
+
+export function bulkRemittanceTargetLabel(role: string) {
+  if (role === 'FellowshipLeader') return 'manager / level above'
+  return 'pastor'
+}
+
+export function bulkRemittanceFirstStepLabel(role: string) {
+  if (role === 'FellowshipLeader') return 'Upstream remittance'
+  return 'Pastor remittance'
+}
+
+export function bulkSubmitLabel(role: string, sentUpstream: boolean) {
+  if (!sentUpstream) return 'Submit for approval'
+  if (role === 'PFCCManager') return 'Submit for pastor approval'
+  return 'Submit for approval'
+}
+
+export function bulkPendingApprovalLabel(role: string, sentUpstream: boolean) {
+  if (!sentUpstream) return 'Pending approval'
+  if (role === 'PFCCManager') return 'Pending pastor approval'
+  if (role === 'FellowshipLeader') return 'Pending approval from the level above'
+  return 'Pending approval'
+}
+
+/** PFCC-defined modes of payment (Settings — future). */
+export type ChurchPaymentMode = {
+  id: string
+  label: string
+  accountNumber?: string | null
+  remittanceMedium: RemittanceMedium
+}
+
+export function remittanceDestinationLabel(
+  medium: RemittanceMedium,
+  role: string,
+  customLabel?: string,
+) {
+  if (customLabel) return customLabel
+  if (role === 'FellowshipLeader') {
+    switch (medium) {
+      case 'PastorBank':
+        return 'Bank account (level above)'
+      case 'PastorMomo':
+        return 'MoMo (level above)'
+      case 'ChurchMomo':
+        return 'Church MoMo'
+      case 'Other':
+        return 'Other'
+      default:
+        return medium
+    }
+  }
+  return REMITTANCE_MEDIUM_OPTIONS.find((option) => option.value === medium)?.label ?? medium
+}
+
+export function remittanceDestinationOptions(
+  role: string,
+  churchPaymentModes: ChurchPaymentMode[] = [],
+) {
+  if (churchPaymentModes.length > 0) {
+    return [
+      ...churchPaymentModes.map((mode) => ({
+        value: mode.remittanceMedium,
+        label: mode.accountNumber?.trim()
+          ? `${mode.label} · ${mode.accountNumber.trim()}`
+          : mode.label,
+        hint: mode.accountNumber?.trim() ?? undefined,
+      })),
+      { value: 'Other' as RemittanceMedium, label: 'Other' },
+    ]
+  }
+
+  return REMITTANCE_MEDIUM_OPTIONS.map((option) => ({
+    value: option.value,
+    label: remittanceDestinationLabel(option.value, role),
+  }))
+}
+
+export function bulkBatchDetailsDescription(role: string, sentUpstream: boolean) {
+  if (!sentUpstream) return 'When this batch was collected.'
+  if (role === 'FellowshipLeader') {
+    return 'When and where the payment was sent to your manager or the level above.'
+  }
+  return 'When and where the payment was sent to your pastor.'
+}
+
+export function bulkRemittanceDestinationLabel(_role: string) {
+  return 'Where was this payment sent to?'
+}
+
+export function bulkRemittanceOtherLabel(role: string) {
+  if (role === 'FellowshipLeader') {
+    return 'Describe where the payment was sent'
+  }
+  return 'Describe where it was sent'
+}
+
+export function bulkRemittanceOtherPlaceholder(role: string) {
+  if (role === 'FellowshipLeader') {
+    return 'e.g. Cash handed to PFCC manager'
+  }
+  return 'e.g. Cash to pastor assistant'
 }
 
 export function programStatusLabel(status: ProgramStatus | string) {

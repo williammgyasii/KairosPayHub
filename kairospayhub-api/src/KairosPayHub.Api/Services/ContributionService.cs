@@ -176,6 +176,7 @@ public class ContributionService(
         ContributionStatus? status,
         string? search,
         bool awaitingMyApproval,
+        Guid? batchId = null,
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
@@ -197,28 +198,301 @@ public class ContributionService(
         var baseQuery = db.Contributions.AsNoTracking()
             .Where(c => programIds.Contains(c.ProgramId));
 
-        if (!scope.IsPastor(actor))
+        baseQuery = await ApplyActorContributionScopeAsync(baseQuery, actor, authUserId, ct);
+        if (baseQuery is null)
         {
-            var visibleNodes = await scope.GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
-            if (visibleNodes.Count == 0)
-            {
-                return new ContributionListResponse(
-                    [],
-                    0,
-                    page,
-                    pageSize,
-                    new ContributionListSummary(0, 0, 0, 0, 0, 0));
-            }
-
-            baseQuery = baseQuery.Where(c => visibleNodes.Contains(c.MemberParentNodeId));
+            return EmptyContributionListResponse(page, pageSize);
         }
 
+        return await QueryContributionsAsync(
+            baseQuery,
+            churchId,
+            actor,
+            page,
+            pageSize,
+            sortBy,
+            sortDir,
+            status,
+            search,
+            awaitingMyApproval,
+            batchId,
+            ct);
+    }
+
+    public async Task<ContributionListResponse> ListAllAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid? programId,
+        int page,
+        int pageSize,
+        string? sortBy,
+        string? sortDir,
+        ContributionStatus? status,
+        string? search,
+        bool awaitingMyApproval = false,
+        Guid? batchId = null,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var baseQuery = db.Contributions.AsNoTracking()
+            .Where(c => c.Program!.ChurchId == churchId);
+
+        if (programId is Guid scopedProgramId)
+        {
+            _ = await db.GivingPrograms.AsNoTracking()
+                    .SingleOrDefaultAsync(p => p.Id == scopedProgramId && p.ChurchId == churchId, ct)
+                ?? throw new ForbiddenException("Program not found");
+
+            if (!scope.IsPastor(actor)
+                && !await scope.CanAccessProgramByIdAsync(churchId, scopedProgramId, actor, authUserId, ct))
+            {
+                throw new ForbiddenException("Program not found");
+            }
+
+            var programIds = await scope.CollectDescendantProgramIdsIncludingSelfAsync(
+                churchId,
+                scopedProgramId,
+                ct);
+            baseQuery = baseQuery.Where(c => programIds.Contains(c.ProgramId));
+        }
+
+        baseQuery = await ApplyActorContributionScopeAsync(baseQuery, actor, authUserId, ct);
+        if (baseQuery is null)
+        {
+            return EmptyContributionListResponse(page, pageSize);
+        }
+
+        return await QueryContributionsAsync(
+            baseQuery,
+            churchId,
+            actor,
+            page,
+            pageSize,
+            sortBy,
+            sortDir,
+            status,
+            search,
+            awaitingMyApproval,
+            batchId,
+            ct);
+    }
+
+    public async Task<MemberGivingTotalsResponse> ListMemberTotalsAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid? programId,
+        int page,
+        int pageSize,
+        string? sortBy,
+        string? sortDir,
+        string? search,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var baseQuery = db.Contributions.AsNoTracking()
+            .Where(c => c.Program!.ChurchId == churchId);
+
+        if (programId is Guid scopedProgramId)
+        {
+            _ = await db.GivingPrograms.AsNoTracking()
+                    .SingleOrDefaultAsync(p => p.Id == scopedProgramId && p.ChurchId == churchId, ct)
+                ?? throw new ForbiddenException("Program not found");
+
+            if (!scope.IsPastor(actor)
+                && !await scope.CanAccessProgramByIdAsync(churchId, scopedProgramId, actor, authUserId, ct))
+            {
+                throw new ForbiddenException("Program not found");
+            }
+
+            var programIds = await scope.CollectDescendantProgramIdsIncludingSelfAsync(
+                churchId,
+                scopedProgramId,
+                ct);
+            baseQuery = baseQuery.Where(c => programIds.Contains(c.ProgramId));
+        }
+
+        baseQuery = await ApplyActorContributionScopeAsync(baseQuery, actor, authUserId, ct);
+        if (baseQuery is null)
+        {
+            return EmptyMemberGivingTotalsResponse(page, pageSize);
+        }
+
+        var grouped = baseQuery.GroupBy(c => c.MemberId);
+
+        var projected = grouped.Select(g => new MemberTotalProjection
+        {
+            MemberId = g.Key,
+            ApprovedTotal = g.Sum(c => c.Status == ContributionStatus.Approved ? c.Amount : 0m),
+            ApprovedCount = g.Sum(c => c.Status == ContributionStatus.Approved ? 1 : 0),
+            PendingCount = g.Sum(c => c.Status == ContributionStatus.PendingApproval ? 1 : 0),
+            PendingTotal = g.Sum(c => c.Status == ContributionStatus.PendingApproval ? c.Amount : 0m),
+            LastDateSent = g.Where(c => c.Status == ContributionStatus.Approved)
+                .Max(c => (DateTimeOffset?)c.DateSent),
+            MemberParentNodeId = g.OrderByDescending(c => c.DateSent).Select(c => c.MemberParentNodeId).First(),
+        });
+
+        var withMembers =
+            from row in projected
+            join member in db.ChurchMembers.AsNoTracking() on row.MemberId equals member.Id
+            where member.ChurchId == churchId && row.ApprovedCount > 0
+            select new MemberTotalRow
+            {
+                MemberId = row.MemberId,
+                MemberName = member.Name,
+                MemberParentNodeId = row.MemberParentNodeId,
+                ApprovedTotal = row.ApprovedTotal,
+                ApprovedCount = row.ApprovedCount,
+                PendingCount = row.PendingCount,
+                PendingTotal = row.PendingTotal,
+                LastDateSent = row.LastDateSent,
+            };
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = $"%{search.Trim()}%";
+            withMembers = withMembers.Where(row => EF.Functions.ILike(row.MemberName, term));
+        }
+
+        var totalCount = await withMembers.CountAsync(ct);
+
+        var summaryRows = await withMembers.ToListAsync(ct);
+        var summary = new MemberGivingTotalsSummary(
+            summaryRows.Sum(row => row.ApprovedTotal),
+            summaryRows.Count,
+            summaryRows.Count,
+            summaryRows.Sum(row => row.ApprovedCount),
+            summaryRows.Sum(row => row.PendingCount),
+            summaryRows.Sum(row => row.PendingTotal));
+
+        var rankMap = summaryRows
+            .OrderByDescending(row => row.ApprovedTotal)
+            .ThenBy(row => row.MemberName, StringComparer.OrdinalIgnoreCase)
+            .Select((row, index) => (row.MemberId, Rank: index + 1))
+            .ToDictionary(pair => pair.MemberId, pair => pair.Rank);
+
+        var sorted = ApplyMemberTotalSort(withMembers, sortBy, sortDir);
+        var rows = await sorted
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var members = rows.Select(row => new MemberGivingTotalDto(
+            rankMap.GetValueOrDefault(row.MemberId, 0),
+            row.MemberId,
+            row.MemberName,
+            row.MemberParentNodeId,
+            row.ApprovedTotal,
+            row.ApprovedCount,
+            row.PendingCount,
+            row.PendingTotal,
+            row.LastDateSent)).ToList();
+
+        return new MemberGivingTotalsResponse(members, totalCount, page, pageSize, summary);
+    }
+
+    private sealed class MemberTotalProjection
+    {
+        public Guid MemberId { get; set; }
+        public decimal ApprovedTotal { get; set; }
+        public int ApprovedCount { get; set; }
+        public int PendingCount { get; set; }
+        public decimal PendingTotal { get; set; }
+        public DateTimeOffset? LastDateSent { get; set; }
+        public Guid MemberParentNodeId { get; set; }
+    }
+
+    private sealed class MemberTotalRow
+    {
+        public Guid MemberId { get; set; }
+        public string MemberName { get; set; } = string.Empty;
+        public Guid MemberParentNodeId { get; set; }
+        public decimal ApprovedTotal { get; set; }
+        public int ApprovedCount { get; set; }
+        public int PendingCount { get; set; }
+        public decimal PendingTotal { get; set; }
+        public DateTimeOffset? LastDateSent { get; set; }
+    }
+
+    private static MemberGivingTotalsResponse EmptyMemberGivingTotalsResponse(int page, int pageSize) =>
+        new([], 0, page, pageSize, new MemberGivingTotalsSummary(0, 0, 0, 0, 0, 0));
+
+    private static IQueryable<MemberTotalRow> ApplyMemberTotalSort(
+        IQueryable<MemberTotalRow> query,
+        string? sortBy,
+        string? sortDir)
+    {
+        var desc = !string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase);
+
+        return sortBy?.ToLowerInvariant() switch
+        {
+            "membername" => desc
+                ? query.OrderByDescending(row => row.MemberName).ThenByDescending(row => row.ApprovedTotal)
+                : query.OrderBy(row => row.MemberName).ThenByDescending(row => row.ApprovedTotal),
+            "approvedcount" => desc
+                ? query.OrderByDescending(row => row.ApprovedCount).ThenByDescending(row => row.ApprovedTotal)
+                : query.OrderBy(row => row.ApprovedCount).ThenByDescending(row => row.ApprovedTotal),
+            "pendingcount" => desc
+                ? query.OrderByDescending(row => row.PendingCount).ThenByDescending(row => row.ApprovedTotal)
+                : query.OrderBy(row => row.PendingCount).ThenByDescending(row => row.ApprovedTotal),
+            "lastdatesent" => desc
+                ? query.OrderByDescending(row => row.LastDateSent).ThenByDescending(row => row.ApprovedTotal)
+                : query.OrderBy(row => row.LastDateSent).ThenByDescending(row => row.ApprovedTotal),
+            _ => desc
+                ? query.OrderByDescending(row => row.ApprovedTotal).ThenBy(row => row.MemberName)
+                : query.OrderBy(row => row.ApprovedTotal).ThenBy(row => row.MemberName),
+        };
+    }
+
+    private static ContributionListResponse EmptyContributionListResponse(int page, int pageSize) =>
+        new([], 0, page, pageSize, new ContributionListSummary(0, 0, 0, 0, 0, 0));
+
+    private async Task<IQueryable<Contribution>?> ApplyActorContributionScopeAsync(
+        IQueryable<Contribution> baseQuery,
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct)
+    {
+        if (scope.IsPastor(actor))
+            return baseQuery;
+
+        var visibleNodes = await scope.GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
+        if (visibleNodes.Count == 0)
+            return null;
+
+        return baseQuery.Where(c => visibleNodes.Contains(c.MemberParentNodeId));
+    }
+
+    private async Task<ContributionListResponse> QueryContributionsAsync(
+        IQueryable<Contribution> baseQuery,
+        Guid churchId,
+        Actor actor,
+        int page,
+        int pageSize,
+        string? sortBy,
+        string? sortDir,
+        ContributionStatus? status,
+        string? search,
+        bool awaitingMyApproval,
+        Guid? batchId,
+        CancellationToken ct)
+    {
         var summary = await BuildSummaryAsync(baseQuery, churchId, actor, ct);
 
         var query = baseQuery;
 
         if (status is not null)
             query = query.Where(c => c.Status == status);
+
+        if (batchId is Guid batchFilter)
+            query = query.Where(c => c.BatchId == batchFilter);
 
         if (awaitingMyApproval)
             query = await scope.ApplyAwaitingMyApprovalFilterAsync(query, churchId, actor, ct);
@@ -312,6 +586,13 @@ public class ContributionService(
             "approvedat" => desc
                 ? query.OrderByDescending(c => c.ApprovedAt).ThenByDescending(c => c.CreatedAt)
                 : query.OrderBy(c => c.ApprovedAt).ThenBy(c => c.CreatedAt),
+            "programtitle" => desc
+                ? query.OrderByDescending(c =>
+                    db.GivingPrograms.Where(p => p.Id == c.ProgramId).Select(p => p.Title).FirstOrDefault())
+                    .ThenByDescending(c => c.CreatedAt)
+                : query.OrderBy(c =>
+                    db.GivingPrograms.Where(p => p.Id == c.ProgramId).Select(p => p.Title).FirstOrDefault())
+                    .ThenBy(c => c.CreatedAt),
             _ => desc
                 ? query.OrderByDescending(c => c.CreatedAt)
                 : query.OrderBy(c => c.CreatedAt),

@@ -66,9 +66,10 @@ export function UnitDeleteModal({
           </Button>
           <Button
             type="button"
-            disabled={busy}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={onConfirm}
+            loading={busy}
+            loadingLabel="Deleting…"
           >
             Delete {impact.layerName.toLowerCase()}
           </Button>

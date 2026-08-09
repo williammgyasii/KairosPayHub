@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Activity, Coins, FileText, GitBranch, LayoutGrid, Pencil } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { StructureTree } from '@/api/structure'
@@ -7,11 +7,14 @@ import type { StructureMemberRow } from '@/lib/structure-table-rows'
 import { StructureChain } from '@/components/structure/structure-chain'
 import { RoleBadge, StructureSegmentBadge } from '@/components/structure/structure-badges'
 import { MemberGivingTab } from '@/components/giving/member-giving-tab'
+import { ResponsivenessBadge } from '@/components/structure/responsiveness-badge'
 import { SideSheet } from '@/components/ui/side-sheet'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type DetailTab = 'overview' | 'structure' | 'records' | 'giving' | 'activity'
+
+export type MemberDetailTab = DetailTab
 
 const DETAIL_TABS: { id: DetailTab; label: string; icon: LucideIcon }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutGrid },
@@ -27,6 +30,7 @@ interface MemberDetailSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit: (member: StructureMemberRow) => void
+  initialTab?: MemberDetailTab
   readOnly?: boolean
 }
 
@@ -36,9 +40,14 @@ export function MemberDetailSheet({
   open,
   onOpenChange,
   onEdit,
+  initialTab = 'overview',
   readOnly = false,
 }: MemberDetailSheetProps) {
-  const [tab, setTab] = useState<DetailTab>('overview')
+  const [tab, setTab] = useState<DetailTab>(initialTab)
+
+  useEffect(() => {
+    if (open) setTab(initialTab)
+  }, [open, initialTab, member.id])
 
   return (
     <SideSheet
@@ -129,6 +138,17 @@ function OverviewTab({ member }: { member: StructureMemberRow }) {
           <DetailItem label="Date of birth" value={member.dateOfBirth || '—'} />
           <DetailItem label="Age" value={member.age || '—'} />
           <DetailItem label="Residence" value={member.residence} wide />
+        </DetailGrid>
+      </section>
+
+      <section className="space-y-3">
+        <SectionTitle>Engagement</SectionTitle>
+        <DetailGrid>
+          <DetailItem
+            label="Responsiveness"
+            value={<ResponsivenessBadge level={member.responsiveness} />}
+            wide
+          />
         </DetailGrid>
       </section>
 
@@ -232,7 +252,7 @@ function DetailItem({
   wide,
 }: {
   label: string
-  value: string
+  value: ReactNode
   wide?: boolean
 }) {
   return (
@@ -245,7 +265,9 @@ function DetailItem({
       <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
-      <dd className="mt-1 text-sm">{value?.trim() ? value : '—'}</dd>
+      <dd className="mt-1 text-sm">
+        {typeof value === 'string' ? (value.trim() ? value : '—') : value}
+      </dd>
     </div>
   )
 }

@@ -4,16 +4,29 @@ import { Link } from 'react-router-dom'
 import type { SortingState } from '@tanstack/react-table'
 import type { ApiClient } from '@/api/client'
 import type { Contribution, ContributionListQuery, GivingProgram } from '@/api/giving'
-import { formatAmount, listProgramContributions } from '@/api/giving'
+import { formatAmount, listAllContributions, listProgramContributions } from '@/api/giving'
+import { isPastor } from '@/api/me'
+import type { StructureTree } from '@/api/structure'
+import { memberPfccName, nodePfccName } from '@/lib/contribution-structure'
+import {
+  groupContributionsForApproval,
+  paginateApprovalDisplayRows,
+  summarizeBatch,
+  type ApprovalDisplayRow,
+} from '@/lib/contribution-batches'
+import { ContributionBulkBatchModal } from '@/components/giving/contribution-bulk-batch-modal'
 import { ContributionDetailModal } from '@/components/giving/contribution-detail-modal'
 import { RejectContributionModal } from '@/components/giving/reject-contribution-modal'
 import { ProgramApprovalBadge, LegacyParentContributionBadge } from '@/components/giving/giving-badges'
 import {
   contributionEntererLabel,
+  contributionSubmittedByLabel,
   contributionSubGivingLabel,
   formatGivingDate,
   formatGivingDateTime,
+  formatTableDate,
   programCreatorLabel,
+  programSubmittedByLabel,
 } from '@/lib/giving-ui'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,11 +36,17 @@ import { TablePagination } from '@/components/ui/table-pagination'
 import { InlineSpinner } from '@/components/ui/spinner'
 
 type TableMode = 'pending' | 'approved'
+type TableScope = 'program' | 'church'
+
+const PENDING_FETCH_SIZE = 100
 
 interface ContributionsApprovalTableProps {
   api: ApiClient
-  parentProgram: GivingProgram
+  scope?: TableScope
+  tree?: StructureTree | null
+  parentProgram?: GivingProgram
   childPrograms?: GivingProgram[]
+  pendingSubGivings?: GivingProgram[]
   mode: TableMode
   viewerRole?: string
   canAct?: boolean
@@ -47,6 +66,7 @@ const SORT_MAP: Record<string, ContributionListQuery['sortBy']> = {
   createdAt: 'createdAt',
   status: 'status',
   approvedAt: 'approvedAt',
+  campaign: 'programTitle',
 }
 
 function matchesSearch(text: string, query: string) {
@@ -55,8 +75,11 @@ function matchesSearch(text: string, query: string) {
 
 export function ContributionsApprovalTable({
   api,
+  scope = 'program',
+  tree = null,
   parentProgram,
   childPrograms = [],
+  pendingSubGivings = [],
   mode,
   viewerRole,
   canAct = false,
@@ -68,7 +91,10 @@ export function ContributionsApprovalTable({
   onRejectSubGiving,
   onSummaryChange,
 }: ContributionsApprovalTableProps) {
+  const isChurchScope = scope === 'church'
+  const usePastorPendingColumns = mode === 'pending' && isPastor(viewerRole ?? '')
   const [rows, setRows] = useState<Contribution[]>([])
+  const [displayRows, setDisplayRows] = useState<ApprovalDisplayRow[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [summaryTotal, setSummaryTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -81,31 +107,45 @@ export function ContributionsApprovalTable({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewTarget, setViewTarget] = useState<Contribution | null>(null)
+  const [batchTarget, setBatchTarget] = useState<Contribution[] | null>(null)
   const [rejectTarget, setRejectTarget] = useState<Contribution | null>(null)
+  const [rejectBatchTarget, setRejectBatchTarget] = useState<Contribution[] | null>(null)
   const [rejectSubGivingTarget, setRejectSubGivingTarget] = useState<GivingProgram | null>(null)
+  const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null)
 
-  const pendingSubGivings = useMemo(
+  const pendingSubGivingRows = useMemo(
     () =>
       mode === 'pending' && canApproveSubGivings
-        ? childPrograms.filter((row) => row.approvalStatus === 'PendingPastorApproval')
+        ? isChurchScope
+          ? pendingSubGivings
+          : childPrograms.filter((row) => row.approvalStatus === 'PendingPastorApproval')
         : [],
-    [mode, canApproveSubGivings, childPrograms],
+    [mode, canApproveSubGivings, isChurchScope, pendingSubGivings, childPrograms],
   )
 
   const filteredSubGivings = useMemo(() => {
-    if (!debouncedSearch) return pendingSubGivings
-    return pendingSubGivings.filter((row) => {
+    if (!debouncedSearch) return pendingSubGivingRows
+    return pendingSubGivingRows.filter((row) => {
       const haystack = [row.title, row.periodLabel, programCreatorLabel(row)].join(' ')
       return matchesSearch(haystack, debouncedSearch)
     })
-  }, [pendingSubGivings, debouncedSearch])
+  }, [pendingSubGivingRows, debouncedSearch])
 
   const showSubGivingColumn =
-    parentProgram.hasChildren ||
+    isChurchScope ||
+    parentProgram?.hasChildren ||
     childPrograms.length > 0 ||
     rows.some((row) => row.isSubGiving) ||
     rows.some((row) => row.isLegacyParentContribution) ||
+    displayRows.some(
+      (row) => row.kind === 'single' && (row.contribution.isSubGiving || row.contribution.isLegacyParentContribution),
+    ) ||
     filteredSubGivings.length > 0
+
+  const visibleDisplayRows = useMemo(() => {
+    if (mode !== 'pending') return []
+    return paginateApprovalDisplayRows(displayRows, page, pageSize)
+  }, [mode, displayRows, page, pageSize])
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -123,28 +163,72 @@ export function ContributionsApprovalTable({
     setLoading(true)
     setError(null)
     try {
-      const res = await listProgramContributions(api, parentProgram.id, {
-        page,
-        pageSize,
+      const baseQuery = {
         sortBy,
         sortDir,
         search: debouncedSearch || undefined,
-        status: mode === 'pending' ? 'PendingApproval' : 'Approved',
-        awaitingMyApproval: mode === 'pending',
-      })
-      setRows(res.contributions)
-      setTotalCount(res.totalCount)
-      setSummaryTotal(
-        mode === 'pending' ? res.summary.pendingTotalAmount : res.summary.approvedTotalAmount,
-      )
+        status: (mode === 'pending' ? 'PendingApproval' : 'Approved') as ContributionListQuery['status'],
+        awaitingMyApproval: mode === 'pending' && canAct,
+      }
+
+      if (mode === 'pending') {
+        const query = { ...baseQuery, page: 1, pageSize: PENDING_FETCH_SIZE }
+        const res = isChurchScope
+          ? await listAllContributions(api, query)
+          : await listProgramContributions(api, parentProgram!.id, query)
+
+        const batchIds = [
+          ...new Set(
+            res.contributions
+              .map((row) => row.batchId)
+              .filter((batchId): batchId is string => Boolean(batchId)),
+          ),
+        ]
+        const batchGroups = new Map<string, Contribution[]>()
+        await Promise.all(
+          batchIds.map(async (batchId) => {
+            const batchRes = isChurchScope
+              ? await listAllContributions(api, { ...query, batchId })
+              : await listProgramContributions(api, parentProgram!.id, { ...query, batchId })
+            batchGroups.set(batchId, batchRes.contributions)
+          }),
+        )
+
+        const grouped = groupContributionsForApproval(res.contributions, batchGroups)
+        setDisplayRows(grouped)
+        setRows([])
+        setTotalCount(grouped.length)
+        setSummaryTotal(res.summary.pendingTotalAmount)
+      } else {
+        const query = { ...baseQuery, page, pageSize }
+        const res = isChurchScope
+          ? await listAllContributions(api, query)
+          : await listProgramContributions(api, parentProgram!.id, query)
+        setRows(res.contributions)
+        setDisplayRows([])
+        setTotalCount(res.totalCount)
+        setSummaryTotal(res.summary.approvedTotalAmount)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load contributions')
       setRows([])
+      setDisplayRows([])
       setTotalCount(0)
     } finally {
       setLoading(false)
     }
-  }, [api, parentProgram.id, page, pageSize, sortBy, sortDir, debouncedSearch, mode])
+  }, [
+    api,
+    isChurchScope,
+    parentProgram?.id,
+    page,
+    pageSize,
+    sortBy,
+    sortDir,
+    debouncedSearch,
+    mode,
+    canAct,
+  ])
 
   useEffect(() => {
     void load()
@@ -162,10 +246,15 @@ export function ContributionsApprovalTable({
   }
 
   async function handleApprove(contributionId: string, contributionProgramId: string) {
-    await onApprove(contributionId, contributionProgramId)
-    setViewTarget(null)
-    await load()
-    onSummaryChange?.()
+    setPendingAction('approve')
+    try {
+      await onApprove(contributionId, contributionProgramId)
+      setViewTarget(null)
+      await load()
+      onSummaryChange?.()
+    } finally {
+      setPendingAction(null)
+    }
   }
 
   async function handleReject(
@@ -173,11 +262,45 @@ export function ContributionsApprovalTable({
     contributionProgramId: string,
     reason: string | null,
   ) {
-    await onReject(contributionId, contributionProgramId, reason)
-    setRejectTarget(null)
-    setViewTarget(null)
-    await load()
-    onSummaryChange?.()
+    setPendingAction('reject')
+    try {
+      await onReject(contributionId, contributionProgramId, reason)
+      setRejectTarget(null)
+      setViewTarget(null)
+      await load()
+      onSummaryChange?.()
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  async function handleRejectBatch(contributions: Contribution[], reason: string | null) {
+    setPendingAction('reject')
+    try {
+      for (const row of contributions) {
+        await onReject(row.id, row.programId, reason)
+      }
+      setRejectBatchTarget(null)
+      setBatchTarget(null)
+      await load()
+      onSummaryChange?.()
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  async function handleApproveBatch(contributions: Contribution[]) {
+    setPendingAction('approve')
+    try {
+      for (const row of contributions) {
+        await onApprove(row.id, row.programId)
+      }
+      setBatchTarget(null)
+      await load()
+      onSummaryChange?.()
+    } finally {
+      setPendingAction(null)
+    }
   }
 
   async function handleApproveSubGiving(programId: string) {
@@ -198,12 +321,17 @@ export function ContributionsApprovalTable({
   const title = mode === 'pending' ? 'Pending approval' : 'Approved giving'
   const description =
     mode === 'pending'
-      ? 'Review sub-givings and member submissions awaiting your decision.'
-      : 'Audit trail of approved amounts — includes contributions logged on sub-givings.'
+      ? isChurchScope
+        ? 'Review member submissions and sub-givings awaiting your decision across all campaigns.'
+        : 'Review sub-givings and member submissions awaiting your decision.'
+      : isChurchScope
+        ? 'Approved amounts across all campaigns in your scope.'
+        : 'Audit trail of approved amounts — includes contributions logged on sub-givings.'
 
   const columns = useMemo(() => {
     const base = [
-      ...(showSubGivingColumn ? [{ id: 'subGiving', label: 'Sub giving' }] : []),
+      ...(isChurchScope ? [{ id: 'campaign', label: 'Campaign' }] : []),
+      ...(showSubGivingColumn && !isChurchScope ? [{ id: 'subGiving', label: 'Sub giving' }] : []),
       { id: 'memberName', label: 'Member' },
       { id: 'amount', label: 'Amount' },
       { id: 'dateSent', label: 'Date sent' },
@@ -215,8 +343,11 @@ export function ContributionsApprovalTable({
         { id: 'approvedByName', label: 'Approved by' },
       ]
     }
+    if (usePastorPendingColumns) {
+      return [...base, { id: 'submittedBy', label: 'Submitted' }, { id: 'pfcc', label: 'PFCC' }]
+    }
     return [...base, { id: 'createdAt', label: 'Submitted' }, { id: 'enteredBy', label: 'Logged by' }]
-  }, [mode, showSubGivingColumn])
+  }, [mode, showSubGivingColumn, isChurchScope, usePastorPendingColumns])
 
   const colSpan = columns.length + 1
   const showSubGivingsOnPage = page === 1 && filteredSubGivings.length > 0
@@ -252,7 +383,9 @@ export function ContributionsApprovalTable({
                     <th key={column.id} className="px-4 py-3 text-left">
                       {column.id === 'enteredBy' ||
                       column.id === 'approvedByName' ||
-                      column.id === 'subGiving' ? (
+                      column.id === 'subGiving' ||
+                      column.id === 'submittedBy' ||
+                      column.id === 'pfcc' ? (
                         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           {column.label}
                         </span>
@@ -288,7 +421,7 @@ export function ContributionsApprovalTable({
                           key={`sub-${subGiving.id}`}
                           className="border-b border-border/40 bg-amber-500/[0.04] hover:bg-amber-500/[0.07]"
                         >
-                          {showSubGivingColumn && (
+                          {isChurchScope ? (
                             <td className="px-4 py-3">
                               <div className="space-y-1">
                                 <p className="font-medium">{subGiving.title}</p>
@@ -303,18 +436,53 @@ export function ContributionsApprovalTable({
                                 </Badge>
                               </div>
                             </td>
+                          ) : (
+                            showSubGivingColumn && (
+                              <td className="px-4 py-3">
+                                <div className="space-y-1">
+                                  <p className="font-medium">{subGiving.title}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {subGiving.periodLabel}
+                                  </p>
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-300/60 bg-amber-500/10 text-[10px] uppercase tracking-wide text-amber-900"
+                                  >
+                                    Sub-giving
+                                  </Badge>
+                                </div>
+                              </td>
+                            )
                           )}
                           <td className="px-4 py-3 text-muted-foreground">
-                            {programCreatorLabel(subGiving)}
+                            {usePastorPendingColumns ? '—' : programCreatorLabel(subGiving)}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">—</td>
                           <td className="px-4 py-3 text-muted-foreground">—</td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {formatGivingDateTime(subGiving.createdAt)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <ProgramApprovalBadge status={subGiving.approvalStatus} />
-                          </td>
+                          {mode === 'approved' ? (
+                            <>
+                              <td className="px-4 py-3 text-muted-foreground">—</td>
+                              <td className="px-4 py-3 text-muted-foreground">—</td>
+                            </>
+                          ) : usePastorPendingColumns ? (
+                            <>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {programSubmittedByLabel(subGiving)}
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {nodePfccName(tree, subGiving.scopeNodeId)}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {formatGivingDateTime(subGiving.createdAt)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <ProgramApprovalBadge status={subGiving.approvalStatus} />
+                              </td>
+                            </>
+                          )}
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-2">
                               <Button type="button" size="sm" variant="outline" asChild>
@@ -351,22 +519,254 @@ export function ContributionsApprovalTable({
                         </tr>
                       ))}
 
-                    {loading && rows.length === 0 ? (
+                    {loading && (mode === 'pending' ? visibleDisplayRows.length === 0 : rows.length === 0) ? (
                       <tr>
                         <td colSpan={colSpan} className="px-4 py-10 text-center">
                           <InlineSpinner className="mx-auto size-6 text-muted-foreground" />
                         </td>
                       </tr>
-                    ) : rows.length === 0 && !showSubGivingsOnPage ? (
+                    ) : (mode === 'pending' ? visibleDisplayRows.length === 0 : rows.length === 0) &&
+                      !showSubGivingsOnPage ? (
                       <tr>
                         <td colSpan={colSpan} className="px-4 py-10 text-center text-muted-foreground">
                           No {mode === 'pending' ? 'pending' : 'approved'} contributions found.
                         </td>
                       </tr>
+                    ) : mode === 'pending' ? (
+                      visibleDisplayRows.map((entry) =>
+                        entry.kind === 'batch' ? (
+                          (() => {
+                            const summary = summarizeBatch(entry.batchId, entry.contributions)
+                            return (
+                              <tr
+                                key={`batch-${entry.batchId}`}
+                                className="border-b border-border/40 bg-sky-500/[0.03] hover:bg-sky-500/[0.06]"
+                              >
+                                {isChurchScope && (
+                                  <td className="px-4 py-3">
+                                    <p className="font-medium">{summary.programTitle}</p>
+                                    {summary.programPeriodLabel && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {summary.programPeriodLabel}
+                                      </p>
+                                    )}
+                                    <Badge
+                                      variant="outline"
+                                      className="mt-1 border-sky-300/60 bg-sky-500/10 text-[10px] uppercase tracking-wide text-sky-900"
+                                    >
+                                      Bulk batch
+                                    </Badge>
+                                  </td>
+                                )}
+                                {showSubGivingColumn && !isChurchScope && (
+                                  <td className="px-4 py-3 text-muted-foreground">—</td>
+                                )}
+                                <td className="px-4 py-3">
+                                  <p className="font-medium">Bulk · {summary.memberCount} members</p>
+                                </td>
+                                <td className="px-4 py-3 tabular-nums font-semibold">
+                                  {formatAmount(summary.totalAmount, summary.currency)}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {usePastorPendingColumns
+                                    ? formatTableDate(summary.dateSent)
+                                    : formatGivingDate(summary.dateSent)}
+                                </td>
+                                {usePastorPendingColumns ? (
+                                  <>
+                                    <td className="px-4 py-3 text-muted-foreground">
+                                      {contributionSubmittedByLabel(summary)}
+                                    </td>
+                                    <td className="px-4 py-3 text-muted-foreground">
+                                      {memberPfccName(tree, summary.memberParentNodeId)}
+                                    </td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <td className="px-4 py-3 text-muted-foreground">
+                                      {formatGivingDateTime(summary.createdAt)}
+                                    </td>
+                                    <td className="px-4 py-3 text-muted-foreground">
+                                      {contributionSubmittedByLabel(summary)}
+                                    </td>
+                                  </>
+                                )}
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setBatchTarget(entry.contributions)}
+                                    >
+                                      <Eye className="size-3.5" />
+                                      View
+                                    </Button>
+                                    {canAct && (
+                                      <>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          disabled={busy}
+                                          onClick={() => void handleApproveBatch(entry.contributions)}
+                                        >
+                                          <Check className="size-3.5" />
+                                          Approve
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          disabled={busy}
+                                          onClick={() => setRejectBatchTarget(entry.contributions)}
+                                        >
+                                          <X className="size-3.5" />
+                                          Reject
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })()
+                        ) : (
+                          <tr
+                            key={entry.contribution.id}
+                            className="border-b border-border/40 hover:bg-muted/10"
+                          >
+                            {isChurchScope && (
+                              <td className="px-4 py-3">
+                                <p className="font-medium">{entry.contribution.programTitle}</p>
+                                {entry.contribution.programPeriodLabel && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {entry.contribution.programPeriodLabel}
+                                  </p>
+                                )}
+                                {entry.contribution.isSubGiving && (
+                                  <Badge variant="outline" className="mt-1 text-[10px] uppercase tracking-wide">
+                                    Sub-giving
+                                  </Badge>
+                                )}
+                                {entry.contribution.isLegacyParentContribution && (
+                                  <div className="mt-1">
+                                    <LegacyParentContributionBadge />
+                                  </div>
+                                )}
+                              </td>
+                            )}
+                            {showSubGivingColumn && !isChurchScope && (
+                              <td className="px-4 py-3">
+                                {entry.contribution.isLegacyParentContribution ? (
+                                  <LegacyParentContributionBadge />
+                                ) : entry.contribution.isSubGiving ? (
+                                  <div className="space-y-1">
+                                    <p className="font-medium text-foreground">
+                                      {contributionSubGivingLabel(entry.contribution)}
+                                    </p>
+                                    <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                                      Sub-giving
+                                    </Badge>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 font-medium">{entry.contribution.memberName}</td>
+                            <td className="px-4 py-3 tabular-nums">
+                              {formatAmount(entry.contribution.amount, entry.contribution.currency)}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {usePastorPendingColumns
+                                ? formatTableDate(entry.contribution.dateSent)
+                                : formatGivingDate(entry.contribution.dateSent)}
+                            </td>
+                            {usePastorPendingColumns ? (
+                              <>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {contributionSubmittedByLabel(entry.contribution)}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {memberPfccName(tree, entry.contribution.memberParentNodeId)}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {formatGivingDateTime(entry.contribution.createdAt)}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {contributionEntererLabel(entry.contribution)}
+                                </td>
+                              </>
+                            )}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setViewTarget(entry.contribution)}
+                                >
+                                  <Eye className="size-3.5" />
+                                  View
+                                </Button>
+                                {canAct && (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void handleApprove(
+                                          entry.contribution.id,
+                                          entry.contribution.programId,
+                                        )
+                                      }
+                                    >
+                                      <Check className="size-3.5" />
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={busy}
+                                      onClick={() => setRejectTarget(entry.contribution)}
+                                    >
+                                      <X className="size-3.5" />
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ),
+                      )
                     ) : (
                       rows.map((row) => (
                         <tr key={row.id} className="border-b border-border/40 hover:bg-muted/10">
-                          {showSubGivingColumn && (
+                          {isChurchScope && (
+                            <td className="px-4 py-3">
+                              <p className="font-medium">{row.programTitle}</p>
+                              {row.programPeriodLabel && (
+                                <p className="text-xs text-muted-foreground">{row.programPeriodLabel}</p>
+                              )}
+                              {row.isSubGiving && (
+                                <Badge variant="outline" className="mt-1 text-[10px] uppercase tracking-wide">
+                                  Sub-giving
+                                </Badge>
+                              )}
+                              {row.isLegacyParentContribution && (
+                                <div className="mt-1">
+                                  <LegacyParentContributionBadge />
+                                </div>
+                              )}
+                            </td>
+                          )}
+                          {showSubGivingColumn && !isChurchScope && (
                             <td className="px-4 py-3">
                               {row.isLegacyParentContribution ? (
                                 <LegacyParentContributionBadge />
@@ -389,7 +789,9 @@ export function ContributionsApprovalTable({
                             {formatAmount(row.amount, row.currency)}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">
-                            {formatGivingDate(row.dateSent)}
+                            {usePastorPendingColumns
+                              ? formatTableDate(row.dateSent)
+                              : formatGivingDate(row.dateSent)}
                           </td>
                           {mode === 'approved' ? (
                             <>
@@ -398,6 +800,15 @@ export function ContributionsApprovalTable({
                               </td>
                               <td className="px-4 py-3 text-muted-foreground">
                                 {row.approvedByName ?? '—'}
+                              </td>
+                            </>
+                          ) : usePastorPendingColumns ? (
+                            <>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {contributionSubmittedByLabel(row)}
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {memberPfccName(tree, row.memberParentNodeId)}
                               </td>
                             </>
                           ) : (
@@ -472,10 +883,37 @@ export function ContributionsApprovalTable({
         viewerRole={viewerRole}
         canAct={mode === 'pending' && canAct}
         busy={busy}
+        pendingAction={pendingAction}
         onApprove={
           viewTarget ? () => void handleApprove(viewTarget.id, viewTarget.programId) : undefined
         }
         onReject={viewTarget ? () => setRejectTarget(viewTarget) : undefined}
+      />
+
+      <ContributionBulkBatchModal
+        open={batchTarget !== null}
+        onOpenChange={(open) => !open && setBatchTarget(null)}
+        contributions={batchTarget ?? []}
+        tree={tree}
+        viewerRole={viewerRole}
+        canAct={mode === 'pending' && canAct}
+        busy={busy}
+        pendingAction={pendingAction}
+        onApprove={
+          batchTarget ? () => void handleApproveBatch(batchTarget) : undefined
+        }
+        onReject={batchTarget ? () => setRejectBatchTarget(batchTarget) : undefined}
+      />
+
+      <RejectContributionModal
+        open={rejectBatchTarget !== null}
+        onOpenChange={(open) => !open && setRejectBatchTarget(null)}
+        memberName={`Bulk batch · ${rejectBatchTarget?.length ?? 0} members`}
+        busy={busy}
+        onConfirm={(reason) => {
+          if (!rejectBatchTarget) return
+          void handleRejectBatch(rejectBatchTarget, reason)
+        }}
       />
 
       <RejectContributionModal

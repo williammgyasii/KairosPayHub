@@ -17,6 +17,7 @@ const sampleRows: StructureMemberRow[] = [
     path: 'PFCC 1 / Titans / Cell 1',
     parentNodeId: 'cell-1',
     position: 'Member',
+    responsiveness: 3,
     structure: [
       {
         layerId: 'pfcc',
@@ -46,6 +47,7 @@ const sampleRows: StructureMemberRow[] = [
     path: 'PFCC 1 / Cell 1',
     parentNodeId: 'cell-1',
     position: 'CellLeader',
+    responsiveness: 5,
     structure: [
       {
         layerId: 'pfcc',

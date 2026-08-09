@@ -38,7 +38,8 @@ public record StructureMemberDto(
     string? Residence,
     string? OccupationStatus,
     string? SchoolOrWorkplace,
-    string Position);
+    string Position,
+    int Responsiveness);
 
 public record StructureMemberListResponse(
     IReadOnlyList<StructureMemberDto> Items,
@@ -170,6 +171,32 @@ public record ContributionListResponse(
     int PageSize,
     ContributionListSummary Summary);
 
+public record MemberGivingTotalDto(
+    int Rank,
+    Guid MemberId,
+    string MemberName,
+    Guid MemberParentNodeId,
+    decimal ApprovedTotal,
+    int ApprovedCount,
+    int PendingCount,
+    decimal PendingTotal,
+    DateTimeOffset? LastDateSent);
+
+public record MemberGivingTotalsSummary(
+    decimal ApprovedTotalAmount,
+    int MemberCount,
+    int GiversCount,
+    int ApprovedPaymentCount,
+    int PendingCount,
+    decimal PendingTotalAmount);
+
+public record MemberGivingTotalsResponse(
+    IReadOnlyList<MemberGivingTotalDto> Members,
+    int TotalCount,
+    int Page,
+    int PageSize,
+    MemberGivingTotalsSummary Summary);
+
 public record GivingAttachmentDto(string AttachmentKey, string Url);
 
 public record GivingRollupRowDto(
@@ -249,7 +276,8 @@ public record CreateStructureMemberRequest(
     string? Residence,
     string? OccupationStatus,
     string? SchoolOrWorkplace,
-    string? Position);
+    string? Position,
+    int? Responsiveness);
 
 public record UpdateStructureMemberRequest(
     string Name,
@@ -261,7 +289,8 @@ public record UpdateStructureMemberRequest(
     string? Residence,
     string? OccupationStatus,
     string? SchoolOrWorkplace,
-    string? Position);
+    string? Position,
+    int? Responsiveness);
 
 // Legacy DTOs kept for reference during frontend migration
 public record PfccDto(Guid Id, string Name);

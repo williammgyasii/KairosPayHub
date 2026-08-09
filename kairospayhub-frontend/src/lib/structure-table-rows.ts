@@ -52,6 +52,7 @@ export type StructureMemberRow = {
   path: string
   parentNodeId: string
   position: MemberPosition
+  responsiveness: number
   structure: StructureSegment[]
 }
 
@@ -94,6 +95,7 @@ export function buildMemberRows(tree: StructureTree): StructureMemberRow[] {
         path,
         parentNodeId: m.parentNodeId,
         position: (m.position as MemberPosition) || 'Member',
+        responsiveness: m.responsiveness ?? 3,
         structure,
       }
     })

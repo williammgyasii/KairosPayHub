@@ -8,6 +8,7 @@ import {
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isSidebarNavItemActive } from '@/lib/sidebar-nav'
 import { isPastor, isScopedLeader, type Me } from '@/api/me'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -35,6 +36,17 @@ type NavEntry =
   | ({ kind: 'item' } & NavItem)
   | ({ kind: 'group' } & NavGroup)
 
+const GIVINGS_NAV_GROUP: NavEntry = {
+  kind: 'group',
+  label: 'Givings',
+  icon: Gift,
+  children: [
+    { to: 'givings', label: 'Campaigns', end: true },
+    { to: 'givings/transactions', label: 'Transactions', end: true },
+    { to: 'givings/overall', label: 'Overall givings', end: true },
+  ],
+}
+
 const NAV: NavEntry[] = [
   { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
   { kind: 'item', to: 'structure', label: 'Structure', icon: Network, end: true },
@@ -47,13 +59,13 @@ const NAV: NavEntry[] = [
       { to: 'roster/membership', label: 'Membership', end: true },
     ],
   },
-  { kind: 'item', to: 'givings', label: 'Givings', icon: Gift },
+  GIVINGS_NAV_GROUP,
   { kind: 'item', to: 'settings', label: 'Settings', icon: Settings, end: true },
 ]
 
 const LEADER_NAV: NavEntry[] = [
   { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
-  { kind: 'item', to: 'givings', label: 'Givings', icon: Gift },
+  GIVINGS_NAV_GROUP,
 ]
 
 const SCOPED_LEADER_NAV: NavEntry[] = [
@@ -67,7 +79,7 @@ const SCOPED_LEADER_NAV: NavEntry[] = [
       { to: 'roster/membership', label: 'Membership', end: true },
     ],
   },
-  { kind: 'item', to: 'givings', label: 'Givings', icon: Gift },
+  GIVINGS_NAV_GROUP,
 ]
 
 function navForRole(role: string): NavEntry[] {
@@ -76,28 +88,8 @@ function navForRole(role: string): NavEntry[] {
   return LEADER_NAV
 }
 
-function normalizePath(pathname: string) {
-  if (pathname.length > 1 && pathname.endsWith('/')) {
-    return pathname.slice(0, -1)
-  }
-  return pathname
-}
-
-function isNavItemActive(pathname: string, item: Pick<NavItem, 'to' | 'end'>) {
-  const current = normalizePath(pathname)
-
-  const target =
-    item.to === '.' || item.to === ''
-      ? '/'
-      : `/${item.to.replace(/^\//, '')}`
-
-  if (item.end ?? false) return current === target
-  return current === target || current.startsWith(`${target}/`)
-}
-
 function isNavGroupActive(pathname: string, group: NavGroup) {
-  if (group.label === 'Roster' && pathname.startsWith('/roster/units/')) return true
-  return group.children.some((child) => isNavItemActive(pathname, child))
+  return group.children.some((child) => isSidebarNavItemActive(pathname, child))
 }
 
 interface AppSidebarProps {
@@ -230,7 +222,7 @@ function SidebarNavItem({
   collapsed: boolean
 }) {
   const { pathname } = useLocation()
-  const isActive = isNavItemActive(pathname, item)
+  const isActive = isSidebarNavItemActive(pathname, item)
   const Icon = item.icon
 
   const link = (
@@ -319,7 +311,7 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
       </div>
       <div className="ml-3 space-y-0.5 border-l border-border/60 pl-2">
         {group.children.map((child) => {
-          const childActive = isNavItemActive(pathname, child)
+          const childActive = isSidebarNavItemActive(pathname, child)
           return (
             <NavLink
               key={child.to}

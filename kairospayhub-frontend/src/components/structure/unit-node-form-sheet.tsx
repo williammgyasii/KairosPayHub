@@ -410,7 +410,12 @@ function UnitNodeForm({
         <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={busy || !canSubmit}>
+        <Button
+          type="submit"
+          loading={busy}
+          loadingLabel={row ? 'Saving…' : 'Adding…'}
+          disabled={!canSubmit}
+        >
           {row ? 'Save changes' : `Add ${layer.displayName.toLowerCase()}`}
         </Button>
       </div>

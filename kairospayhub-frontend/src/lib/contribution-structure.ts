@@ -61,6 +61,16 @@ function findAncestorByLayerType(
   return undefined
 }
 
+export function memberPfccName(tree: StructureTree | null, memberParentNodeId: string): string {
+  if (!tree) return '—'
+  return findAncestorByLayerType(tree, memberParentNodeId, 'PFCC')?.name ?? '—'
+}
+
+export function nodePfccName(tree: StructureTree | null, nodeId: string | null | undefined): string {
+  if (!tree || !nodeId) return '—'
+  return findAncestorByLayerType(tree, nodeId, 'PFCC')?.name ?? '—'
+}
+
 export function enrichContribution(
   tree: StructureTree | null,
   contribution: Contribution,

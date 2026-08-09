@@ -81,11 +81,20 @@ export type ContributionListResult = {
 export type ContributionListQuery = {
   page?: number
   pageSize?: number
-  sortBy?: 'createdAt' | 'dateSent' | 'amount' | 'memberName' | 'status' | 'approvedAt'
+  sortBy?:
+    | 'createdAt'
+    | 'dateSent'
+    | 'amount'
+    | 'memberName'
+    | 'status'
+    | 'approvedAt'
+    | 'programTitle'
   sortDir?: 'asc' | 'desc'
   status?: ContributionStatus
   search?: string
   awaitingMyApproval?: boolean
+  programId?: string
+  batchId?: string
 }
 
 function summarizeContributions(contributions: Contribution[]): ContributionListSummary {
@@ -254,12 +263,122 @@ export async function listProgramContributions(
   if (query.status) params.set('status', query.status)
   if (query.search?.trim()) params.set('search', query.search.trim())
   if (query.awaitingMyApproval) params.set('awaitingMyApproval', 'true')
+  if (query.batchId) params.set('batchId', query.batchId)
 
   const qs = params.toString()
   const data = await api.get<Partial<ContributionListResult>>(
     `/api/giving/programs/${programId}/contributions${qs ? `?${qs}` : ''}`,
   )
   return normalizeContributionListResult(data)
+}
+
+export async function listAllContributions(api: ApiClient, query: ContributionListQuery = {}) {
+  const params = new URLSearchParams()
+  if (query.page) params.set('page', String(query.page))
+  if (query.pageSize) params.set('pageSize', String(query.pageSize))
+  if (query.sortBy) params.set('sortBy', query.sortBy)
+  if (query.sortDir) params.set('sortDir', query.sortDir)
+  if (query.status) params.set('status', query.status)
+  if (query.search?.trim()) params.set('search', query.search.trim())
+  if (query.awaitingMyApproval) params.set('awaitingMyApproval', 'true')
+  if (query.programId) params.set('programId', query.programId)
+  if (query.batchId) params.set('batchId', query.batchId)
+
+  const qs = params.toString()
+  const data = await api.get<Partial<ContributionListResult>>(
+    `/api/giving/contributions${qs ? `?${qs}` : ''}`,
+  )
+  return normalizeContributionListResult(data)
+}
+
+export type MemberGivingTotal = {
+  rank: number
+  memberId: string
+  memberName: string
+  memberParentNodeId: string
+  approvedTotal: number
+  approvedCount: number
+  pendingCount: number
+  pendingTotal: number
+  lastDateSent: string | null
+}
+
+export type MemberGivingTotalsSummary = {
+  approvedTotalAmount: number
+  memberCount: number
+  giversCount: number
+  approvedPaymentCount: number
+  pendingCount: number
+  pendingTotalAmount: number
+}
+
+export type MemberGivingTotalsResult = {
+  members: MemberGivingTotal[]
+  totalCount: number
+  page: number
+  pageSize: number
+  summary: MemberGivingTotalsSummary
+}
+
+export type MemberGivingTotalsQuery = {
+  page?: number
+  pageSize?: number
+  sortBy?: 'approvedTotal' | 'memberName' | 'approvedCount' | 'pendingCount' | 'lastDateSent'
+  sortDir?: 'asc' | 'desc'
+  search?: string
+  programId?: string
+}
+
+export async function listMemberGivingTotals(
+  api: ApiClient,
+  query: MemberGivingTotalsQuery = {},
+) {
+  const params = new URLSearchParams()
+  if (query.page) params.set('page', String(query.page))
+  if (query.pageSize) params.set('pageSize', String(query.pageSize))
+  if (query.sortBy) params.set('sortBy', query.sortBy)
+  if (query.sortDir) params.set('sortDir', query.sortDir)
+  if (query.search?.trim()) params.set('search', query.search.trim())
+  if (query.programId) params.set('programId', query.programId)
+
+  const qs = params.toString()
+  const data = await api.get<{
+    members?: Array<Record<string, unknown>>
+    totalCount?: number
+    page?: number
+    pageSize?: number
+    summary?: Partial<MemberGivingTotalsSummary>
+  }>(`/api/giving/member-totals${qs ? `?${qs}` : ''}`)
+
+  const members = (data?.members ?? []).map((row) => ({
+    rank: Number(row.rank ?? row.Rank ?? 0),
+    memberId: String(row.memberId ?? row.MemberId ?? ''),
+    memberName: String(row.memberName ?? row.MemberName ?? 'Member'),
+    memberParentNodeId: String(row.memberParentNodeId ?? row.MemberParentNodeId ?? ''),
+    approvedTotal: Number(row.approvedTotal ?? row.ApprovedTotal ?? 0),
+    approvedCount: Number(row.approvedCount ?? row.ApprovedCount ?? 0),
+    pendingCount: Number(row.pendingCount ?? row.PendingCount ?? 0),
+    pendingTotal: Number(row.pendingTotal ?? row.PendingTotal ?? 0),
+    lastDateSent: (row.lastDateSent ?? row.LastDateSent ?? null) as string | null,
+  }))
+
+  const summary = data?.summary
+  return {
+    members,
+    totalCount: data?.totalCount ?? members.length,
+    page: data?.page ?? 1,
+    pageSize: data?.pageSize ?? (members.length || 25),
+    summary: {
+      approvedTotalAmount: Number(summary?.approvedTotalAmount ?? 0),
+      memberCount: Number(summary?.memberCount ?? 0),
+      giversCount: Number(summary?.giversCount ?? 0),
+      approvedPaymentCount: Number(
+        summary?.approvedPaymentCount ?? summary?.ApprovedPaymentCount ?? 0,
+      ),
+      pendingCount: Number(summary?.pendingCount ?? 0),
+      pendingTotalAmount: Number(summary?.pendingTotalAmount ?? 0),
+    },
+  } satisfies MemberGivingTotalsResult
 }
 
 export async function createContribution(

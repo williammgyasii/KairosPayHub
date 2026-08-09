@@ -896,6 +896,7 @@ public class StructureService(
 
     public async Task<StructureMemberDto> CreateMemberAsync(
         Actor actor,
+        Guid authUserId,
         string name,
         Guid parentNodeId,
         string? email,
@@ -906,9 +907,10 @@ public class StructureService(
         MemberOccupationStatus? occupationStatus,
         string? schoolOrWorkplace,
         MemberPosition position,
+        int? responsiveness,
         CancellationToken ct = default)
     {
-        RequirePastor(actor);
+        await RequireMemberManageAsync(actor, authUserId, parentNodeId, ct);
         var churchId = RequireStructureChurch(actor);
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
@@ -932,6 +934,7 @@ public class StructureService(
             Name = name.Trim(),
             Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim(),
             Position = position,
+            Responsiveness = ParseMemberResponsiveness(responsiveness),
         };
         ApplyMemberProfile(member, phone, dateOfBirth, residence, occupationStatus, schoolOrWorkplace);
         if (member.Age is null && age is not null)
@@ -954,7 +957,8 @@ public class StructureService(
             member.Residence,
             member.OccupationStatus?.ToString(),
             member.SchoolOrWorkplace,
-            member.Position.ToString());
+            member.Position.ToString(),
+            member.Responsiveness);
 
     private static IQueryable<Member> ApplyMemberSort(
         IQueryable<Member> query,
@@ -986,6 +990,15 @@ public class StructureService(
         if (!Enum.TryParse<MemberOccupationStatus>(value.Trim(), ignoreCase: true, out var parsed))
             throw new BadRequestException("Invalid occupation status");
         return parsed;
+    }
+
+    public static int ParseMemberResponsiveness(int? value)
+    {
+        if (value is null)
+            return 3;
+        if (value is < 1 or > 5)
+            throw new BadRequestException("Responsiveness must be between 1 and 5");
+        return value.Value;
     }
 
     private static void ApplyMemberProfile(
@@ -1031,16 +1044,18 @@ public class StructureService(
 
     public async Task<StructureMemberDto> LinkMemberAsync(
         Actor actor,
+        Guid authUserId,
         Guid memberId,
         Guid parentNodeId,
         CancellationToken ct = default)
     {
-        RequirePastor(actor);
         var churchId = RequireStructureChurch(actor);
 
         var member = await db.ChurchMembers
             .SingleOrDefaultAsync(m => m.Id == memberId && m.ChurchId == churchId, ct)
             ?? throw new ForbiddenException("Member not found in your church");
+
+        await RequireMemberManageAsync(actor, authUserId, member.ParentNodeId, ct);
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
             ?? throw new BadRequestException("Structure template is not defined");
@@ -1053,6 +1068,8 @@ public class StructureService(
         if (parentNode.LayerId != deepestLayer.Id)
             throw new BadRequestException("Members must be placed on the deepest org layer");
 
+        await RequireMemberManageAsync(actor, authUserId, parentNodeId, ct);
+
         member.ParentNodeId = parentNodeId;
         await db.SaveChangesAsync(ct);
 
@@ -1061,6 +1078,7 @@ public class StructureService(
 
     public async Task<StructureMemberDto> UpdateMemberAsync(
         Actor actor,
+        Guid authUserId,
         Guid memberId,
         string name,
         Guid parentNodeId,
@@ -1072,14 +1090,16 @@ public class StructureService(
         MemberOccupationStatus? occupationStatus,
         string? schoolOrWorkplace,
         MemberPosition position,
+        int? responsiveness,
         CancellationToken ct = default)
     {
-        RequirePastor(actor);
         var churchId = RequireStructureChurch(actor);
 
         var member = await db.ChurchMembers
             .SingleOrDefaultAsync(m => m.Id == memberId && m.ChurchId == churchId, ct)
             ?? throw new ForbiddenException("Member not found in your church");
+
+        await RequireMemberManageAsync(actor, authUserId, member.ParentNodeId, ct);
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
             ?? throw new BadRequestException("Structure template is not defined");
@@ -1095,11 +1115,15 @@ public class StructureService(
         if (parentNode.LayerId != deepestLayer.Id)
             throw new BadRequestException("Members must be placed on the deepest org layer");
 
+        await RequireMemberManageAsync(actor, authUserId, parentNodeId, ct);
+
         member.Name = name.Trim();
         member.ParentNodeId = parentNodeId;
         if (member.AuthUserId is null)
             member.Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
         member.Position = position;
+        if (responsiveness is not null)
+            member.Responsiveness = ParseMemberResponsiveness(responsiveness);
         ApplyMemberProfile(member, phone, dateOfBirth, residence, occupationStatus, schoolOrWorkplace);
         if (member.Age is null && age is not null)
             member.Age = age;
@@ -1107,6 +1131,36 @@ public class StructureService(
         await db.SaveChangesAsync(ct);
 
         return ToMemberDto(member);
+    }
+
+    public async Task DeleteMemberAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid memberId,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+
+        var member = await db.ChurchMembers
+            .SingleOrDefaultAsync(m => m.Id == memberId && m.ChurchId == churchId, ct)
+            ?? throw new ForbiddenException("Member not found in your church");
+
+        await RequireMemberManageAsync(actor, authUserId, member.ParentNodeId, ct);
+
+        var hasContributions = await db.Contributions
+            .AnyAsync(c => c.MemberId == memberId, ct);
+        if (hasContributions)
+            throw new BadRequestException(
+                "Cannot remove a member who has giving contributions. Keep their record for audit history.");
+
+        var leaderNodes = await db.StructureNodes
+            .Where(n => n.ChurchId == churchId && n.LeaderMemberId == memberId)
+            .ToListAsync(ct);
+        foreach (var node in leaderNodes)
+            node.LeaderMemberId = null;
+
+        db.ChurchMembers.Remove(member);
+        await db.SaveChangesAsync(ct);
     }
 
     private static StructureNodeDto ToNodeDto(
@@ -1465,5 +1519,20 @@ public class StructureService(
     {
         if (actor.StructureRole != ChurchRole.Pastor && actor.Role != Role.Pastor)
             throw new ForbiddenException("Only a pastor can manage church structure");
+    }
+
+    private async Task RequireMemberManageAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid parentNodeId,
+        CancellationToken ct)
+    {
+        if (givingScope.IsPastor(actor))
+            return;
+
+        if (!givingScope.IsScopedStructureLeader(actor))
+            throw new ForbiddenException("Only a pastor or scoped leader can manage members");
+
+        await givingScope.CanAccessStructureNodeAsync(actor, authUserId, parentNodeId, ct);
     }
 }

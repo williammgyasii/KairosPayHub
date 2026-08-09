@@ -69,6 +69,8 @@ public class Member
     public MemberOccupationStatus? OccupationStatus { get; set; }
     public string? SchoolOrWorkplace { get; set; }
     public MemberPosition Position { get; set; } = MemberPosition.Member;
+    /// <summary>Engagement priority from 1 (cold) to 5 (most active).</summary>
+    public int Responsiveness { get; set; } = 3;
     public DateTimeOffset CreatedAt { get; set; }
 }
 

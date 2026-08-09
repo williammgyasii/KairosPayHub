@@ -59,6 +59,7 @@ export type StructureMember = {
   occupationStatus: MemberOccupationStatus | string | null
   schoolOrWorkplace: string | null
   position: MemberPosition | string
+  responsiveness: number
 }
 
 export type StructureTree = {

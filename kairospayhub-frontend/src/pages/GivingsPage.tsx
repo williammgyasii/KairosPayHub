@@ -116,8 +116,8 @@ export function GivingsPage() {
   return (
     <div className="space-y-6">
       <DashboardPageHeader
-        breadcrumbs={[{ label: 'Overview', to: '/' }, { label: 'Givings' }]}
-        title="Givings"
+        breadcrumbs={[{ label: 'Overview', to: '/' }, { label: 'Givings' }, { label: 'Campaigns' }]}
+        title="Campaigns"
         description={pageDescription}
         actions={
           canCreate ? (

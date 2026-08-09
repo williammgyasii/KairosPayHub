@@ -157,8 +157,12 @@ public class StructureController(CurrentActor current, StructureService structur
             return BadRequest(new { error = "ParentNodeId is required" });
 
         var actor = await current.RequireAsync(ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
         return Ok(await structure.CreateMemberAsync(
             actor,
+            authUserId,
             request.Name,
             request.ParentNodeId,
             request.Email,
@@ -169,6 +173,7 @@ public class StructureController(CurrentActor current, StructureService structur
             StructureService.ParseMemberOccupationStatus(request.OccupationStatus),
             request.SchoolOrWorkplace,
             StructureService.ParseMemberPosition(request.Position),
+            request.Responsiveness,
             ct));
     }
 
@@ -184,8 +189,12 @@ public class StructureController(CurrentActor current, StructureService structur
             return BadRequest(new { error = "ParentNodeId is required" });
 
         var actor = await current.RequireAsync(ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
         return Ok(await structure.UpdateMemberAsync(
             actor,
+            authUserId,
             memberId,
             request.Name,
             request.ParentNodeId,
@@ -197,7 +206,19 @@ public class StructureController(CurrentActor current, StructureService structur
             StructureService.ParseMemberOccupationStatus(request.OccupationStatus),
             request.SchoolOrWorkplace,
             StructureService.ParseMemberPosition(request.Position),
+            request.Responsiveness,
             ct));
+    }
+
+    [HttpDelete("members/{memberId:guid}")]
+    public async Task<IActionResult> DeleteMember(Guid memberId, CancellationToken ct)
+    {
+        var actor = await current.RequireAsync(ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        await structure.DeleteMemberAsync(actor, authUserId, memberId, ct);
+        return NoContent();
     }
 
     [HttpPatch("members/{memberId:guid}/link")]
@@ -210,6 +231,9 @@ public class StructureController(CurrentActor current, StructureService structur
             return BadRequest(new { error = "ParentNodeId is required" });
 
         var actor = await current.RequireAsync(ct);
-        return Ok(await structure.LinkMemberAsync(actor, memberId, request.ParentNodeId, ct));
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        return Ok(await structure.LinkMemberAsync(actor, authUserId, memberId, request.ParentNodeId, ct));
     }
 }

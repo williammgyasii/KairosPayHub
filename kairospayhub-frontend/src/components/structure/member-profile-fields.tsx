@@ -22,6 +22,7 @@ type FieldProps = {
   phoneId?: string
   className?: string
   requirePhoneAndDob?: boolean
+  sections?: Array<'contact' | 'personal' | 'education'>
 }
 
 export function isRequiredLeaderProfileComplete(
@@ -41,11 +42,16 @@ export function MemberProfileFields({
   phoneId = 'member-phone',
   className,
   requirePhoneAndDob = false,
+  sections = ['contact', 'personal', 'education'],
 }: FieldProps) {
+  const showContact = sections.includes('contact')
+  const showPersonal = sections.includes('personal')
+  const showEducation = sections.includes('education')
   const showSchool =
-    values.occupationStatus === 'Student' ||
-    values.occupationStatus === 'Working' ||
-    values.occupationStatus === 'StudentAndWorking'
+    showEducation &&
+    (values.occupationStatus === 'Student' ||
+      values.occupationStatus === 'Working' ||
+      values.occupationStatus === 'StudentAndWorking')
 
   const schoolLabel =
     values.occupationStatus === 'Working'
@@ -58,77 +64,83 @@ export function MemberProfileFields({
 
   return (
     <div className={cn('space-y-5', className)}>
-      <section className="space-y-3">
-        <SectionHeading title="Contact" />
-        <ProfileField label="Phone number" id={phoneId} required={requirePhoneAndDob}>
-          <PhoneInput
-            id={phoneId}
-            dialCode={values.phoneDialCode}
-            localNumber={values.phoneLocal}
-            onDialCodeChange={(phoneDialCode) => onChange({ phoneDialCode })}
-            onLocalNumberChange={(phoneLocal) => onChange({ phoneLocal })}
-            required={requirePhoneAndDob}
-          />
-        </ProfileField>
-      </section>
-
-      <section className="space-y-3">
-        <SectionHeading title="Personal" />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ProfileField label="Date of birth" id="member-dob" required={requirePhoneAndDob}>
-            <DatePicker
-              id="member-dob"
-              value={values.dateOfBirth}
-              onChange={(dateOfBirth) => onChange({ dateOfBirth })}
-              placeholder="Select date of birth"
+      {showContact && (
+        <section className="space-y-3">
+          <SectionHeading title="Contact" />
+          <ProfileField label="Phone number" id={phoneId} required={requirePhoneAndDob}>
+            <PhoneInput
+              id={phoneId}
+              dialCode={values.phoneDialCode}
+              localNumber={values.phoneLocal}
+              onDialCodeChange={(phoneDialCode) => onChange({ phoneDialCode })}
+              onLocalNumberChange={(phoneLocal) => onChange({ phoneLocal })}
               required={requirePhoneAndDob}
             />
           </ProfileField>
-          <ProfileField label="Residence / location" id="member-residence">
-            <Input
-              id="member-residence"
-              value={values.residence}
-              onChange={(e) => onChange({ residence: e.target.value })}
-              placeholder="City, area, or address"
-            />
-          </ProfileField>
-        </div>
-      </section>
+        </section>
+      )}
 
-      <section className="space-y-3">
-        <SectionHeading title="Education & work" />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ProfileField label="Status" id="member-occupation">
-            <select
-              id="member-occupation"
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={values.occupationStatus}
-              onChange={(e) =>
-                onChange({ occupationStatus: e.target.value as MemberOccupationStatus | '' })
-              }
-            >
-              <option value="">Select…</option>
-              {MEMBER_OCCUPATION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </ProfileField>
-          {showSchool && (
-            <ProfileField label={schoolLabel} id="member-school">
-              <Input
-                id="member-school"
-                value={values.schoolOrWorkplace}
-                onChange={(e) => onChange({ schoolOrWorkplace: e.target.value })}
-                placeholder={
-                  values.occupationStatus === 'Working' ? 'Company or role' : 'School name'
-                }
+      {showPersonal && (
+        <section className="space-y-3">
+          <SectionHeading title="Personal" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ProfileField label="Date of birth" id="member-dob" required={requirePhoneAndDob}>
+              <DatePicker
+                id="member-dob"
+                value={values.dateOfBirth}
+                onChange={(dateOfBirth) => onChange({ dateOfBirth })}
+                placeholder="Select date of birth"
+                required={requirePhoneAndDob}
               />
             </ProfileField>
-          )}
-        </div>
-      </section>
+            <ProfileField label="Residence / location" id="member-residence">
+              <Input
+                id="member-residence"
+                value={values.residence}
+                onChange={(e) => onChange({ residence: e.target.value })}
+                placeholder="City, area, or address"
+              />
+            </ProfileField>
+          </div>
+        </section>
+      )}
+
+      {showEducation && (
+        <section className="space-y-3">
+          <SectionHeading title="Education & work" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ProfileField label="Status" id="member-occupation">
+              <select
+                id="member-occupation"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={values.occupationStatus}
+                onChange={(e) =>
+                  onChange({ occupationStatus: e.target.value as MemberOccupationStatus | '' })
+                }
+              >
+                <option value="">Select…</option>
+                {MEMBER_OCCUPATION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </ProfileField>
+            {showSchool && (
+              <ProfileField label={schoolLabel} id="member-school">
+                <Input
+                  id="member-school"
+                  value={values.schoolOrWorkplace}
+                  onChange={(e) => onChange({ schoolOrWorkplace: e.target.value })}
+                  placeholder={
+                    values.occupationStatus === 'Working' ? 'Company or role' : 'School name'
+                  }
+                />
+              </ProfileField>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

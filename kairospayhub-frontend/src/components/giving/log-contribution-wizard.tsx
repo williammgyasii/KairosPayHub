@@ -6,7 +6,17 @@ import { createContribution, uploadGivingAttachment } from '@/api/giving'
 import type { ChurchRole } from '@/api/me'
 import type { StructureTree } from '@/api/structure'
 import { GivingMemberPicker } from '@/components/giving/giving-member-picker'
-import { REMITTANCE_MEDIUM_OPTIONS } from '@/lib/giving-ui'
+import { RemittanceDestinationField } from '@/components/giving/remittance-destination-field'
+import {
+  bulkBatchDetailsDescription,
+  bulkPendingApprovalLabel,
+  bulkRemittanceAmountLabel,
+  bulkRemittanceFirstStepLabel,
+  bulkRemittanceQuestion,
+  bulkRemittanceTargetLabel,
+  bulkSubmitLabel,
+  type ChurchPaymentMode,
+} from '@/lib/giving-ui'
 import {
   WizardField,
   WizardFooter,
@@ -44,6 +54,7 @@ interface LogContributionWizardProps {
   meRole: ChurchRole | 'Leader'
   tree: StructureTree | null
   scopeNodeId?: string | null
+  paymentModes?: ChurchPaymentMode[]
   disabled?: boolean
   className?: string
   onLogged: () => void | Promise<void>
@@ -51,7 +62,6 @@ interface LogContributionWizardProps {
 
 const MODE_STEP = ['How to log'] as const
 const SINGLE_STEPS = ['Member, amount & proof'] as const
-const BULK_STEPS = ['Pastor remittance', 'Who gave what', 'Where & proof'] as const
 
 export function LogContributionWizard({
   api,
@@ -59,6 +69,7 @@ export function LogContributionWizard({
   meRole,
   tree,
   scopeNodeId,
+  paymentModes = [],
   disabled,
   className,
   onLogged,
@@ -88,11 +99,21 @@ export function LogContributionWizard({
   const [receipt, setReceipt] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
+  const bulkSteps = useMemo(
+    () =>
+      [
+        bulkRemittanceFirstStepLabel(meRole),
+        'Who gave what',
+        'Where & proof',
+      ] as const,
+    [meRole],
+  )
+
   const steps = useMemo(() => {
     if (canBulkLog && mode === null) return [...MODE_STEP]
-    if (mode === 'bulk') return [...BULK_STEPS]
+    if (mode === 'bulk') return [...bulkSteps]
     return [...SINGLE_STEPS]
-  }, [canBulkLog, mode])
+  }, [canBulkLog, mode, bulkSteps])
 
   useEffect(() => {
     if (!receipt) {
@@ -295,10 +316,9 @@ export function LogContributionWizard({
     goNext()
   }
 
-  const submitLabel =
-    meRole === 'PFCCManager' || (mode === 'bulk' && sentToPastor)
-      ? 'Submit for pastor approval'
-      : 'Submit for approval'
+  const remittanceTarget = bulkRemittanceTargetLabel(meRole)
+
+  const submitLabel = bulkSubmitLabel(meRole, mode === 'bulk' && sentToPastor === true)
 
   const submitBusyLabel = submitPhase === 'uploading' ? 'Uploading proof…' : 'Submitting…'
 
@@ -315,7 +335,9 @@ export function LogContributionWizard({
   const modeDescription = success
     ? 'Your submission is pending review. You will be notified when it is approved or rejected.'
     : mode === 'bulk'
-      ? 'Record many members — pastor approval required before amounts count as approved.'
+      ? meRole === 'FellowshipLeader'
+        ? 'Record many members — totals must match what was sent upstream.'
+        : 'Record many members — pastor approval required before amounts count as approved.'
       : mode === 'single'
         ? 'One member, one payment with proof. Submissions stay pending until approved.'
         : canBulkLog
@@ -377,7 +399,7 @@ export function LogContributionWizard({
             <h3 className="mt-4 text-lg font-semibold">Submitted for approval</h3>
             <p className="mt-2 max-w-md text-sm text-muted-foreground">
               {success.mode === 'bulk'
-                ? `${success.memberCount} contributions (GHS ${success.totalAmount.toFixed(2)} total) are pending pastor approval.`
+                ? `${success.memberCount} contributions (GHS ${success.totalAmount.toFixed(2)} total) are ${bulkPendingApprovalLabel(meRole, sentToPastor === true).toLowerCase()}.`
                 : `${success.memberLabel} · GHS ${success.totalAmount.toFixed(2)} is pending approval.`}
             </p>
             {success.proofPreviewUrl && (
@@ -487,7 +509,7 @@ export function LogContributionWizard({
 
           {mode === 'bulk' && step === 0 && (
             <div className="space-y-4">
-              <WizardField label="Has this giving been sent to your pastor?" id="sent-pastor" required>
+              <WizardField label={bulkRemittanceQuestion(meRole)} id="sent-upstream" required>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <ChoiceButton
                     active={sentToPastor === true}
@@ -504,9 +526,9 @@ export function LogContributionWizard({
                 </div>
               </WizardField>
               {sentToPastor && (
-                <WizardField label="How much was sent to pastor? (GHS)" id="pastor-amount" required>
+                <WizardField label={bulkRemittanceAmountLabel(meRole)} id="upstream-amount" required>
                   <Input
-                    id="pastor-amount"
+                    id="upstream-amount"
                     type="number"
                     min="0"
                     step="0.01"
@@ -549,7 +571,7 @@ export function LogContributionWizard({
                     GHS {linesTotal.toFixed(2)}
                     {sentToPastor && (
                       <span className="ml-2 text-muted-foreground">
-                        / GHS {Number(pastorAmount).toFixed(2)} target
+                        / GHS {Number(pastorAmount).toFixed(2)} sent to {remittanceTarget}
                       </span>
                     )}
                   </span>
@@ -598,8 +620,8 @@ export function LogContributionWizard({
 
                 {sentToPastor && memberLines.length > 0 && !totalsMatch && (
                   <p className="text-sm text-amber-800">
-                    Member amounts must add up to GHS {Number(pastorAmount).toFixed(2)} before you
-                    can continue.
+                    Member amounts must add up to GHS {Number(pastorAmount).toFixed(2)} sent to your{' '}
+                    {remittanceTarget} before you can continue.
                   </p>
                 )}
               </LogSection>
@@ -608,37 +630,29 @@ export function LogContributionWizard({
 
           {mode === 'bulk' && step === 2 && (
             <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:grid-rows-none">
-              <LogSection title="Batch details" description="When and how the giving was sent." fill>
+              <LogSection
+                title="Batch details"
+                description={bulkBatchDetailsDescription(meRole, sentToPastor === true)}
+                fill
+                scrollable
+              >
                 {sentToPastor && (
-                  <>
-                    <WizardField label="Where was the money sent?" id="remittance-medium" required>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {REMITTANCE_MEDIUM_OPTIONS.map((option) => (
-                          <ChoiceButton
-                            key={option.value}
-                            active={remittanceMedium === option.value}
-                            onClick={() => setRemittanceMedium(option.value)}
-                          >
-                            {option.label}
-                          </ChoiceButton>
-                        ))}
-                      </div>
-                    </WizardField>
-                    {remittanceMedium === 'Other' && (
-                      <WizardField label="Describe where it was sent" id="remittance-other" required>
-                        <Input
-                          id="remittance-other"
-                          value={remittanceMediumOther}
-                          disabled={disabled || busy}
-                          onChange={(e) => setRemittanceMediumOther(e.target.value)}
-                          placeholder="e.g. Cash to pastor assistant"
-                        />
-                      </WizardField>
-                    )}
-                  </>
+                  <RemittanceDestinationField
+                    role={meRole}
+                    value={remittanceMedium}
+                    otherValue={remittanceMediumOther}
+                    onChange={setRemittanceMedium}
+                    onOtherChange={setRemittanceMediumOther}
+                    disabled={disabled || busy}
+                    paymentModes={paymentModes}
+                  />
                 )}
 
-                <WizardField label="Date sent" id="bulk-date" required>
+                <WizardField
+                  label={sentToPastor ? 'When was the payment sent?' : 'Date collected'}
+                  id="bulk-date"
+                  required
+                >
                   <DatePicker
                     id="bulk-date"
                     value={dateSent}
@@ -662,7 +676,8 @@ export function LogContributionWizard({
                   <p className="font-medium">Review</p>
                   <p className="mt-1 text-muted-foreground">
                     {memberLines.length} member{memberLines.length === 1 ? '' : 's'} · GHS{' '}
-                    {linesTotal.toFixed(2)} · Pending pastor approval
+                    {linesTotal.toFixed(2)} ·{' '}
+                    {bulkPendingApprovalLabel(meRole, sentToPastor === true)}
                   </p>
                 </div>
               </LogSection>
@@ -716,12 +731,14 @@ function LogSection({
   children,
   className,
   fill = false,
+  scrollable = false,
 }: {
   title: string
   description?: string
   children: ReactNode
   className?: string
   fill?: boolean
+  scrollable?: boolean
 }) {
   return (
     <section
@@ -735,7 +752,13 @@ function LogSection({
         <h3 className="text-sm font-semibold">{title}</h3>
         {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
       </div>
-      <div className={cn('flex flex-col gap-3', fill && 'min-h-0 flex-1 overflow-hidden')}>
+      <div
+        className={cn(
+          'flex flex-col gap-3',
+          fill && 'min-h-0 flex-1',
+          scrollable ? 'overflow-y-auto pr-1' : fill && 'overflow-hidden',
+        )}
+      >
         {children}
       </div>
     </section>

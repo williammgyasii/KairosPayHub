@@ -4,6 +4,8 @@ import { PastorRoute } from './auth/PastorRoute'
 import { ScopedLeaderRoute } from './auth/ScopedLeaderRoute'
 import { DashboardRoot } from './pages/Dashboard'
 import { GivingsPage } from './pages/GivingsPage'
+import { OverallGivingsPage } from './pages/OverallGivingsPage'
+import { TransactionsPage } from './pages/TransactionsPage'
 import { ProgramDetailPage } from './pages/ProgramDetailPage'
 import { ProgramStructureContributionsPage } from './pages/ProgramStructureContributionsPage'
 import { MembershipPage, OverviewPage, RosterPage, RosterUnitPage, StructurePage } from './pages/DashboardPages'
@@ -64,6 +66,8 @@ export default function App() {
           }
         />
         <Route path="membership" element={<Navigate to="/roster/membership" replace />} />
+        <Route path="givings/overall" element={<OverallGivingsPage />} />
+        <Route path="givings/transactions" element={<TransactionsPage />} />
         <Route path="givings" element={<GivingsPage />} />
         <Route path="givings/:programId/structure/:nodeId" element={<ProgramStructureContributionsPage />} />
         <Route path="givings/:programId" element={<ProgramDetailPage />} />

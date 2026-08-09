@@ -9,16 +9,19 @@ import {
   type OnChangeFn,
   type SortingState,
 } from '@tanstack/react-table'
-import { ArrowUpDown, Eye, MoreHorizontal, Pencil } from 'lucide-react'
+import { ArrowUpDown, Coins, Eye, FileText, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import type { StructureLayer } from '@/api/structure'
 import { formatOccupationStatus } from '@/lib/member-filters'
 import type { StructureMemberRow } from '@/lib/structure-table-rows'
+import type { MemberDetailTab } from '@/components/structure/member-detail-sheet'
+import { ResponsivenessBadge } from '@/components/structure/responsiveness-badge'
 import { RoleBadge, StructureSegmentBadge } from '@/components/structure/structure-badges'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -30,10 +33,12 @@ interface StructureMemberTableProps {
   title?: string
   description?: string
   emptyMessage?: string
-  onEdit: (member: StructureMemberRow) => void
-  onView?: (member: StructureMemberRow) => void
+  onEdit?: (member: StructureMemberRow) => void
+  onView?: (member: StructureMemberRow, tab?: MemberDetailTab) => void
+  onDelete?: (member: StructureMemberRow) => void
   showSearch?: boolean
   extendedColumns?: boolean
+  compactLayout?: boolean
   hideHeader?: boolean
   toolbar?: ReactNode
   footer?: ReactNode
@@ -54,8 +59,10 @@ export function StructureMemberTable({
   emptyMessage = 'No members yet.',
   onEdit,
   onView,
+  onDelete,
   showSearch = true,
   extendedColumns = false,
+  compactLayout = false,
   hideHeader = false,
   toolbar,
   footer,
@@ -73,8 +80,13 @@ export function StructureMemberTable({
   const setSorting = onSortingChangeProp ?? setLocalSorting
 
   const columns = useMemo(
-    () => createMemberColumns(structureLayers, onEdit, onView, extendedColumns, readOnly),
-    [structureLayers, onEdit, onView, extendedColumns, readOnly],
+    () =>
+      createMemberColumns(
+        structureLayers,
+        { onEdit, onView, onDelete, readOnly },
+        { extendedColumns, compactLayout },
+      ),
+    [structureLayers, onEdit, onView, onDelete, extendedColumns, compactLayout, readOnly],
   )
 
   const table = useReactTable({
@@ -142,8 +154,9 @@ export function StructureMemberTable({
       <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
         <table
           className={cn(
-            'w-max min-w-full text-sm',
-            extendedColumns ? 'min-w-[1200px]' : 'min-w-[760px]',
+            'w-full text-sm',
+            !compactLayout && extendedColumns && 'min-w-[1200px]',
+            !compactLayout && !extendedColumns && 'min-w-[760px]',
           )}
         >
           <thead>
@@ -151,8 +164,7 @@ export function StructureMemberTable({
               <tr key={hg.id} className="border-b border-border/60 bg-muted/20 text-left">
                 {hg.headers.map((header) => (
                   <th key={header.id} className="px-5 py-2.5 font-medium text-muted-foreground">
-                    {header.isPlaceholder ? null : header.column.id === 'actions' ||
-                      header.column.id === 'view' ? null : (
+                    {header.isPlaceholder ? null : header.column.id === 'actions' ? null : (
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 hover:text-foreground"
@@ -199,52 +211,37 @@ export function StructureMemberTable({
 
 function createMemberColumns(
   structureLayers: Pick<StructureLayer, 'id' | 'displayName' | 'standardType'>[],
-  onEdit: (member: StructureMemberRow) => void,
-  onView?: (member: StructureMemberRow) => void,
-  extendedColumns = false,
-  readOnly = false,
+  actions: {
+    onEdit?: (member: StructureMemberRow) => void
+    onView?: (member: StructureMemberRow, tab?: MemberDetailTab) => void
+    onDelete?: (member: StructureMemberRow) => void
+    readOnly?: boolean
+  },
+  options: { extendedColumns: boolean; compactLayout: boolean },
 ) {
   const helper = createColumnHelper<StructureMemberRow>()
+  const showActions = Boolean(actions.onView || actions.onDelete || actions.onEdit)
 
-  const viewColumn = onView
-    ? [
+  const structureColumns = options.compactLayout
+    ? []
+    : structureLayers.map((layer) =>
         helper.display({
-          id: 'view',
-          header: '',
-          cell: ({ row }) => (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground hover:text-foreground"
-              aria-label={`View ${row.original.member}`}
-              onClick={() => onView(row.original)}
-            >
-              <Eye className="size-4" />
-            </Button>
-          ),
+          id: `structure-${layer.id}`,
+          header: layer.displayName,
+          cell: ({ row }) => {
+            const segment = row.original.structure.find(
+              (s) => s.layerId === layer.id || s.standardType === layer.standardType,
+            )
+            return segment ? (
+              <StructureSegmentBadge segment={segment} />
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )
+          },
         }),
-      ]
-    : []
+      )
 
-  const structureColumns = structureLayers.map((layer) =>
-    helper.display({
-      id: `structure-${layer.id}`,
-      header: layer.displayName,
-      cell: ({ row }) => {
-        const segment = row.original.structure.find(
-          (s) => s.layerId === layer.id || s.standardType === layer.standardType,
-        )
-        return segment ? (
-          <StructureSegmentBadge segment={segment} />
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )
-      },
-    }),
-  )
-
-  const profileColumns = extendedColumns
+  const profileColumns = options.extendedColumns
     ? [
         helper.accessor('email', {
           header: 'Email',
@@ -274,13 +271,16 @@ function createMemberColumns(
     : []
 
   return [
-    ...viewColumn,
     helper.accessor('member', {
       header: 'Name',
       cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
     }),
     ...profileColumns,
     ...structureColumns,
+    helper.accessor('responsiveness', {
+      header: 'Responsiveness',
+      cell: ({ getValue }) => <ResponsivenessBadge level={getValue()} />,
+    }),
     helper.accessor('role', {
       header: 'Role',
       cell: ({ row }) => (
@@ -299,17 +299,15 @@ function createMemberColumns(
         <span className="tabular-nums text-muted-foreground">{getValue() || '—'}</span>
       ),
     }),
-    ...(readOnly
-      ? []
-      : [
+    ...(showActions
+      ? [
           helper.display({
             id: 'actions',
             header: '',
-            cell: ({ row }) => (
-              <MemberRowMenu member={row.original} onEdit={onEdit} onView={onView} />
-            ),
+            cell: ({ row }) => <MemberRowMenu member={row.original} {...actions} />,
           }),
-        ]),
+        ]
+      : []),
   ]
 }
 
@@ -317,11 +315,18 @@ function MemberRowMenu({
   member,
   onEdit,
   onView,
+  onDelete,
+  readOnly = false,
 }: {
   member: StructureMemberRow
-  onEdit: (member: StructureMemberRow) => void
-  onView?: (member: StructureMemberRow) => void
+  onEdit?: (member: StructureMemberRow) => void
+  onView?: (member: StructureMemberRow, tab?: MemberDetailTab) => void
+  onDelete?: (member: StructureMemberRow) => void
+  readOnly?: boolean
 }) {
+  const canEdit = !readOnly && Boolean(onEdit)
+  const canDelete = !readOnly && Boolean(onDelete)
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -335,17 +340,41 @@ function MemberRowMenu({
           <MoreHorizontal className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="w-48">
         {onView && (
-          <DropdownMenuItem className="gap-2" onClick={() => onView(member)}>
-            <Eye className="size-4" />
-            View profile
+          <>
+            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'overview')}>
+              <Eye className="size-4" />
+              View profile
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'records')}>
+              <FileText className="size-4" />
+              View records
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'giving')}>
+              <Coins className="size-4" />
+              View giving
+            </DropdownMenuItem>
+          </>
+        )}
+        {canEdit && (
+          <DropdownMenuItem className="gap-2" onClick={() => onEdit?.(member)}>
+            <Pencil className="size-4" />
+            Edit profile
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem className="gap-2" onClick={() => onEdit(member)}>
-          <Pencil className="size-4" />
-          Edit profile
-        </DropdownMenuItem>
+        {canDelete && (
+          <>
+            {(onView || canEdit) && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              className="gap-2 text-destructive focus:text-destructive"
+              onClick={() => onDelete?.(member)}
+            >
+              <Trash2 className="size-4" />
+              Remove member
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

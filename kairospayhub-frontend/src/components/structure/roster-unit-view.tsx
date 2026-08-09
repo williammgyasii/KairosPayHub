@@ -4,6 +4,8 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '@/api/useApi'
 import type { StructureTree } from '@/api/structure'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
+import { MemberDetailSheet, type MemberDetailTab } from '@/components/structure/member-detail-sheet'
+import { MemberDeleteModal } from '@/components/structure/member-delete-modal'
 import { MemberFormSheet, type MemberSheetState } from '@/components/structure/member-form-sheet'
 import { MemberTableToolbar } from '@/components/structure/member-table-toolbar'
 import { StructureMemberTable } from '@/components/structure/structure-member-table'
@@ -27,6 +29,7 @@ import {
 import {
   buildMemberRows,
   buildUnitNodeRows,
+  type StructureMemberRow,
   type StructureUnitNodeRow,
 } from '@/lib/structure-table-rows'
 import {
@@ -49,6 +52,7 @@ interface RosterUnitViewProps {
   busy: boolean
   submit: (action: () => Promise<void>) => Promise<void>
   readOnly?: boolean
+  membersReadOnly?: boolean
   scopeRootNodeId?: string | null
 }
 
@@ -59,6 +63,7 @@ export function RosterUnitView({
   busy,
   submit,
   readOnly = false,
+  membersReadOnly = false,
   scopeRootNodeId = null,
 }: RosterUnitViewProps) {
   const api = useApi()
@@ -81,6 +86,9 @@ export function RosterUnitView({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchField, setSearchField] = useState<MemberFilterField | 'all'>('all')
   const [memberSheet, setMemberSheet] = useState<MemberSheetState | null>(null)
+  const [detailMember, setDetailMember] = useState<StructureMemberRow | null>(null)
+  const [detailTab, setDetailTab] = useState<MemberDetailTab>('overview')
+  const [deleteMember, setDeleteMember] = useState<StructureMemberRow | null>(null)
   const [nodeSheet, setNodeSheet] = useState<UnitNodeSheetState | null>(null)
   const [fellowshipWizardOpen, setFellowshipWizardOpen] = useState(false)
   const [cellWizardOpen, setCellWizardOpen] = useState(false)
@@ -214,7 +222,7 @@ export function RosterUnitView({
               </Button>
             )}
 
-            {activeTab?.kind === 'members' && !readOnly && (
+            {activeTab?.kind === 'members' && !membersReadOnly && (
               <Button className="shrink-0" onClick={() => setMemberSheet({ mode: 'create' })}>
                 <Plus className="size-4" />
                 Add member
@@ -253,10 +261,16 @@ export function RosterUnitView({
         <StructureMemberTable
           rows={filteredMemberRows}
           structureLayers={getLayers(tree)}
-          emptyMessage={`No members under ${unit.name} yet.${readOnly ? '' : ' Add cells first if needed, then click Add member.'}`}
-          onEdit={(member) => setMemberSheet({ mode: 'edit', member })}
+          emptyMessage={`No members under ${unit.name} yet.${membersReadOnly ? '' : ' Add cells first if needed, then click Add member.'}`}
+          onEdit={membersReadOnly ? undefined : (member) => setMemberSheet({ mode: 'edit', member })}
+          onView={(member, tab = 'overview') => {
+            setDetailTab(tab)
+            setDetailMember(member)
+          }}
+          onDelete={membersReadOnly ? undefined : (member) => setDeleteMember(member)}
+          compactLayout
           embedded
-          readOnly={readOnly}
+          readOnly={membersReadOnly}
           showSearch={false}
           toolbar={
             <MemberTableToolbar
@@ -276,7 +290,36 @@ export function RosterUnitView({
         />
       )}
 
-      {!readOnly && memberSheet && (
+      {detailMember && (
+        <MemberDetailSheet
+          member={detailMember}
+          tree={tree}
+          open
+          initialTab={detailTab}
+          onOpenChange={(open) => !open && setDetailMember(null)}
+          onEdit={(member) => {
+            setDetailMember(null)
+            setMemberSheet({ mode: 'edit', member })
+          }}
+          readOnly={membersReadOnly}
+        />
+      )}
+
+      {!membersReadOnly && deleteMember && (
+        <MemberDeleteModal
+          member={deleteMember}
+          busy={busy}
+          onClose={() => setDeleteMember(null)}
+          onConfirm={() => {
+            void submit(async () => {
+              await api.delete(`/api/structure/members/${deleteMember.id}`)
+              setDeleteMember(null)
+            })
+          }}
+        />
+      )}
+
+      {!membersReadOnly && memberSheet && (
         <MemberFormSheet
           tree={tree}
           unitNodeId={unit.id}

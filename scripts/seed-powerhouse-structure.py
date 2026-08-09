@@ -101,6 +101,7 @@ def random_member(idx: int) -> dict:
         "residence": random.choice(RESIDENCES),
         "occupation": random.choice(OCCUPATIONS),
         "school": random.choice(SCHOOLS),
+        "responsiveness": random.choices([1, 2, 3, 4, 5], weights=[5, 10, 35, 30, 20])[0],
     }
 
 
@@ -304,8 +305,8 @@ def seed_structure(cur, now: datetime) -> tuple[int, int]:
                             INSERT INTO church_members
                                 ("Id", "ChurchId", "ParentNodeId", "Name", "Email", "Phone",
                                  "Age", "DateOfBirth", "Residence", "OccupationStatus",
-                                 "SchoolOrWorkplace", "Position", "CreatedAt")
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                 "SchoolOrWorkplace", "Position", "Responsiveness", "CreatedAt")
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             """,
                             (
                                 uuid.uuid4(),
@@ -320,6 +321,7 @@ def seed_structure(cur, now: datetime) -> tuple[int, int]:
                                 m["occupation"],
                                 m["school"],
                                 "Member",
+                                m["responsiveness"],
                                 now,
                             ),
                         )
@@ -329,12 +331,34 @@ def seed_structure(cur, now: datetime) -> tuple[int, int]:
     return nodes_created, members_created
 
 
+def refresh_responsiveness(cur, church_id: str) -> int:
+    cur.execute(
+        'SELECT "Id" FROM church_members WHERE "ChurchId" = %s',
+        (church_id,),
+    )
+    member_ids = [row[0] for row in cur.fetchall()]
+    updated = 0
+    for member_id in member_ids:
+        score = random.choices([1, 2, 3, 4, 5], weights=[5, 10, 35, 30, 20])[0]
+        cur.execute(
+            'UPDATE church_members SET "Responsiveness" = %s WHERE "Id" = %s',
+            (score, member_id),
+        )
+        updated += 1
+    return updated
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed The Powerhouse structure and members.")
     parser.add_argument(
         "--assign-leaders",
         action="store_true",
         help="Promote leaders on existing structure (fellowship, cell, PFCC).",
+    )
+    parser.add_argument(
+        "--refresh-responsiveness",
+        action="store_true",
+        help="Assign responsiveness scores (1-5) to all Powerhouse members.",
     )
     args = parser.parse_args()
 
@@ -353,6 +377,12 @@ def main() -> None:
                 print(f"  - {counts['pfcc']} PFCC managers")
                 return
 
+            if args.refresh_responsiveness:
+                updated = refresh_responsiveness(cur, CHURCH_ID)
+                conn.commit()
+                print(f"Updated responsiveness for {updated} members in The Powerhouse.")
+                return
+
             cur.execute(
                 'SELECT COUNT(*) FROM structure_nodes sn '
                 'JOIN structure_layers sl ON sl."Id" = sn."LayerId" '
@@ -363,6 +393,7 @@ def main() -> None:
             if existing_fellowships > 0:
                 print(f"Structure already seeded ({existing_fellowships} fellowships).")
                 print("Run with --assign-leaders to promote leaders on existing data.")
+                print("Run with --refresh-responsiveness to assign responsiveness scores to members.")
                 return
 
             nodes_created, members_created = seed_structure(cur, now)

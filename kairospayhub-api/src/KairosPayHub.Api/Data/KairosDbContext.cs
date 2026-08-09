@@ -233,6 +233,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.ToTable("church_members");
             e.Property(x => x.Name).IsRequired();
             e.Property(x => x.Position).HasConversion<string>().IsRequired();
+            e.Property(x => x.Responsiveness).HasDefaultValue(3);
             e.HasIndex(x => x.ChurchId);
             e.HasIndex(x => x.ParentNodeId);
             e.HasIndex(x => new { x.ChurchId, x.ParentNodeId });

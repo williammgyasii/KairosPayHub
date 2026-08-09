@@ -201,6 +201,66 @@ public class GivingController(
         }
     }
 
+    [HttpGet("contributions")]
+    public async Task<IActionResult> ListAllContributions(
+        [FromQuery] Guid? programId = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDir = null,
+        [FromQuery] ContributionStatus? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] bool awaitingMyApproval = false,
+        [FromQuery] Guid? batchId = null,
+        CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var list = await contributions.ListAllAsync(
+            actor,
+            authUserId,
+            programId,
+            page,
+            pageSize,
+            sortBy,
+            sortDir,
+            status,
+            search,
+            awaitingMyApproval,
+            batchId,
+            ct);
+        return Ok(list);
+    }
+
+    [HttpGet("member-totals")]
+    public async Task<IActionResult> ListMemberGivingTotals(
+        [FromQuery] Guid? programId = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDir = null,
+        [FromQuery] string? search = null,
+        CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var list = await contributions.ListMemberTotalsAsync(
+            actor,
+            authUserId,
+            programId,
+            page,
+            pageSize,
+            sortBy,
+            sortDir,
+            search,
+            ct);
+        return Ok(list);
+    }
+
     [HttpGet("programs/{programId:guid}/contributions")]
     public async Task<IActionResult> ListContributions(
         Guid programId,
@@ -211,6 +271,7 @@ public class GivingController(
         [FromQuery] ContributionStatus? status = null,
         [FromQuery] string? search = null,
         [FromQuery] bool awaitingMyApproval = false,
+        [FromQuery] Guid? batchId = null,
         CancellationToken ct = default)
     {
         if (!Guid.TryParse(current.Sub, out var authUserId))
@@ -228,6 +289,7 @@ public class GivingController(
             status,
             search,
             awaitingMyApproval,
+            batchId,
             ct);
         return Ok(list);
     }

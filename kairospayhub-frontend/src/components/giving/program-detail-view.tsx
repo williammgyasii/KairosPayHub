@@ -10,7 +10,7 @@ import {
 } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { givingTypeLabel, contributionsAwaitingMyApproval } from '@/lib/giving-ui'
-import { canCreateSubGiving, isPastor, isScopedLeader } from '@/api/me'
+import { canCreateSubGiving, isPastor } from '@/api/me'
 import { structureOptionsForLeader } from '@/lib/contribution-structure'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
@@ -53,7 +53,6 @@ export function ProgramDetailView({
   initialTab,
 }: ProgramDetailViewProps) {
   const isPastorRole = isPastor(me.role)
-  const isScopedLeaderRole = isScopedLeader(me.role)
   const canCreateSubGivingRole = canCreateSubGiving(me.role)
   const isFellowshipLeader = me.role === 'FellowshipLeader'
   const isPfccManager = me.role === 'PFCCManager'
@@ -316,6 +315,7 @@ export function ProgramDetailView({
       {tab === 'pending' && (
         <ContributionsApprovalTable
           api={api}
+          tree={tree}
           parentProgram={program}
           childPrograms={children}
           mode="pending"
@@ -334,6 +334,7 @@ export function ProgramDetailView({
       {tab === 'approved' && isPastorRole && (
         <ContributionsApprovalTable
           api={api}
+          tree={tree}
           parentProgram={program}
           childPrograms={children}
           mode="approved"

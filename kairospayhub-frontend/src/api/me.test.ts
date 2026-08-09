@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { displayName, canCreateGivingProgram, canCreateSubGiving, isPastor, isScopedLeader, needsOnboarding, type Me } from './me'
+import {
+  canCreateGivingProgram,
+  canCreateSubGiving,
+  canManageMembers,
+  displayName,
+  isPastor,
+  isScopedLeader,
+  needsOnboarding,
+  type Me,
+} from './me'
 
 const notOnboarded: Me = { onboarded: false, email: 'p@example.com', name: null }
 
@@ -72,5 +81,15 @@ describe('canCreateGivingProgram', () => {
     expect(canCreateGivingProgram('Pastor')).toBe(true)
     expect(canCreateGivingProgram('PFCCManager')).toBe(true)
     expect(canCreateGivingProgram('FellowshipLeader')).toBe(false)
+  })
+})
+
+describe('canManageMembers', () => {
+  it('allows pastors and scoped roster leaders', () => {
+    expect(canManageMembers('Pastor')).toBe(true)
+    expect(canManageMembers('PFCCManager')).toBe(true)
+    expect(canManageMembers('FellowshipLeader')).toBe(true)
+    expect(canManageMembers('CellLeader')).toBe(false)
+    expect(canManageMembers('Member')).toBe(false)
   })
 })
