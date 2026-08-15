@@ -61,7 +61,10 @@ export function StructurePathBadges({
 
 export function RoleBadge({ role, position }: { role: string; position: string }) {
   return (
-    <Badge variant="outline" className={cn('font-medium', roleBadgeClass(position))}>
+    <Badge
+      variant="outline"
+      className={cn('shrink-0 whitespace-nowrap font-medium', roleBadgeClass(position))}
+    >
       {role}
     </Badge>
   )

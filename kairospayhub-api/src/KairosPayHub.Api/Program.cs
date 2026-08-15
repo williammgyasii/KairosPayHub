@@ -78,6 +78,7 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<INotificationPublisher, SignalRNotificationPublisher>();
 builder.Services.AddScoped<ChurchBrandingService>();
 builder.Services.AddScoped<LeaderInviteService>();
+builder.Services.AddScoped<CalendarEventService>();
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Jwt configuration is missing");

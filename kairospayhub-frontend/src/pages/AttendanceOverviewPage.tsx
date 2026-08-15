@@ -394,7 +394,13 @@ export function AttendanceOverviewPage() {
                     <thead>
                       <tr className="border-b text-left text-xs text-muted-foreground">
                         {SORT_COLUMNS.map((column) => (
-                          <th key={column.id} className="px-4 py-2 font-medium">
+                          <th
+                            key={column.id}
+                            className={cn(
+                              'px-4 py-2 font-medium',
+                              column.id === 'name' && 'min-w-[9rem]',
+                            )}
+                          >
                             <button
                               type="button"
                               className="inline-flex items-center gap-1 hover:text-foreground"
@@ -415,7 +421,9 @@ export function AttendanceOverviewPage() {
                     <tbody className="divide-y">
                       {rollup.items.map((person) => (
                         <tr key={`${person.scopeNodeId}:${person.name}:${person.personKind}:${person.phone ?? ''}`}>
-                          <td className="px-4 py-3 font-medium">{person.name}</td>
+                          <td className="max-w-[14rem] truncate px-4 py-3 font-medium whitespace-nowrap">
+                            {person.name}
+                          </td>
                           <td className="px-4 py-3 text-muted-foreground">{person.cellName}</td>
                           <td className="px-4 py-3">{personKindLabel(person.personKind)}</td>
                           <td className="px-4 py-3 text-muted-foreground">{person.phone || '—'}</td>

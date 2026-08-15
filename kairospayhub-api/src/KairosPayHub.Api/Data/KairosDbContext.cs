@@ -48,6 +48,8 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         Set<Domain.Attendance.AttendanceInviteeEntry>();
     public DbSet<Domain.Administrators.ChurchAdministrator> ChurchAdministrators =>
         Set<Domain.Administrators.ChurchAdministrator>();
+    public DbSet<Domain.Events.ChurchCalendarEvent> ChurchCalendarEvents =>
+        Set<Domain.Events.ChurchCalendarEvent>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -497,6 +499,14 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
                 .WithMany()
                 .HasForeignKey(x => x.ScopeNodeId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<Domain.Events.ChurchCalendarEvent>(e =>
+        {
+            e.ToTable("church_calendar_events");
+            e.Property(x => x.Title).IsRequired();
+            e.HasIndex(x => new { x.ChurchId, x.EventDate });
+            e.HasIndex(x => x.ScopeNodeId);
         });
     }
 

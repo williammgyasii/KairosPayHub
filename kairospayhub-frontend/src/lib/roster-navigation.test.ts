@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StructureTree } from '@/api/structure'
-import { directChildLayer } from '@/lib/structure-tree'
+import { directChildLayer, layersBelowScopeRoot, rosterLayersForScope } from '@/lib/structure-tree'
 import { rosterUnitLayerUrl, rosterUnitMembersUrl, rosterUnitViewLayerLabel } from '@/lib/roster-navigation'
 
 const tree: StructureTree = {
@@ -23,6 +23,29 @@ const tree: StructureTree = {
   ],
   members: [],
 }
+
+describe('rosterLayersForScope', () => {
+  it('shows all layers for church managers', () => {
+    expect(rosterLayersForScope(tree, null).map((l) => l.id)).toEqual([
+      'group',
+      'pfcc',
+      'fellowship',
+      'cell',
+    ])
+  })
+
+  it('shows layers below a PFCC scope', () => {
+    expect(rosterLayersForScope(tree, 'pfcc-1').map((l) => l.id)).toEqual([
+      'fellowship',
+      'cell',
+    ])
+  })
+
+  it('shows only the cell layer for a cell leader scope', () => {
+    expect(layersBelowScopeRoot(tree, 'cell-1')).toEqual([])
+    expect(rosterLayersForScope(tree, 'cell-1').map((l) => l.id)).toEqual(['cell'])
+  })
+})
 
 describe('directChildLayer', () => {
   it('returns the next layer below a unit', () => {

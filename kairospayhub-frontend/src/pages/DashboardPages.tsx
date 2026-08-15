@@ -9,9 +9,18 @@ import {
 } from '@/components/overview/overview-dashboard'
 import { CellLeaderOverviewDashboard } from '@/components/overview/cell-leader-overview-dashboard'
 import { LeaderOverviewDashboard } from '@/components/overview/leader-overview-dashboard'
+import { UpcomingEventsCard } from '@/components/overview/upcoming-events-card'
 import { StructureSetupCallout } from '@/components/overview/structure-setup-callout'
 import { getGivingDashboard, type GivingDashboard } from '@/api/giving'
-import { canManageChurch, isCellLeader, isScopedLeader, canManageMembers, rollCallScopesFor } from '@/api/me'
+import {
+  canManageChurch,
+  isCellLeader,
+  isScopedLeader,
+  canManageMembers,
+  rollCallScopesFor,
+  rosterScopeRootNodeId,
+} from '@/api/me'
+import { canAccessEvents } from '@/lib/calendar-events-ui'
 import { filterTreeToSubtree } from '@/lib/structure-tree'
 import { MembershipEmptyState, MembershipView } from '@/components/structure/membership-view'
 import { RosterEmptyState, RosterView } from '@/components/structure/roster-view'
@@ -144,6 +153,8 @@ export function OverviewPage() {
       />
 
       {churchManager && <StructureSetupCallout tree={tree} churchName={me.churchName} />}
+
+      {canAccessEvents(me) && showDashboard ? <UpcomingEventsCard api={api} /> : null}
 
       {scopedLeader && showDashboard && scopedTree ? (
         dashboardLoading ? (
@@ -408,7 +419,7 @@ export function RosterPage() {
         busy={busy}
         submit={submit}
         readOnly={readOnly}
-        scopeRootNodeId={isScopedLeader(me.role) ? me.scopeNodeId : null}
+        scopeRootNodeId={rosterScopeRootNodeId(me)}
       />
     </div>
   )
@@ -447,7 +458,7 @@ export function RosterUnitPage() {
       submit={submit}
       readOnly={structureReadOnly}
       membersReadOnly={membersReadOnly}
-      scopeRootNodeId={isScopedLeader(me.role) ? me.scopeNodeId : null}
+      scopeRootNodeId={rosterScopeRootNodeId(me)}
     />
   )
 }

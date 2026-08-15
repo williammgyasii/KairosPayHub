@@ -63,6 +63,21 @@ export function layersBelowScopeRoot(
   return layers.filter((layer) => layer.sortOrder > scopeLayer.sortOrder)
 }
 
+/** Roster Units tabs: layers below scope, or the scope layer when it is the deepest (cell leaders). */
+export function rosterLayersForScope(
+  tree: StructureTree,
+  scopeRootNodeId: string | null | undefined,
+): StructureLayer[] {
+  if (!scopeRootNodeId) return getLayers(tree)
+
+  const below = layersBelowScopeRoot(tree, scopeRootNodeId)
+  if (below.length > 0) return below
+
+  const scopeNode = nodeById(tree, scopeRootNodeId)
+  const scopeLayer = scopeNode ? layerById(tree, scopeNode.layerId) : undefined
+  return scopeLayer ? [scopeLayer] : getLayers(tree)
+}
+
 export function nodesBelowScopeRoot(
   tree: StructureTree,
   nodes: StructureNode[],
