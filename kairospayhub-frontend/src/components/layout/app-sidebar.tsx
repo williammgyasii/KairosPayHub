@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   Gift,
   LayoutDashboard,
+  CalendarDays,
   Network,
   Settings,
   Users,
@@ -12,6 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { isSidebarNavItemActive } from '@/lib/sidebar-nav'
 import { canApproveAttendance, canManageChurch, canSubmitRollCall, isCellLeader, isScopedLeader, type Me } from '@/api/me'
+import { canAccessEvents } from '@/lib/calendar-events-ui'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
@@ -94,13 +96,25 @@ function attendanceNavForRole(me: Me & { onboarded: true }): NavEntry {
   }
 }
 
+const EVENTS_NAV_ITEM: NavEntry = {
+  kind: 'item',
+  to: 'events',
+  label: 'Events',
+  icon: CalendarDays,
+  end: true,
+}
+
 function navWithAttendance(entries: NavEntry[], me: Me & { onboarded: true }): NavEntry[] {
   const givingsIndex = entries.findIndex(
     (entry) => entry.kind === 'group' && entry.label === 'Givings',
   )
   const attendance = attendanceNavForRole(me)
-  if (givingsIndex === -1) return [...entries, attendance]
-  return [...entries.slice(0, givingsIndex + 1), attendance, ...entries.slice(givingsIndex + 1)]
+  const afterAttendance: NavEntry[] = [attendance]
+  if (canAccessEvents(me)) {
+    afterAttendance.push(EVENTS_NAV_ITEM)
+  }
+  if (givingsIndex === -1) return [...entries, ...afterAttendance]
+  return [...entries.slice(0, givingsIndex + 1), ...afterAttendance, ...entries.slice(givingsIndex + 1)]
 }
 
 const NAV: NavEntry[] = [

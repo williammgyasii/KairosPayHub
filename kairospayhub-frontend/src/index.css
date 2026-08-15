@@ -134,6 +134,21 @@
     animation: chain-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
 
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
   .animate-fade-up {
     animation: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }

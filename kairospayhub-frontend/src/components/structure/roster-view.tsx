@@ -12,7 +12,7 @@ import { ArrowUpDown, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useApi } from '@/api/useApi'
 import type { StructureLayer, StructureTree } from '@/api/structure'
-import { getLayers, layersBelowScopeRoot, nodesAtLayer, parentOptionsForLayer } from '@/lib/structure-tree'
+import { getLayers, nodesAtLayer, parentOptionsForLayer, rosterLayersForScope } from '@/lib/structure-tree'
 import { buildNodeRows, type StructureNodeRow } from '@/lib/structure-table-rows'
 import { RosterUnitActionsMenu } from '@/components/structure/roster-unit-actions-menu'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
@@ -38,7 +38,7 @@ export function RosterView({
   scopeRootNodeId = null,
 }: RosterViewProps) {
   const layers = useMemo(
-    () => layersBelowScopeRoot(tree, scopeRootNodeId),
+    () => rosterLayersForScope(tree, scopeRootNodeId),
     [tree, scopeRootNodeId],
   )
   const [tab, setTab] = useState<string>(layers[0]?.id ?? '')
@@ -215,7 +215,7 @@ function createRosterNodeColumns(tree: StructureTree) {
       cell: ({ row, getValue }) => (
         <Link
           to={`/roster/units/${row.original.id}`}
-          className="font-medium text-foreground hover:text-primary hover:underline"
+          className="block max-w-[14rem] truncate font-medium whitespace-nowrap text-foreground hover:text-primary hover:underline"
         >
           {getValue()}
         </Link>

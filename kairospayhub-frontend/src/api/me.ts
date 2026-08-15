@@ -66,6 +66,19 @@ export function rollCallScopesFor(me: Me): RollCallScope[] {
   return me.rollCallScopes ?? []
 }
 
+/** Scope root for roster layer tabs (PFCC/fellowship leaders and cell leaders). */
+export function rosterScopeRootNodeId(me: Me): string | null {
+  if (!me.onboarded) return null
+  if (canManageChurch(me.role)) return null
+  if (isCellLeader(me.role)) {
+    return rollCallScopesFor(me)[0]?.scopeNodeId ?? me.scopeNodeId ?? null
+  }
+  if (isScopedLeader(me.role)) {
+    return me.scopeNodeId ?? null
+  }
+  return null
+}
+
 export function canSubmitRollCall(me: Me): boolean {
   return rollCallScopesFor(me).length > 0
 }
@@ -76,4 +89,30 @@ export function canApproveAttendance(role: string): boolean {
 
 export function displayName(me: Me, sessionEmail?: string | null): string {
   return me.name ?? me.email ?? sessionEmail ?? ''
+}
+
+const ROLE_BADGE_LABELS: Record<string, string> = {
+  Pastor: 'Pastor',
+  ChurchAdmin: 'Church admin',
+  PFCCManager: 'PFCC manager',
+  FellowshipLeader: 'Fellowship leader',
+  CellLeader: 'Cell leader',
+  Member: 'Member',
+  Leader: 'Leader',
+}
+
+/** Top-bar badge: scoped leaders show their unit name + "leader" (e.g. "Zion Cell 1 leader"). */
+export function roleScopeBadgeLabel(me: Me): string {
+  if (!me.onboarded) return ''
+
+  if (isCellLeader(me.role)) {
+    const unit = rollCallScopesFor(me)[0]?.scopeUnitName ?? me.scopeUnitName
+    if (unit) return `${unit} leader`
+  }
+
+  if (isScopedLeader(me.role) && me.scopeUnitName) {
+    return `${me.scopeUnitName} leader`
+  }
+
+  return ROLE_BADGE_LABELS[me.role] ?? me.role
 }

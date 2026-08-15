@@ -65,6 +65,11 @@ describe('isSidebarNavItemActive', () => {
     expect(isSidebarNavItemActive('/givings', { to: '.', end: true })).toBe(false)
   })
 
+  it('highlights events only on /events', () => {
+    expect(isSidebarNavItemActive('/events', { to: 'events', end: true })).toBe(true)
+    expect(isSidebarNavItemActive('/roster', { to: 'events', end: true })).toBe(false)
+  })
+
   it('highlights attendance approvals and overview on their routes only', () => {
     expect(
       isSidebarNavItemActive('/attendance/approvals', { to: 'attendance/approvals', end: true }),

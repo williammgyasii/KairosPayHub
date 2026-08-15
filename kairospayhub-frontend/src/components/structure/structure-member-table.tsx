@@ -163,7 +163,14 @@ export function StructureMemberTable({
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-border/60 bg-muted/20 text-left">
                 {hg.headers.map((header) => (
-                  <th key={header.id} className="px-5 py-2.5 font-medium text-muted-foreground">
+                  <th
+                    key={header.id}
+                    className={cn(
+                      'px-5 py-2.5 font-medium text-muted-foreground',
+                      header.column.id === 'member' && 'min-w-[9rem]',
+                      header.column.id === 'email' && 'w-[9rem] max-w-[9rem]',
+                    )}
+                  >
                     {header.isPlaceholder ? null : header.column.id === 'actions' ? null : (
                       <button
                         type="button"
@@ -193,7 +200,14 @@ export function StructureMemberTable({
                   className="border-b border-border/40 last:border-0 hover:bg-muted/10"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-5 py-3 align-middle">
+                    <td
+                      key={cell.id}
+                      className={cn(
+                        'px-5 py-3 align-middle',
+                        cell.column.id === 'member' && 'min-w-[9rem]',
+                        cell.column.id === 'email' && 'w-[9rem] max-w-[9rem]',
+                      )}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -245,9 +259,22 @@ function createMemberColumns(
     ? [
         helper.accessor('email', {
           header: 'Email',
-          cell: ({ getValue }) => (
-            <span className="text-muted-foreground">{getValue() || '—'}</span>
-          ),
+          cell: ({ getValue }) => {
+            const email = getValue()?.trim()
+            if (!email) {
+              return <span className="text-muted-foreground">—</span>
+            }
+            return (
+              <a
+                href={`mailto:${email}`}
+                className="block truncate text-muted-foreground hover:text-primary hover:underline"
+                title={email}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {email}
+              </a>
+            )
+          },
         }),
         helper.accessor('residence', {
           header: 'Residence',
@@ -273,7 +300,9 @@ function createMemberColumns(
   return [
     helper.accessor('member', {
       header: 'Name',
-      cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
+      cell: ({ getValue }) => (
+        <span className="block max-w-[14rem] truncate font-medium">{getValue()}</span>
+      ),
     }),
     ...profileColumns,
     ...structureColumns,
@@ -284,7 +313,9 @@ function createMemberColumns(
     helper.accessor('role', {
       header: 'Role',
       cell: ({ row }) => (
-        <RoleBadge role={row.original.role} position={row.original.position} />
+        <div className="whitespace-nowrap">
+          <RoleBadge role={row.original.role} position={row.original.position} />
+        </div>
       ),
     }),
     helper.accessor('phone', {

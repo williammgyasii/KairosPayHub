@@ -9,6 +9,8 @@ import {
   isPastor,
   isScopedLeader,
   needsOnboarding,
+  rosterScopeRootNodeId,
+  roleScopeBadgeLabel,
   type Me,
 } from './me'
 
@@ -101,6 +103,59 @@ describe('canCreateGivingProgram', () => {
     expect(canCreateGivingProgram('ChurchAdmin')).toBe(true)
     expect(canCreateGivingProgram('PFCCManager')).toBe(true)
     expect(canCreateGivingProgram('FellowshipLeader')).toBe(false)
+  })
+})
+
+describe('rosterScopeRootNodeId', () => {
+  it('returns null for church managers', () => {
+    expect(rosterScopeRootNodeId(onboarded)).toBeNull()
+  })
+
+  it('returns scope node for PFCC and fellowship leaders', () => {
+    const pfcc: Me = {
+      ...onboarded,
+      role: 'PFCCManager',
+      scopeNodeId: 'pfcc-1',
+    }
+    expect(rosterScopeRootNodeId(pfcc)).toBe('pfcc-1')
+  })
+
+  it('prefers roll-call scope for cell leaders', () => {
+    const cellLeader: Me = {
+      ...onboarded,
+      role: 'CellLeader',
+      scopeNodeId: 'other-cell',
+      rollCallScopes: [{ scopeNodeId: 'cell-1', scopeUnitName: 'Cell 1' }],
+    }
+    expect(rosterScopeRootNodeId(cellLeader)).toBe('cell-1')
+  })
+})
+
+describe('roleScopeBadgeLabel', () => {
+  it('shows cell unit name for cell leaders', () => {
+    const cellLeader: Me = {
+      ...onboarded,
+      role: 'CellLeader',
+      scopeNodeId: 'cell-1',
+      scopeUnitName: 'Zion Cell 1',
+      rollCallScopes: [{ scopeNodeId: 'cell-1', scopeUnitName: 'Zion Cell 1' }],
+    }
+    expect(roleScopeBadgeLabel(cellLeader)).toBe('Zion Cell 1 leader')
+  })
+
+  it('shows fellowship unit name for fellowship leaders', () => {
+    const fellowshipLeader: Me = {
+      ...onboarded,
+      role: 'FellowshipLeader',
+      scopeNodeId: 'fellowship-1',
+      scopeUnitName: 'Zion Fellowship',
+    }
+    expect(roleScopeBadgeLabel(fellowshipLeader)).toBe('Zion Fellowship leader')
+  })
+
+  it('falls back to readable role when scope name is missing', () => {
+    expect(roleScopeBadgeLabel({ ...onboarded, role: 'CellLeader' })).toBe('Cell leader')
+    expect(roleScopeBadgeLabel(onboarded)).toBe('Pastor')
   })
 })
 

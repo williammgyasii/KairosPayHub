@@ -178,7 +178,7 @@ function createUnitNodeColumns(
       cell: ({ row, getValue }) => (
         <Link
           to={`/roster/units/${row.original.id}`}
-          className="font-medium text-foreground hover:text-primary hover:underline"
+          className="block max-w-[14rem] truncate font-medium whitespace-nowrap text-foreground hover:text-primary hover:underline"
         >
           {getValue()}
         </Link>

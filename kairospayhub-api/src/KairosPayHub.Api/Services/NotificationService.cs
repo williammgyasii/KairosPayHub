@@ -351,6 +351,134 @@ public class NotificationService(
             ct);
     }
 
+    public async Task NotifyCalendarEventCreatedAsync(
+        Guid churchId,
+        Guid? scopeNodeId,
+        string title,
+        string? description,
+        DateOnly eventDate,
+        Guid createdByAuthUserId,
+        Guid calendarEventId,
+        CancellationToken ct = default)
+    {
+        var recipients = await CalendarScopeRecipientAuthUserIdsAsync(
+            churchId,
+            scopeNodeId,
+            createdByAuthUserId,
+            ct);
+
+        if (recipients.Count == 0)
+            return;
+
+        var scopeLabel = scopeNodeId is null
+            ? "Church-wide"
+            : await db.StructureNodes.AsNoTracking()
+                .Where(n => n.Id == scopeNodeId && n.ChurchId == churchId)
+                .Select(n => n.Name)
+                .FirstOrDefaultAsync(ct) ?? "Your scope";
+
+        var body = string.IsNullOrWhiteSpace(description)
+            ? $"{scopeLabel} · {eventDate:dddd, d MMMM yyyy}. Open Events to view your calendar."
+            : $"{scopeLabel} · {eventDate:dddd, d MMMM yyyy}. {description.Trim()}";
+
+        await CreateManyAsync(
+            churchId,
+            recipients,
+            NotificationKind.CalendarEventReminder,
+            title,
+            body,
+            LinkPath: "events",
+            programId: null,
+            relatedEntityId: calendarEventId,
+            ct);
+    }
+
+    public async Task NotifyCalendarBirthdayReminderAsync(
+        Guid churchId,
+        Guid memberParentNodeId,
+        string memberName,
+        DateOnly birthdayDate,
+        int? turningAge,
+        CancellationToken ct = default)
+    {
+        var recipients = await CalendarScopeRecipientAuthUserIdsAsync(
+            churchId,
+            memberParentNodeId,
+            excludeAuthUserId: null,
+            ct);
+
+        if (recipients.Count == 0)
+            return;
+
+        var cellName = await db.StructureNodes.AsNoTracking()
+            .Where(n => n.Id == memberParentNodeId && n.ChurchId == churchId)
+            .Select(n => n.Name)
+            .FirstOrDefaultAsync(ct) ?? "Your cell";
+
+        var ageLabel = turningAge is not null ? $"Turns {turningAge}" : "Birthday";
+        var body =
+            $"{memberName} · {ageLabel} · {birthdayDate:dddd, d MMMM}. Open Events to see the full calendar.";
+
+        await CreateManyAsync(
+            churchId,
+            recipients,
+            NotificationKind.CalendarBirthdayReminder,
+            "Upcoming birthday",
+            body,
+            LinkPath: "events",
+            programId: null,
+            relatedEntityId: null,
+            ct);
+    }
+
+    private async Task<List<Guid>> CalendarScopeRecipientAuthUserIdsAsync(
+        Guid churchId,
+        Guid? scopeNodeId,
+        Guid? excludeAuthUserId,
+        CancellationToken ct)
+    {
+        var recipients = new HashSet<Guid>();
+
+        if (scopeNodeId is null)
+        {
+            recipients.UnionWith(await PastorAuthUserIdsAsync(churchId, ct));
+            var leaders = await db.RoleAssignments.AsNoTracking()
+                .Where(r =>
+                    r.ChurchId == churchId
+                    && r.Role != ChurchRole.Member
+                    && r.Role != ChurchRole.Pastor)
+                .Select(r => r.AuthUserId)
+                .ToListAsync(ct);
+            foreach (var leaderId in leaders)
+                recipients.Add(leaderId);
+        }
+        else
+        {
+            var assignments = await db.RoleAssignments.AsNoTracking()
+                .Where(r =>
+                    r.ChurchId == churchId
+                    && r.ScopeNodeId != null
+                    && r.Role != ChurchRole.Member)
+                .ToListAsync(ct);
+
+            foreach (var assignment in assignments)
+            {
+                var viewerRoot = assignment.ScopeNodeId!.Value;
+                if (viewerRoot == scopeNodeId.Value
+                    || await scope.IsNodeInSubtreeAsync(churchId, viewerRoot, scopeNodeId.Value, ct)
+                    || await scope.IsNodeInSubtreeAsync(churchId, scopeNodeId.Value, viewerRoot, ct))
+                {
+                    recipients.Add(assignment.AuthUserId);
+                }
+            }
+        }
+
+        if (excludeAuthUserId is Guid excluded)
+            recipients.Remove(excluded);
+
+        return recipients.ToList();
+    }
+
     private async Task CreateManyAsync(
         Guid churchId,
         IEnumerable<Guid> recipientAuthUserIds,

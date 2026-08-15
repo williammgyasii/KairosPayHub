@@ -14,10 +14,13 @@ type NotificationsBellProps = {
 }
 
 function notificationLink(notification: Notification): string {
-  if (!notification.linkPath) return '/givings'
-  return notification.linkPath.startsWith('/')
-    ? notification.linkPath
-    : `/${notification.linkPath}`
+  if (notification.linkPath) {
+    return notification.linkPath.startsWith('/')
+      ? notification.linkPath
+      : `/${notification.linkPath}`
+  }
+  if (notification.kind.startsWith('Calendar')) return '/events'
+  return '/givings'
 }
 
 export function NotificationsBell({ api }: NotificationsBellProps) {

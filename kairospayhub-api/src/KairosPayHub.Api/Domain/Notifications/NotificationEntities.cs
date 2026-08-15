@@ -11,6 +11,8 @@ public enum NotificationKind
     AttendancePendingApproval,
     AttendanceApproved,
     AttendanceRejected,
+    CalendarEventReminder,
+    CalendarBirthdayReminder,
 }
 
 public class Notification

@@ -20,6 +20,8 @@ import { AttendanceMeetingTypesPage } from './pages/AttendanceMeetingTypesPage'
 import { AttendanceApproverRoute, AttendanceOverviewRoute } from './auth/AttendanceRoute'
 import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword, SetPassword } from './pages/PasswordPages'
+import { EventsRoute } from './auth/EventsRoute'
+import { EventsPage } from './pages/EventsPage'
 import { ConfirmEmail } from './pages/ConfirmEmail'
 import { SignUp } from './pages/SignUp'
 
@@ -74,6 +76,14 @@ export default function App() {
           }
         />
         <Route path="membership" element={<Navigate to="/roster/membership" replace />} />
+        <Route
+          path="events"
+          element={
+            <EventsRoute>
+              <EventsPage />
+            </EventsRoute>
+          }
+        />
         <Route path="givings/overall" element={<OverallGivingsPage />} />
         <Route path="givings/transactions" element={<TransactionsPage />} />
         <Route path="givings" element={<GivingsPage />} />
