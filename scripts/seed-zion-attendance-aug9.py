@@ -223,7 +223,7 @@ def seed_cell_roll_call(
             "RejectionReason" = NULL
         WHERE "OccurrenceId" = %s AND "ScopeNodeId" = %s
         """,
-        (approval_status, entered_by, now, approval_status, approval_status, now, occurrence_id, cell_id),
+        (approval_status, entered_by, now, approval_status, now, occurrence_id, cell_id),
     )
 
     return members_present, members_absent, invitees_present

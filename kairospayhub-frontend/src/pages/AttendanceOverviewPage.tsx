@@ -6,7 +6,6 @@ import type { DashboardOutletContext } from '@/components/layout/dashboard-layou
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import {
   useGetOccurrenceRollupQuery,
-  useListApprovalQueueQuery,
   useListMeetingTypesQuery,
   useListOccurrencesQuery,
 } from '@/store/attendanceApi'
@@ -141,9 +140,6 @@ export function AttendanceOverviewPage() {
     error: meetingTypesError,
   } = useListMeetingTypesQuery()
   const {
-    data: approvalQueue = [],
-  } = useListApprovalQueueQuery()
-  const {
     data: occurrences = [],
     isFetching: loadingOccurrences,
     error: occurrencesError,
@@ -171,7 +167,7 @@ export function AttendanceOverviewPage() {
     { skip: !selectedOccurrenceId },
   )
 
-  const pendingCount = approvalQueue.length
+  const pendingCount = rollup?.pendingCellCount ?? 0
   const error =
     meetingTypesError || occurrencesError || rollupError
       ? 'Could not load attendance data'

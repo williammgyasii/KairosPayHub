@@ -17,6 +17,49 @@ public class AttendanceApprovalApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task DisposeAsync() => await _factory.DisposeAsync();
 
     [Fact]
+    public async Task Rollup_pending_cell_count_matches_approvable_queue_for_fellowship_leader()
+    {
+        var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: false);
+        await AttendanceApprovalSeed.OpenAndSubmitCellRollCallAsync(fx, seed);
+
+        var queueResp = await seed.FellowshipClient.GetAsync("/api/attendance/approval-queue");
+        Assert.Equal(HttpStatusCode.OK, queueResp.StatusCode);
+        var queue = await queueResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, queue.GetArrayLength());
+
+        var rollupResp = await seed.FellowshipClient.GetAsync(
+            $"/api/attendance/occurrences/{seed.OccurrenceId}/rollup");
+        Assert.Equal(HttpStatusCode.OK, rollupResp.StatusCode);
+        var rollup = await rollupResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, rollup.GetProperty("pendingCellCount").GetInt32());
+        Assert.Equal(0, rollup.GetProperty("approvedCellCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task Rollup_pending_cell_count_excludes_non_approvable_pending_submissions()
+    {
+        var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: false);
+        await AttendanceApprovalSeed.OpenAndSubmitCellRollCallAsync(fx, seed);
+
+        await using (var db = fx.CreateContext())
+        {
+            var submission = await db.AttendanceScopeSubmissions.SingleAsync(s =>
+                s.OccurrenceId == seed.OccurrenceId && s.ScopeNodeId == seed.CellNodeId);
+            submission.EnteredByRole = ChurchRole.FellowshipLeader;
+            await db.SaveChangesAsync();
+        }
+
+        var queueResp = await seed.FellowshipClient.GetAsync("/api/attendance/approval-queue");
+        var queue = await queueResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, queue.GetArrayLength());
+
+        var rollupResp = await seed.FellowshipClient.GetAsync(
+            $"/api/attendance/occurrences/{seed.OccurrenceId}/rollup");
+        var rollup = await rollupResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, rollup.GetProperty("pendingCellCount").GetInt32());
+    }
+
+    [Fact]
     public async Task Fellowship_leader_can_review_submitted_cell_roll_call()
     {
         var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: false);

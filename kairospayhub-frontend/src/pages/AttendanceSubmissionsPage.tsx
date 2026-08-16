@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Lock } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
@@ -24,9 +25,11 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import {
   formatOccurrenceLabel,
+  nextUpcomingOccurrence,
   pickNearestOccurrence,
   rollCallState,
   selectableOccurrences,
+  upcomingRollCallLockMessage,
 } from '@/lib/attendance-ui'
 import { cn } from '@/lib/utils'
 
@@ -261,6 +264,19 @@ export function AttendanceSubmissionsPage() {
     [occurrences],
   )
 
+  const nextUpcomingOccurrenceRow = useMemo(
+    () => nextUpcomingOccurrence(occurrences),
+    [occurrences],
+  )
+
+  const upcomingLockMessage = useMemo(
+    () =>
+      nextUpcomingOccurrenceRow
+        ? upcomingRollCallLockMessage(nextUpcomingOccurrenceRow)
+        : null,
+    [nextUpcomingOccurrenceRow],
+  )
+
   const rollCallUi = useMemo(() => {
     if (!detail || !selectedScopeNodeId) return null
     return rollCallState(detail, selectedScopeNodeId)
@@ -369,13 +385,29 @@ export function AttendanceSubmissionsPage() {
                     </option>
                   ))}
                 </select>
-                {selectableOccurrenceRows.length === 0 && !loadingOccurrences && (
+                {selectableOccurrenceRows.length === 0 && !loadingOccurrences && !nextUpcomingOccurrenceRow && (
                   <p className="text-xs text-muted-foreground">
                     No past services yet. Upcoming dates appear after the service happens.
                   </p>
                 )}
               </div>
             </div>
+            {upcomingLockMessage && !loadingOccurrences && (
+              <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <Lock
+                  className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
+                  aria-hidden
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                    {upcomingLockMessage.title}
+                  </p>
+                  <p className="mt-0.5 text-xs text-amber-800/90 dark:text-amber-200/90">
+                    {upcomingLockMessage.description}
+                  </p>
+                </div>
+              </div>
+            )}
           </section>
 
           {loadingOccurrences || loadingDetail ? (

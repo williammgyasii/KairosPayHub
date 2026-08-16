@@ -152,6 +152,46 @@ function formatOpensAt(opensAt: string) {
   })
 }
 
+export function formatServiceDate(meetingDate: string) {
+  const date = new Date(`${meetingDate}T00:00:00`)
+  return date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+/** Earliest future service in the list (still locked for roll call). */
+export function nextUpcomingOccurrence(
+  occurrences: AttendanceOccurrenceSummary[],
+  now = new Date(),
+) {
+  return [...occurrences]
+    .filter((row) => isFutureServiceDate(row.meetingDate, now))
+    .sort((a, b) => occurrenceDateValue(a.meetingDate) - occurrenceDateValue(b.meetingDate))[0] ?? null
+}
+
+export function upcomingRollCallLockMessage(
+  occurrence: AttendanceOccurrenceSummary,
+  now = new Date(),
+) {
+  const serviceLabel = formatServiceDate(occurrence.meetingDate)
+  const opensAt = new Date(occurrence.submissionOpensAt)
+
+  if (now < opensAt) {
+    return {
+      title: `${serviceLabel} — roll call locked`,
+      description: `Roll call opens ${formatOpensAt(occurrence.submissionOpensAt)}.`,
+    }
+  }
+
+  return {
+    title: `${serviceLabel} — roll call locked`,
+    description: 'This service has not happened yet. Roll call opens after the meeting.',
+  }
+}
+
 export function rollCallPendingApproverLabel(role: string | null | undefined) {
   switch (role) {
     case 'PFCCManager':

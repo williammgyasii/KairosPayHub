@@ -270,6 +270,20 @@ public class AttendanceSubmissionService(
             .Where(s => s.ApprovalStatus == AttendanceScopeApprovalStatus.PendingApproval)
             .ToList();
 
+        var approvablePendingCount = 0;
+        foreach (var submission in pendingSubmissions)
+        {
+            if (await scope.CanApproveScopeSubmissionAsync(
+                    actor,
+                    authUserId,
+                    submission,
+                    submission.ScopeNodeId,
+                    ct))
+            {
+                approvablePendingCount++;
+            }
+        }
+
         var displaySubmissions = new List<AttendanceScopeSubmission>();
         foreach (var submission in scopedSubmissions)
         {
@@ -350,7 +364,7 @@ public class AttendanceSubmissionService(
             occurrence.MeetingType?.Title ?? string.Empty,
             occurrence.MeetingDate,
             approvedSubmissions.Count,
-            pendingSubmissions.Count,
+            approvablePendingCount,
             membersPresent,
             membersAbsent,
             guestsPresent,

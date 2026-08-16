@@ -4,9 +4,11 @@ import {
   formatSubmissionWindow,
   isFutureServiceDate,
   isRollCallEditable,
+  nextUpcomingOccurrence,
   pickNearestOccurrence,
   rollCallState,
   selectableOccurrences,
+  upcomingRollCallLockMessage,
 } from '@/lib/attendance-ui'
 
 describe('formatSubmissionWindow', () => {
@@ -128,5 +130,60 @@ describe('isFutureServiceDate', () => {
     const now = new Date('2026-08-08T12:00:00Z')
     expect(isFutureServiceDate('2026-08-16', now)).toBe(true)
     expect(isFutureServiceDate('2026-08-08', now)).toBe(false)
+  })
+})
+
+describe('nextUpcomingOccurrence', () => {
+  const now = new Date('2026-08-15T12:00:00Z')
+
+  it('returns the earliest future service', () => {
+    const next = nextUpcomingOccurrence(
+      [
+        {
+          id: 'past',
+          meetingDate: '2026-08-09',
+          status: 'Open',
+          submissionOpensAt: '',
+          submissionDeadlineAt: '',
+          scopeSubmissionCount: 1,
+        },
+        {
+          id: 'next',
+          meetingDate: '2026-08-16',
+          status: 'Scheduled',
+          submissionOpensAt: '2026-08-16T14:00:00Z',
+          submissionDeadlineAt: '2026-08-17T00:00:00Z',
+          scopeSubmissionCount: 1,
+        },
+        {
+          id: 'later',
+          meetingDate: '2026-08-23',
+          status: 'Scheduled',
+          submissionOpensAt: '2026-08-23T14:00:00Z',
+          submissionDeadlineAt: '2026-08-24T00:00:00Z',
+          scopeSubmissionCount: 1,
+        },
+      ],
+      now,
+    )
+    expect(next?.id).toBe('next')
+  })
+})
+
+describe('upcomingRollCallLockMessage', () => {
+  it('includes when roll call opens', () => {
+    const message = upcomingRollCallLockMessage(
+      {
+        id: 'next',
+        meetingDate: '2026-08-16',
+        status: 'Scheduled',
+        submissionOpensAt: '2026-08-16T14:00:00Z',
+        submissionDeadlineAt: '2026-08-17T00:00:00Z',
+        scopeSubmissionCount: 1,
+      },
+      new Date('2026-08-15T12:00:00Z'),
+    )
+    expect(message.title).toContain('roll call locked')
+    expect(message.description).toContain('Roll call opens')
   })
 })
