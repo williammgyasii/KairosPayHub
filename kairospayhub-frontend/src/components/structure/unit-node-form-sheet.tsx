@@ -326,8 +326,8 @@ function UnitNodeForm({
           <div className="rounded-md border border-border/60 bg-background px-3 py-2.5">
             <p className="text-sm font-medium">{resolvedLeader.leaderName || 'Assigned leader'}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Leader cannot be changed from this form. Update the member profile from Membership if
-              needed.
+              Leader cannot be changed from this form. Use Change leadership in the roster menu
+              instead.
             </p>
           </div>
         ) : (

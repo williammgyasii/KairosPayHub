@@ -177,6 +177,45 @@ public class NotificationService(
             ct);
     }
 
+    public async Task NotifyGivingCampaignOpenedAsync(
+        GivingProgram program,
+        Guid openedByAuthUserId,
+        CancellationToken ct = default)
+    {
+        if (program.ApprovalStatus != ProgramApprovalStatus.Approved)
+            return;
+
+        var recipients = await GivingScopeRecipientAuthUserIdsAsync(
+            program,
+            openedByAuthUserId,
+            ct);
+
+        if (recipients.Count == 0)
+            return;
+
+        var creator = await GivingProgramCreatorResolver.ResolveAsync(
+            db,
+            program.ChurchId,
+            program.CreatedByAuthUserId,
+            program.CreatedByRole,
+            ct);
+
+        var creatorLabel = FormatCreatorLabel(creator, program.CreatedByRole) ?? "Your pastor";
+        var body =
+            $"{creatorLabel} opened \"{program.Title}\" ({program.PeriodLabel}). Log contributions from Givings.";
+
+        await CreateManyAsync(
+            program.ChurchId,
+            recipients,
+            NotificationKind.GivingCampaignOpened,
+            "New giving campaign",
+            body,
+            LinkPath: $"givings/{program.Id}",
+            programId: program.Id,
+            relatedEntityId: program.Id,
+            ct);
+    }
+
     public async Task NotifyContributionPendingAsync(
         Contribution contribution,
         GivingProgram program,
@@ -469,6 +508,53 @@ public class NotificationService(
                     || await scope.IsNodeInSubtreeAsync(churchId, scopeNodeId.Value, viewerRoot, ct))
                 {
                     recipients.Add(assignment.AuthUserId);
+                }
+            }
+        }
+
+        if (excludeAuthUserId is Guid excluded)
+            recipients.Remove(excluded);
+
+        return recipients.ToList();
+    }
+
+    private async Task<List<Guid>> GivingScopeRecipientAuthUserIdsAsync(
+        GivingProgram program,
+        Guid? excludeAuthUserId,
+        CancellationToken ct)
+    {
+        if (program.ScopeKind == ProgramScopeKind.ChurchWide)
+        {
+            return await CalendarScopeRecipientAuthUserIdsAsync(
+                program.ChurchId,
+                scopeNodeId: null,
+                excludeAuthUserId,
+                ct);
+        }
+
+        var scopeNodeIds = await scope.GetProgramScopeNodeIdsAsync(program, ct);
+        if (scopeNodeIds.Count == 0)
+            return [];
+
+        var recipients = new HashSet<Guid>();
+        var assignments = await db.RoleAssignments.AsNoTracking()
+            .Where(r =>
+                r.ChurchId == program.ChurchId
+                && r.ScopeNodeId != null
+                && r.Role != ChurchRole.Member)
+            .ToListAsync(ct);
+
+        foreach (var assignment in assignments)
+        {
+            var viewerRoot = assignment.ScopeNodeId!.Value;
+            foreach (var scopeNodeId in scopeNodeIds)
+            {
+                if (viewerRoot == scopeNodeId
+                    || await scope.IsNodeInSubtreeAsync(program.ChurchId, viewerRoot, scopeNodeId, ct)
+                    || await scope.IsNodeInSubtreeAsync(program.ChurchId, scopeNodeId, viewerRoot, ct))
+                {
+                    recipients.Add(assignment.AuthUserId);
+                    break;
                 }
             }
         }

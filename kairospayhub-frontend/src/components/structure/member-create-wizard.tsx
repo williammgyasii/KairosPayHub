@@ -35,7 +35,6 @@ import {
   formatCellName,
   formatFellowshipName,
   getDeepestLayer,
-  layerById,
   nodeById,
   placementOptionsForUnit,
   memberPlacementOptions,
@@ -43,8 +42,8 @@ import {
 import { cn } from '@/lib/utils'
 import {
   buildCreateStepPlan,
+  resolveMemberWizardMode,
   type MemberWizardStepKind,
-  type MemberWizardMode,
 } from '@/components/structure/member-wizard-steps'
 
 export function MemberCreateWizard({
@@ -63,14 +62,9 @@ export function MemberCreateWizard({
   const api = useApi()
   const deepest = getDeepestLayer(tree)
   const unit = unitNodeId ? nodeById(tree, unitNodeId) : undefined
-  const layer = unit ? layerById(tree, unit.layerId) : undefined
-  const isCellContext = Boolean(unit && deepest && unit.layerId === deepest.id)
-  const isFellowshipContext = layer?.standardType === 'Fellowship'
-  const wizardMode: MemberWizardMode = isCellContext
-    ? 'cell'
-    : isFellowshipContext
-      ? 'fellowship'
-      : 'roster'
+  const wizardMode = resolveMemberWizardMode(tree, unitNodeId)
+  const isCellContext = wizardMode === 'cell'
+  const isFellowshipContext = wizardMode === 'fellowship'
   const cellLabel = isCellContext && unit ? formatCellName(unit.name) : null
   const fellowshipLabel =
     isFellowshipContext && unit ? formatFellowshipName(unit.name) : null

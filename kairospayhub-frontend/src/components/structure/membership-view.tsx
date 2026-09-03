@@ -8,10 +8,10 @@ import type {
 } from '@/api/structure'
 import { buildMembersQuery } from '@/api/structure'
 import { useApi } from '@/api/core'
-import { MemberCreateWizard } from '@/components/structure/member-create-wizard'
+import { MemberFormSheet, type MemberSheetState } from '@/components/structure/member-form-sheet'
 import { MemberDetailSheet, type MemberDetailTab } from '@/components/structure/member-detail-sheet'
 import { MemberDeleteModal } from '@/components/structure/member-delete-modal'
-import { MemberFormSheet, type MemberSheetState } from '@/components/structure/member-form-sheet'
+import { resolveMemberWizardMode } from '@/components/structure/member-wizard-steps'
 import { MemberTableToolbar } from '@/components/structure/member-table-toolbar'
 import { StructureMemberTable } from '@/components/structure/structure-member-table'
 import {
@@ -153,6 +153,8 @@ export function MembershipView({
     return applyMemberFilterRules(rows, filterRules)
   }, [rows, filterRules])
 
+  const totalCount = list?.totalCount ?? 0
+
   const sorting = useMemo(() => paramsToSorting(sortBy ?? 'name', sortDir), [sortBy, sortDir])
 
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
@@ -168,7 +170,36 @@ export function MembershipView({
     await loadMembers()
   }
 
-  const totalCount = list?.totalCount ?? 0
+  const wizardMode = useMemo(
+    () => resolveMemberWizardMode(tree, scopeParentNodeId),
+    [tree, scopeParentNodeId],
+  )
+
+  const tableTitle = useMemo(() => {
+    if (!scopeParentNodeId) return 'All members'
+    switch (wizardMode) {
+      case 'cell':
+        return 'Members in your cell'
+      case 'fellowship':
+        return 'Members in your fellowship'
+      default:
+        return 'Members in your scope'
+    }
+  }, [scopeParentNodeId, wizardMode])
+
+  const emptyAddHint =
+    wizardMode === 'cell'
+      ? 'No members in this cell yet. Click Add member to register someone.'
+      : wizardMode === 'fellowship'
+        ? 'No members in this fellowship yet. Click Add member to register someone.'
+        : 'No members yet. Click Add member above.'
+
+  const activeSheet: MemberSheetState | null = wizardOpen ? { mode: 'create' } : sheet
+
+  function closeSheet() {
+    setSheet(null)
+    setWizardOpen(false)
+  }
 
   return (
     <div className="min-w-0 space-y-4">
@@ -181,14 +212,18 @@ export function MembershipView({
       <StructureMemberTable
         rows={filteredRows}
         structureLayers={structureLayers}
-        title={scopeParentNodeId ? 'Members in your scope' : 'All members'}
+        title={tableTitle}
         extendedColumns
         totalCount={totalCount}
         emptyMessage={
           totalCount === 0
             ? readOnly
-              ? 'No members in your scope yet.'
-              : 'No members yet. Click Add member above.'
+              ? wizardMode === 'cell'
+                ? 'No members in this cell yet.'
+                : wizardMode === 'fellowship'
+                  ? 'No members in this fellowship yet.'
+                  : 'No members in your scope yet.'
+              : emptyAddHint
             : 'No members match your filters on this page.'
         }
         showSearch={false}
@@ -234,22 +269,14 @@ export function MembershipView({
         onDelete={readOnly ? undefined : (member) => setDeleteMember(member)}
       />
 
-      {!readOnly && wizardOpen && (
-        <MemberCreateWizard
-          tree={tree}
-          busy={busy}
-          submit={submitAndRefresh}
-          onClose={() => setWizardOpen(false)}
-        />
-      )}
-
-      {!readOnly && sheet && (
+      {!readOnly && activeSheet && (
         <MemberFormSheet
           tree={tree}
+          unitNodeId={scopeParentNodeId ?? undefined}
           busy={busy}
           submit={submitAndRefresh}
-          sheet={sheet}
-          onClose={() => setSheet(null)}
+          sheet={activeSheet}
+          onClose={closeSheet}
         />
       )}
 

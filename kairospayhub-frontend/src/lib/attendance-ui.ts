@@ -61,6 +61,27 @@ export const DEFAULT_MEETING_TYPE_WINDOW = {
   autoGenerateWeeksAhead: 8,
 } as const
 
+/** Demo preset: today's service with submission window already open. */
+export const OPEN_NOW_DEMO_WINDOW = {
+  opensDayOffset: 0,
+  opensTimeUtc: '00:00:00',
+  deadlineDayOffset: 2,
+  deadlineTimeUtc: '23:59:00',
+} as const
+
+export function todayDayOfWeek(): string {
+  const days = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ] as const
+  return days[new Date().getDay()]
+}
+
 export const DAY_OFFSET_OPTIONS = [
   { value: 0, label: 'Same day as meeting' },
   { value: 1, label: 'Next day' },
@@ -233,7 +254,34 @@ export function rollCallState(
   detail: AttendanceOccurrenceDetail,
   scopeNodeId: string,
   now = new Date(),
+  options?: { pastorDemo?: boolean },
 ): { editable: boolean; reason: RollCallBlockReason | null; message: string | null } {
+  if (options?.pastorDemo) {
+    const submission = scopeSubmission(detail, scopeNodeId)
+    if (!submission) {
+      return {
+        editable: false,
+        reason: 'noSubmission',
+        message: 'Roll call is not set up for this cell yet.',
+      }
+    }
+    if (submission.approvalStatus === 'PendingApproval') {
+      return {
+        editable: false,
+        reason: 'submitted',
+        message: rollCallPendingMessage(),
+      }
+    }
+    if (submission.approvalStatus === 'Approved') {
+      return {
+        editable: false,
+        reason: 'submitted',
+        message: 'Roll call has been approved.',
+      }
+    }
+    return { editable: true, reason: null, message: null }
+  }
+
   if (isFutureServiceDate(detail.meetingDate, now)) {
     return {
       editable: false,
@@ -305,8 +353,9 @@ export function isRollCallEditable(
   detail: AttendanceOccurrenceDetail,
   scopeNodeId: string,
   now = new Date(),
+  options?: { pastorDemo?: boolean },
 ) {
-  return rollCallState(detail, scopeNodeId, now).editable
+  return rollCallState(detail, scopeNodeId, now, options).editable
 }
 
 export function formatOccurrenceLabel(occurrence: AttendanceOccurrenceSummary) {

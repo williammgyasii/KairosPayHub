@@ -1,4 +1,4 @@
-import { Eye, Layers, MoreHorizontal, Pencil, Trash2, Users } from 'lucide-react'
+import { Eye, Layers, MoreHorizontal, Pencil, Trash2, UserCog, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { StructureTree } from '@/api/structure'
 import { directChildLayer } from '@/lib/structure-tree'
@@ -21,6 +21,7 @@ interface RosterUnitActionsMenuProps {
   unitId: string
   unitName?: string
   readOnly?: boolean
+  onChangeLeader?: () => void
   onEdit?: () => void
   onDelete?: () => void
 }
@@ -30,11 +31,12 @@ export function RosterUnitActionsMenu({
   unitId,
   unitName,
   readOnly = false,
+  onChangeLeader,
   onEdit,
   onDelete,
 }: RosterUnitActionsMenuProps) {
   const childLayer = directChildLayer(tree, unitId)
-  const showManageActions = !readOnly && (onEdit || onDelete)
+  const showManageActions = !readOnly && (onChangeLeader || onEdit || onDelete)
 
   return (
     <DropdownMenu>
@@ -74,6 +76,12 @@ export function RosterUnitActionsMenu({
         {showManageActions && (
           <>
             <DropdownMenuSeparator />
+            {onChangeLeader && (
+              <DropdownMenuItem className="gap-2" onClick={onChangeLeader}>
+                <UserCog className="size-4" />
+                Change leadership
+              </DropdownMenuItem>
+            )}
             {onEdit && (
               <DropdownMenuItem className="gap-2" onClick={onEdit}>
                 <Pencil className="size-4" />

@@ -135,6 +135,7 @@ interface AttendanceRollCallSheetProps {
   onSave: () => void
   onSubmit: () => void
   viewerRole?: string
+  pastorDemo?: boolean
 }
 
 function scopeSubmission(detail: AttendanceOccurrenceDetail, scopeNodeId: string) {
@@ -193,12 +194,15 @@ export function AttendanceRollCallSheet({
   onSave,
   onSubmit,
   viewerRole = 'CellLeader',
+  pastorDemo = false,
 }: AttendanceRollCallSheetProps) {
   const api = useApi()
   const [tab, setTab] = useState<RollCallTab>('members')
   const [addInviteeOpen, setAddInviteeOpen] = useState(false)
   const submission = scopeSubmission(detail, scopeNodeId)
-  const { editable, message: blockMessage } = rollCallState(detail, scopeNodeId)
+  const { editable, message: blockMessage } = rollCallState(detail, scopeNodeId, undefined, {
+    pastorDemo,
+  })
   const disabled = !editable
 
   const entries = useMemo(

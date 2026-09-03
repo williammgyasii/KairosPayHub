@@ -27,6 +27,7 @@ export type CreateAttendanceMeetingTypeInput = {
   deadlineDayOffset?: number
   deadlineTimeUtc?: string
   autoGenerateWeeksAhead?: number
+  openNowForDemo?: boolean
 }
 
 export type UpdateAttendanceMeetingTypeInput = {
@@ -77,6 +78,7 @@ export type AttendanceEntry = {
 export type AttendanceScopeSubmission = {
   id: string
   scopeNodeId: string
+  scopeUnitName: string
   lockStatus: string
   approvalStatus: string
   submittedAt: string | null
@@ -237,6 +239,7 @@ export function putOccurrenceEntries(
     entries: Array<{ memberId: string; status: 'Present' | 'Absent' }>
     firstTimers?: Array<{ name: string; phone?: string | null; notes?: string | null }>
     inviteeEntries?: Array<{ inviteeId: string; status: 'Present' | 'Absent'; wasFirstTimer: boolean }>
+    pastorOverride?: boolean
   },
 ) {
   return api.put<{ ok: boolean }>(
@@ -275,10 +278,11 @@ export function submitOccurrenceScope(
   api: ApiClient,
   occurrenceId: string,
   scopeNodeId: string,
+  options?: { pastorOverride?: boolean },
 ) {
   return api.post<{ ok: boolean }>(
     `/api/attendance/occurrences/${occurrenceId}/scopes/${scopeNodeId}/submit`,
-    {},
+    { pastorOverride: options?.pastorOverride ?? false },
   )
 }
 

@@ -48,7 +48,8 @@ public class AttendanceController(
                 request.OpensTimeUtc ?? "14:00:00",
                 request.DeadlineDayOffset,
                 request.DeadlineTimeUtc ?? "00:00:00",
-                request.AutoGenerateWeeksAhead),
+                request.AutoGenerateWeeksAhead,
+                request.OpenNowForDemo),
             ct);
         return Ok(created);
     }
@@ -243,13 +244,20 @@ public class AttendanceController(
     public async Task<IActionResult> Submit(
         Guid occurrenceId,
         Guid scopeNodeId,
+        [FromBody] SubmitAttendanceScopeRequest? request,
         CancellationToken ct)
     {
         if (!Guid.TryParse(current.Sub, out var authUserId))
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        await submissions.SubmitAsync(actor, authUserId, occurrenceId, scopeNodeId, ct);
+        await submissions.SubmitAsync(
+            actor,
+            authUserId,
+            occurrenceId,
+            scopeNodeId,
+            request?.PastorOverride ?? false,
+            ct);
         return Ok(new { ok = true });
     }
 
@@ -302,6 +310,11 @@ public class AttendanceController(
 
 public sealed record RejectAttendanceSubmissionRequest(string? Reason);
 
+public sealed class SubmitAttendanceScopeRequest
+{
+    public bool PastorOverride { get; set; }
+}
+
 public sealed record CreateAttendanceMeetingTypeRequest(
     string? Title,
     string? RecurrenceKind,
@@ -313,7 +326,8 @@ public sealed record CreateAttendanceMeetingTypeRequest(
     string? OpensTimeUtc = null,
     int DeadlineDayOffset = 1,
     string? DeadlineTimeUtc = null,
-    int AutoGenerateWeeksAhead = 8);
+    int AutoGenerateWeeksAhead = 8,
+    bool OpenNowForDemo = false);
 
 public sealed record UpdateAttendanceMeetingTypeRequest(
     string? Title,

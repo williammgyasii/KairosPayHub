@@ -80,3 +80,7 @@ export const {
   useGetScopeRollCallReviewQuery,
   useApproveOccurrenceScopeMutation,
 } = attendanceApi
+
+export function invalidateAttendanceApprovalQueue() {
+  return attendanceApi.util.invalidateTags(['AttendanceApprovalQueue'])
+}

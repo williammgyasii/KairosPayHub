@@ -97,6 +97,7 @@ public class StructureController(CurrentActor current, StructureService structur
             request.UnitNumber,
             request.LeaderMemberId,
             request.NewLeader,
+            request.ClearLeader,
             ct));
     }
 

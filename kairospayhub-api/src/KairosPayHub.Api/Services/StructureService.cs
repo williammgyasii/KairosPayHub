@@ -811,6 +811,7 @@ public class StructureService(
         string? unitNumber,
         Guid? leaderMemberId,
         NewStructureNodeLeaderRequest? newLeader,
+        bool clearLeader = false,
         CancellationToken ct = default)
     {
         RequireChurchManager(actor);
@@ -827,7 +828,9 @@ public class StructureService(
         node.Name = name.Trim();
         node.UnitNumber = NormalizeUnitNumber(unitNumber);
 
-        if (leaderMemberId is not null || newLeader is not null)
+        if (clearLeader)
+            await ApplyNodeLeaderAsync(churchId, template, node, layer, null, null, ct);
+        else if (leaderMemberId is not null || newLeader is not null)
             await ApplyNodeLeaderAsync(churchId, template, node, layer, leaderMemberId, newLeader, ct);
         await db.SaveChangesAsync(ct);
 

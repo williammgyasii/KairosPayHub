@@ -26,6 +26,10 @@ import { canAccessEvents } from '@/lib/calendar-events-ui'
 import { useAuth } from '@/auth/AuthContext'
 import { filterTreeToSubtree } from '@/lib/structure-tree'
 import { MembershipEmptyState, MembershipView } from '@/components/structure/membership-view'
+import {
+  membershipPageDescription,
+  resolveMemberWizardMode,
+} from '@/components/structure/member-wizard-steps'
 import { RosterEmptyState, RosterView } from '@/components/structure/roster-view'
 import { RosterUnitView } from '@/components/structure/roster-unit-view'
 import { StructureDefinitionCard } from '@/components/structure/structure-definition-card'
@@ -507,6 +511,7 @@ export function MembershipPage() {
   const hasRosterUnits = displayTree.nodes.length > 0
   const scopeLabel =
     rollCallScopesFor(me)[0]?.scopeUnitName ?? me.scopeUnitName ?? 'your unit'
+  const membershipMode = resolveMemberWizardMode(displayTree, scopeParentNodeId)
 
   return (
     <div className="space-y-5">
@@ -518,11 +523,7 @@ export function MembershipPage() {
         ]}
         title="Membership"
         titleSize="hero"
-        description={
-          canManage
-            ? `Register members with name, phone, age, and role — placed under a roster unit from ${displayTree.template!.name}.`
-            : `Members registered under ${scopeLabel}.`
-        }
+        description={membershipPageDescription(membershipMode, scopeLabel, canManage)}
         actions={
           canManage && hasRosterUnits ? (
             <Button size="sm" onClick={() => setAddOpen(true)}>

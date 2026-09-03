@@ -10,6 +10,7 @@ import {
   useMarkAllNotificationsReadMutation,
   useMarkNotificationReadMutation,
 } from '@/store/notificationsApi'
+import { invalidateAttendanceApprovalQueue } from '@/store/attendanceApi'
 import { formatRtkQueryError } from '@/store/baseQuery'
 
 type UseNotificationsOptions = {
@@ -95,6 +96,14 @@ export function useNotifications({ enabled = true, limit = 30 }: UseNotification
             if (!notification.readAt) draft.unreadCount += 1
           }),
         )
+
+        if (
+          notification.kind === 'AttendancePendingApproval'
+          || notification.kind === 'AttendanceApproved'
+          || notification.kind === 'AttendanceRejected'
+        ) {
+          dispatch(invalidateAttendanceApprovalQueue())
+        }
       })
 
       connectionRef.current = connection

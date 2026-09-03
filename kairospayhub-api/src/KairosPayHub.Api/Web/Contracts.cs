@@ -265,7 +265,8 @@ public record UpdateStructureNodeRequest(
     string Name,
     string? UnitNumber,
     Guid? LeaderMemberId,
-    NewStructureNodeLeaderRequest? NewLeader);
+    NewStructureNodeLeaderRequest? NewLeader,
+    bool ClearLeader = false);
 
 public record LinkStructureNodeRequest(Guid? ParentNodeId);
 

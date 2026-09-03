@@ -337,4 +337,90 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(0, (await pastor.GetFromJsonAsync<JsonElement>("/api/notifications/unread-count"))
             .GetProperty("unreadCount").GetInt32());
     }
+
+    [Fact]
+    public async Task Pastor_creates_church_wide_campaign_notifies_scoped_leaders()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Campaign Notify Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Fellowship",
+                email = "jane.campaign@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob Cell",
+                email = "bob.campaign@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>();
+
+        await using var db = fx.CreateContext();
+        var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "bob.campaign@example.com");
+        var fellowshipLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.campaign@example.com");
+
+        var programId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var cellClient = ClientForAuthUser(
+            cellLeader.AuthUserId!.Value,
+            "bob.campaign@example.com",
+            "Bob Cell");
+        var fellowshipClient = ClientForAuthUser(
+            fellowshipLeader.AuthUserId!.Value,
+            "jane.campaign@example.com",
+            "Jane Fellowship");
+
+        var pastorNotifications = await pastor.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(0, pastorNotifications.GetProperty("unreadCount").GetInt32());
+
+        var cellNotifications = await cellClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(1, cellNotifications.GetProperty("unreadCount").GetInt32());
+        var cellItem = cellNotifications.GetProperty("notifications")[0];
+        Assert.Equal("GivingCampaignOpened", cellItem.GetProperty("kind").GetString());
+        Assert.Contains("Rhapsody 2026", cellItem.GetProperty("body").GetString());
+        Assert.Equal($"givings/{programId}", cellItem.GetProperty("linkPath").GetString());
+
+        var fellowshipNotifications = await fellowshipClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(1, fellowshipNotifications.GetProperty("unreadCount").GetInt32());
+        Assert.Equal(
+            "GivingCampaignOpened",
+            fellowshipNotifications.GetProperty("notifications")[0].GetProperty("kind").GetString());
+    }
 }

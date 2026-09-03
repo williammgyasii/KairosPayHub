@@ -13,6 +13,7 @@ public enum NotificationKind
     AttendanceRejected,
     CalendarEventReminder,
     CalendarBirthdayReminder,
+    GivingCampaignOpened,
 }
 
 public class Notification

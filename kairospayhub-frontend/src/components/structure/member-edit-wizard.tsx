@@ -14,7 +14,7 @@ import {
 } from '@/components/structure/member-profile-fields'
 import {
   buildEditStepPlan,
-  type MemberWizardMode,
+  resolveMemberWizardMode,
   type MemberWizardStepKind,
 } from '@/components/structure/member-wizard-steps'
 import { SearchPicker } from '@/components/structure/search-picker'
@@ -35,7 +35,6 @@ import {
   formatCellName,
   formatFellowshipName,
   getDeepestLayer,
-  layerById,
   nodeById,
   placementOptionsForUnit,
   memberPlacementOptions,
@@ -59,14 +58,9 @@ export function MemberEditWizard({
   const api = useApi()
   const deepest = getDeepestLayer(tree)
   const unit = unitNodeId ? nodeById(tree, unitNodeId) : undefined
-  const layer = unit ? layerById(tree, unit.layerId) : undefined
-  const isCellContext = Boolean(unit && deepest && unit.layerId === deepest.id)
-  const isFellowshipContext = layer?.standardType === 'Fellowship'
-  const wizardMode: MemberWizardMode = isCellContext
-    ? 'cell'
-    : isFellowshipContext
-      ? 'fellowship'
-      : 'roster'
+  const wizardMode = resolveMemberWizardMode(tree, unitNodeId)
+  const isCellContext = wizardMode === 'cell'
+  const isFellowshipContext = wizardMode === 'fellowship'
   const cellLabel = isCellContext && unit ? formatCellName(unit.name) : null
   const fellowshipLabel =
     isFellowshipContext && unit ? formatFellowshipName(unit.name) : null

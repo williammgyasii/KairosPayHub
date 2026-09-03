@@ -13,6 +13,10 @@ import { Link } from 'react-router-dom'
 import { useApi } from '@/api/core'
 import type { StructureLayer, StructureTree } from '@/api/structure'
 import { AddFellowshipButton } from '@/components/structure/add-fellowship-button'
+import {
+  ChangeLeadershipModal,
+  type ChangeLeadershipTarget,
+} from '@/components/structure/change-leadership-modal'
 import { FellowshipCreateWizard } from '@/components/structure/fellowship-create-wizard'
 import { RosterUnitActionsMenu } from '@/components/structure/roster-unit-actions-menu'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
@@ -27,6 +31,7 @@ import {
   layerParentOptions,
   layerRequiresParent,
   nodesAtLayer,
+  nodeById,
   resolveLayerParentId,
   rosterLayerLockReason,
   rosterLayersForScope,
@@ -58,6 +63,7 @@ export function RosterView({
   const [tab, setTab] = useState<string>(layers[0]?.id ?? '')
   const [fellowshipWizardOpen, setFellowshipWizardOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<StructureNodeRow | null>(null)
+  const [changeLeaderTarget, setChangeLeaderTarget] = useState<ChangeLeadershipTarget | null>(null)
   const activeLayer = layers.find((l) => l.id === tab) ?? layers[0]
 
   const deleteImpact = useMemo(
@@ -124,6 +130,16 @@ export function RosterView({
         readOnly={readOnly}
         canDelete={canDeleteLayerUnits(activeLayer)}
         onDelete={(row) => setDeleteTarget(row)}
+        onChangeLeader={(row) => {
+          const node = nodeById(tree, row.id)
+          if (!node) return
+          setChangeLeaderTarget({
+            nodeId: node.id,
+            nodeName: node.name,
+            unitNumber: node.unitNumber ?? '',
+            layer: activeLayer,
+          })
+        }}
       />
 
       {!readOnly && deleteTarget && (
@@ -138,6 +154,16 @@ export function RosterView({
             })
           }}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {!readOnly && changeLeaderTarget && (
+        <ChangeLeadershipModal
+          tree={tree}
+          target={changeLeaderTarget}
+          busy={busy}
+          submit={submit}
+          onClose={() => setChangeLeaderTarget(null)}
         />
       )}
 
@@ -238,7 +264,7 @@ function AddLayerButton({
                 <option value="">Select…</option>
                 {parentOptions.map((n) => (
                   <option key={n.id} value={n.id}>
-                    {n.name}
+                    {n.label}
                   </option>
                 ))}
               </select>
@@ -268,12 +294,14 @@ function LayerRosterTable({
   readOnly,
   canDelete,
   onDelete,
+  onChangeLeader,
 }: {
   tree: StructureTree
   layer: StructureLayer
   readOnly: boolean
   canDelete: boolean
   onDelete: (row: StructureNodeRow) => void
+  onChangeLeader: (row: StructureNodeRow) => void
 }) {
   const rows = useMemo(() => buildNodeRows(tree, layer.id), [tree, layer.id])
   const columns = useMemo(
@@ -282,8 +310,9 @@ function LayerRosterTable({
         readOnly,
         canDelete,
         onDelete,
+        onChangeLeader,
       }),
-    [tree, readOnly, canDelete, onDelete],
+    [tree, readOnly, canDelete, onDelete, onChangeLeader],
   )
 
   return (
@@ -321,10 +350,12 @@ function createRosterNodeColumns(
     readOnly,
     canDelete,
     onDelete,
+    onChangeLeader,
   }: {
     readOnly: boolean
     canDelete: boolean
     onDelete: (row: StructureNodeRow) => void
+    onChangeLeader: (row: StructureNodeRow) => void
   },
 ) {
   return [
@@ -359,7 +390,8 @@ function createRosterNodeColumns(
           tree={tree}
           unitId={row.original.id}
           unitName={row.original.name}
-          readOnly={readOnly || !canDelete}
+          readOnly={readOnly}
+          onChangeLeader={!readOnly ? () => onChangeLeader(row.original) : undefined}
           onDelete={canDelete && !readOnly ? () => onDelete(row.original) : undefined}
         />
       ),

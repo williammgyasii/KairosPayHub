@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label'
 import {
   DAY_OFFSET_OPTIONS,
   DEFAULT_MEETING_TYPE_WINDOW,
+  OPEN_NOW_DEMO_WINDOW,
   WEEKDAY_OPTIONS,
+  todayDayOfWeek,
   toApiTimeValue,
   toTimeInputValue,
 } from '@/lib/attendance-ui'
@@ -43,6 +45,7 @@ export function MeetingTypeFormModal({
   const [deadlineTime, setDeadlineTime] = useState(
     toTimeInputValue(DEFAULT_MEETING_TYPE_WINDOW.deadlineTimeUtc),
   )
+  const [openNowForDemo, setOpenNowForDemo] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -63,7 +66,17 @@ export function MeetingTypeFormModal({
     setOpensTime(toTimeInputValue(DEFAULT_MEETING_TYPE_WINDOW.opensTimeUtc))
     setDeadlineDayOffset(DEFAULT_MEETING_TYPE_WINDOW.deadlineDayOffset)
     setDeadlineTime(toTimeInputValue(DEFAULT_MEETING_TYPE_WINDOW.deadlineTimeUtc))
+    setOpenNowForDemo(false)
   }, [open, mode, meetingType])
+
+  useEffect(() => {
+    if (mode !== 'create' || !openNowForDemo) return
+    setDayOfWeek(todayDayOfWeek())
+    setOpensDayOffset(OPEN_NOW_DEMO_WINDOW.opensDayOffset)
+    setOpensTime(toTimeInputValue(OPEN_NOW_DEMO_WINDOW.opensTimeUtc))
+    setDeadlineDayOffset(OPEN_NOW_DEMO_WINDOW.deadlineDayOffset)
+    setDeadlineTime(toTimeInputValue(OPEN_NOW_DEMO_WINDOW.deadlineTimeUtc))
+  }, [mode, openNowForDemo])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -84,7 +97,9 @@ export function MeetingTypeFormModal({
         await createMeetingType(api, {
           ...DEFAULT_MEETING_TYPE_WINDOW,
           ...windowInput,
-          dayOfWeek,
+          dayOfWeek: openNowForDemo ? todayDayOfWeek() : dayOfWeek,
+          ...(openNowForDemo ? OPEN_NOW_DEMO_WINDOW : {}),
+          openNowForDemo,
         })
       }
 
@@ -122,21 +137,45 @@ export function MeetingTypeFormModal({
         </div>
 
         {mode === 'create' ? (
-          <div className="space-y-2">
-            <Label htmlFor="meeting-day">Frequency</Label>
-            <select
-              id="meeting-day"
-              value={dayOfWeek}
-              onChange={(e) => setDayOfWeek(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              {WEEKDAY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={openNowForDemo}
+                onChange={(e) => setOpenNowForDemo(e.target.checked)}
+                className="mt-1"
+              />
+              <span className="space-y-0.5">
+                <span className="block text-sm font-medium">Open now (demo)</span>
+                <span className="block text-xs text-muted-foreground">
+                  Creates today&apos;s service with roll call open immediately so you can demo
+                  attendance.
+                </span>
+              </span>
+            </label>
+
+            <div className="space-y-2">
+              <Label htmlFor="meeting-day">Frequency</Label>
+              <select
+                id="meeting-day"
+                value={dayOfWeek}
+                onChange={(e) => setDayOfWeek(e.target.value)}
+                disabled={openNowForDemo}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
+              >
+                {WEEKDAY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {openNowForDemo && (
+                <p className="text-xs text-muted-foreground">
+                  Scheduled for today ({todayDayOfWeek()}).
+                </p>
+              )}
+            </div>
+          </>
         ) : meetingType ? (
           <p className="text-sm text-muted-foreground">
             Schedule: {meetingType.recurrenceKind} · {meetingType.dayOfWeek}

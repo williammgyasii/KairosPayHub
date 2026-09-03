@@ -44,6 +44,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useSidebar } from '@/components/layout/sidebar-context'
+import { useListApprovalQueueQuery } from '@/store/attendanceApi'
 
 const SIDEBAR_WIDTH_EXPANDED = 'w-64'
 const SIDEBAR_WIDTH_COLLAPSED = 'w-[72px]'
@@ -53,6 +54,7 @@ type NavChild = {
   label: string
   icon: LucideIcon
   end?: boolean
+  badgeCount?: number
 }
 
 type NavItem = {
@@ -61,12 +63,14 @@ type NavItem = {
   icon: LucideIcon
   end?: boolean
   disabled?: boolean
+  badgeCount?: number
 }
 
 type NavGroup = {
   label: string
   icon: LucideIcon
   children: NavChild[]
+  badgeCount?: number
 }
 
 type NavEntry =
@@ -99,12 +103,12 @@ function attendanceNavForRole(me: Me & { onboarded: true }): NavEntry {
     children.push({ to: 'attendance', label: 'Meeting types', icon: CalendarCog, end: true })
   }
 
-  if (canSubmitRollCall(me)) {
+  if (canSubmitRollCall(me) || canManageChurch(role)) {
     children.push({ to: 'attendance/submissions', label: 'Submissions', icon: ClipboardList, end: true })
   }
 
   if (canApproveAttendance(role)) {
-    children.push({ to: 'attendance/overview', label: 'Overview', icon: BarChart3, end: true })
+    children.push({ to: 'attendance/overview', label: 'Metrics', icon: BarChart3, end: true })
     children.push({ to: 'attendance/approvals', label: 'Approvals', icon: ShieldCheck, end: true })
   }
 
@@ -215,12 +219,35 @@ interface AppSidebarProps {
   expanded?: boolean
 }
 
+function applyAttendanceBadges(entries: NavEntry[], pendingApprovalCount: number): NavEntry[] {
+  if (pendingApprovalCount <= 0) return entries
+
+  return entries.map((entry) => {
+    if (entry.kind !== 'group' || entry.label !== 'Attendance') return entry
+
+    return {
+      ...entry,
+      badgeCount: pendingApprovalCount,
+      children: entry.children.map((child) =>
+        child.to === 'attendance/approvals'
+          ? { ...child, badgeCount: pendingApprovalCount }
+          : child,
+      ),
+    }
+  })
+}
+
 export function AppSidebar({ me, className, expanded = false }: AppSidebarProps) {
   const { collapsed: contextCollapsed, toggleCollapsed } = useSidebar()
   const collapsed = expanded ? false : contextCollapsed
   const churchLabel = me.churchName ?? 'Your church'
   const showCollapseControl = !expanded
-  const nav = navForRole(me)
+  const canSeeApprovalQueue = canApproveAttendance(me.role)
+  const { data: approvalQueue = [] } = useListApprovalQueueQuery(undefined, {
+    skip: !canSeeApprovalQueue,
+    pollingInterval: 60_000,
+  })
+  const nav = applyAttendanceBadges(navForRole(me), approvalQueue.length)
 
   return (
     <aside
@@ -308,6 +335,21 @@ function SidebarCollapseRail({
   )
 }
 
+function SidebarNavBadge({ count }: { count: number }) {
+  const label = count > 99 ? '99+' : String(count)
+  return (
+    <span className="ml-auto inline-flex min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+      {label}
+    </span>
+  )
+}
+
+function SidebarNavDot() {
+  return (
+    <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-card" />
+  )
+}
+
 function navItemStyles(isActive: boolean, collapsed: boolean, disabled?: boolean) {
   return cn(
     'group flex items-center text-sm font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -347,7 +389,7 @@ function SidebarNavItem({
       end={item.end}
       relative="route"
       aria-current={isActive ? 'page' : undefined}
-      className={navItemStyles(isActive, collapsed, item.disabled)}
+      className={cn(navItemStyles(isActive, collapsed, item.disabled), collapsed && item.badgeCount && 'relative')}
       onClick={(e) => item.disabled && e.preventDefault()}
     >
       <Icon
@@ -360,11 +402,13 @@ function SidebarNavItem({
       {!collapsed && (
         <span className="flex flex-1 items-center justify-between gap-2">
           {item.label}
+          {item.badgeCount ? <SidebarNavBadge count={item.badgeCount} /> : null}
           {item.disabled && (
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Soon</span>
           )}
         </span>
       )}
+      {collapsed && item.badgeCount ? <SidebarNavDot /> : null}
     </NavLink>
   )
 
@@ -372,7 +416,10 @@ function SidebarNavItem({
     return (
       <Tooltip>
         <TooltipTrigger asChild>{link}</TooltipTrigger>
-        <TooltipContent side="right">{item.disabled ? `${item.label} (soon)` : item.label}</TooltipContent>
+        <TooltipContent side="right">
+          {item.disabled ? `${item.label} (soon)` : item.label}
+          {item.badgeCount ? ` · ${item.badgeCount} pending` : ''}
+        </TooltipContent>
       </Tooltip>
     )
   }
@@ -397,9 +444,10 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
           <button
             type="button"
             aria-label={group.label}
-            className={navItemStyles(isActive, collapsed)}
+            className={cn(navItemStyles(isActive, collapsed), collapsed && group.badgeCount && 'relative')}
           >
             <Icon className={cn('size-4 shrink-0', isActive && 'text-primary-foreground')} />
+            {collapsed && group.badgeCount ? <SidebarNavDot /> : null}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start" className="w-52">
@@ -413,7 +461,10 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
               <DropdownMenuItem key={child.to} asChild className={cn(childActive && 'bg-accent')}>
                 <NavLink to={child.to} end={child.end} relative="route" className="flex items-center gap-2">
                   <ChildIcon className="size-4 shrink-0 text-muted-foreground" />
-                  {child.label}
+                  <span className="flex flex-1 items-center justify-between gap-2">
+                    {child.label}
+                    {child.badgeCount ? <SidebarNavBadge count={child.badgeCount} /> : null}
+                  </span>
                 </NavLink>
               </DropdownMenuItem>
             )
@@ -437,7 +488,10 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
         )}
       >
         <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
-        <span className="flex-1">{group.label}</span>
+        <span className="flex flex-1 items-center gap-2">
+          {group.label}
+          {group.badgeCount ? <SidebarNavBadge count={group.badgeCount} /> : null}
+        </span>
         <ChevronDown
           className={cn(
             'size-4 shrink-0 text-muted-foreground transition-transform duration-200',
@@ -477,7 +531,10 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
                       childActive ? 'text-primary-foreground' : 'text-muted-foreground',
                     )}
                   />
-                  {child.label}
+                  <span className="flex flex-1 items-center justify-between gap-2">
+                    {child.label}
+                    {child.badgeCount ? <SidebarNavBadge count={child.badgeCount} /> : null}
+                  </span>
                 </NavLink>
               )
             })}

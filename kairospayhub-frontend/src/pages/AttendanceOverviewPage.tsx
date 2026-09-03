@@ -248,9 +248,9 @@ export function AttendanceOverviewPage() {
           breadcrumbs={[
             { label: 'Dashboard', to: '/' },
             { label: 'Attendance', to: '/attendance/overview' },
-            { label: 'Overview' },
+            { label: 'Metrics' },
           ]}
-          title="Attendance overview"
+          title="Attendance metrics"
           description={`Attendance totals and who showed up in ${scopeLabel}.`}
           className="flex-1"
         />

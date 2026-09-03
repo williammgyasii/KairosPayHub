@@ -32,6 +32,7 @@ interface StructureUnitNodeTableProps {
   embedded?: boolean
   onEdit: (row: StructureUnitNodeRow) => void
   onDelete: (row: StructureUnitNodeRow) => void
+  onChangeLeader?: (row: StructureUnitNodeRow) => void
   className?: string
   readOnly?: boolean
 }
@@ -47,6 +48,7 @@ export function StructureUnitNodeTable({
   embedded = false,
   onEdit,
   onDelete,
+  onChangeLeader,
   className,
   readOnly = false,
 }: StructureUnitNodeTableProps) {
@@ -58,8 +60,9 @@ export function StructureUnitNodeTable({
       createUnitNodeColumns(tree, layer, childLayer, { hidePathColumn, hideParentColumn, readOnly }, {
         onEdit,
         onDelete,
+        onChangeLeader,
       }),
-    [tree, layer, childLayer, hidePathColumn, hideParentColumn, onEdit, onDelete, readOnly],
+    [tree, layer, childLayer, hidePathColumn, hideParentColumn, onEdit, onDelete, onChangeLeader, readOnly],
   )
 
   const table = useReactTable({
@@ -167,6 +170,7 @@ function createUnitNodeColumns(
   actions: {
     onEdit: (row: StructureUnitNodeRow) => void
     onDelete: (row: StructureUnitNodeRow) => void
+    onChangeLeader?: (row: StructureUnitNodeRow) => void
   },
 ) {
   const helper = createColumnHelper<StructureUnitNodeRow>()
@@ -253,6 +257,11 @@ function createUnitNodeColumns(
           unitId={row.original.id}
           unitName={row.original.name}
           readOnly={readOnly}
+          onChangeLeader={
+            readOnly || !actions.onChangeLeader
+              ? undefined
+              : () => actions.onChangeLeader!(row.original)
+          }
           onEdit={readOnly ? undefined : () => actions.onEdit(row.original)}
           onDelete={readOnly ? undefined : () => actions.onDelete(row.original)}
         />

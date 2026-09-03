@@ -637,6 +637,10 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         {
             await notifications.NotifySubGivingPendingAsync(program, ct);
         }
+        else if (program.ApprovalStatus == ProgramApprovalStatus.Approved)
+        {
+            await notifications.NotifyGivingCampaignOpenedAsync(program, createdByAuthUserId, ct);
+        }
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
         return await MapProgramToDtoAsync(actor, createdByAuthUserId, churchId, program, parentIdsWithChildren, ct);
@@ -670,6 +674,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         await db.SaveChangesAsync(ct);
 
         await notifications.NotifySubGivingReviewedAsync(program, approved: true, ct);
+        await notifications.NotifyGivingCampaignOpenedAsync(program, authUserId, ct);
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
         return await MapProgramToDtoAsync(actor, authUserId, churchId, program, parentIdsWithChildren, ct);

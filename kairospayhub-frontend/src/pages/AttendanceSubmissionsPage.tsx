@@ -4,6 +4,8 @@ import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { useApi } from '@/api/core'
+import { useAppDispatch } from '@/store/hooks'
+import { invalidateAttendanceApprovalQueue } from '@/store/attendanceApi'
 import {
   getOccurrence,
   listMeetingTypes,
@@ -69,10 +71,13 @@ function EmptyState({ title, description }: { title: string; description: string
 export function AttendanceSubmissionsPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const api = useApi()
+  const dispatch = useAppDispatch()
   const churchManager = canManageChurch(me.role)
   const scopedLeader = isScopedLeader(me.role)
   const rollCallScopes = rollCallScopesFor(me)
   const canRollCall = canSubmitRollCall(me)
+  const pastorDemo = churchManager && !canRollCall
+  const canUseRollCall = canRollCall || pastorDemo
 
   const [selectedScopeNodeId, setSelectedScopeNodeId] = useState('')
   const [meetingTypes, setMeetingTypes] = useState<AttendanceMeetingType[]>([])
@@ -101,10 +106,30 @@ export function AttendanceSubmissionsPage() {
     )
   }, [rollCallScopes])
 
-  const selectedCell = useMemo(
-    () => rollCallScopes.find((scope) => scope.scopeNodeId === selectedScopeNodeId) ?? null,
-    [rollCallScopes, selectedScopeNodeId],
-  )
+  const selectedCell = useMemo(() => {
+    if (canRollCall) {
+      return rollCallScopes.find((scope) => scope.scopeNodeId === selectedScopeNodeId) ?? null
+    }
+    if (pastorDemo && detail) {
+      const submission = detail.scopeSubmissions.find(
+        (row) => row.scopeNodeId === selectedScopeNodeId,
+      )
+      if (!submission) return null
+      return {
+        scopeNodeId: submission.scopeNodeId,
+        scopeUnitName: submission.scopeUnitName,
+      }
+    }
+    return null
+  }, [canRollCall, rollCallScopes, selectedScopeNodeId, pastorDemo, detail])
+
+  const pastorDemoCells = useMemo(() => {
+    if (!pastorDemo || !detail) return []
+    return detail.scopeSubmissions.map((row) => ({
+      scopeNodeId: row.scopeNodeId,
+      scopeUnitName: row.scopeUnitName,
+    }))
+  }, [pastorDemo, detail])
 
   const loadTypes = useCallback(async () => {
     setLoadingTypes(true)
@@ -170,7 +195,11 @@ export function AttendanceSubmissionsPage() {
   }
 
   useEffect(() => {
-    if (!selectedOccurrenceId || !selectedScopeNodeId) {
+    if (!selectedOccurrenceId) {
+      setDetail(null)
+      return
+    }
+    if (!pastorDemo && !selectedScopeNodeId) {
       setDetail(null)
       return
     }
@@ -182,7 +211,17 @@ export function AttendanceSubmissionsPage() {
     void getOccurrence(api, selectedOccurrenceId)
       .then((nextDetail) => {
         if (cancelled) return
-        applyDetailForScope(nextDetail, selectedScopeNodeId)
+        const scopeId =
+          selectedScopeNodeId
+          || (pastorDemo ? nextDetail.scopeSubmissions[0]?.scopeNodeId ?? '' : '')
+        if (!scopeId) {
+          setDetail(nextDetail)
+          return
+        }
+        if (pastorDemo && !selectedScopeNodeId) {
+          setSelectedScopeNodeId(scopeId)
+        }
+        applyDetailForScope(nextDetail, scopeId)
       })
       .catch((err) => {
         if (!cancelled) {
@@ -196,7 +235,7 @@ export function AttendanceSubmissionsPage() {
     return () => {
       cancelled = true
     }
-  }, [api, selectedOccurrenceId, selectedScopeNodeId])
+  }, [api, selectedOccurrenceId, selectedScopeNodeId, pastorDemo])
 
   async function reloadDetail() {
     if (!selectedOccurrenceId || !selectedScopeNodeId) return
@@ -224,6 +263,7 @@ export function AttendanceSubmissionsPage() {
     await putOccurrenceEntries(api, detail.id, selectedScopeNodeId, {
       entries,
       inviteeEntries: inviteePayload,
+      pastorOverride: pastorDemo,
     })
   }
 
@@ -249,7 +289,10 @@ export function AttendanceSubmissionsPage() {
     setMessage(null)
     try {
       await saveEntries()
-      await submitOccurrenceScope(api, detail.id, selectedScopeNodeId)
+      await submitOccurrenceScope(api, detail.id, selectedScopeNodeId, {
+        pastorOverride: pastorDemo,
+      })
+      dispatch(invalidateAttendanceApprovalQueue())
       await reloadDetail()
       setMessage('Roll call submitted for approval.')
     } catch (err) {
@@ -279,8 +322,8 @@ export function AttendanceSubmissionsPage() {
 
   const rollCallUi = useMemo(() => {
     if (!detail || !selectedScopeNodeId) return null
-    return rollCallState(detail, selectedScopeNodeId)
-  }, [detail, selectedScopeNodeId])
+    return rollCallState(detail, selectedScopeNodeId, undefined, { pastorDemo })
+  }, [detail, selectedScopeNodeId, pastorDemo])
 
   const cellEntries = useMemo(() => {
     if (!detail) return []
@@ -289,9 +332,11 @@ export function AttendanceSubmissionsPage() {
 
   const pageDescription = canRollCall
     ? 'Mark attendance for your cell, then submit for approval.'
-    : scopedLeader
-      ? 'Roll call is entered per cell. Link your cell leader assignment to submit attendance here.'
-      : 'Cell leaders submit attendance here when the window is open.'
+    : pastorDemo
+      ? 'Demo roll call for any cell. Use Open now when creating a meeting type to open today’s service immediately.'
+      : scopedLeader
+        ? 'Roll call is entered per cell. Link your cell leader assignment to submit attendance here.'
+        : 'Cell leaders submit attendance here when the window is open.'
 
   return (
     <div className="space-y-6">
@@ -308,7 +353,7 @@ export function AttendanceSubmissionsPage() {
       {error && <StatusBanner tone="error" message={error} />}
       {message && <StatusBanner tone="success" message={message} />}
 
-      {!canRollCall ? (
+      {!canUseRollCall ? (
         <EmptyState
           title={scopedLeader ? 'Roll call is for cell leaders' : 'Roll call is for cell leaders'}
           description={
@@ -331,7 +376,7 @@ export function AttendanceSubmissionsPage() {
       ) : (
         <>
           <section className="space-y-4 border-b pb-6">
-            {rollCallScopes.length > 1 && (
+            {(rollCallScopes.length > 1 || pastorDemoCells.length > 1) && (
               <div className="max-w-md space-y-1.5">
                 <Label htmlFor="cell-scope" className="text-xs text-muted-foreground">
                   Cell
@@ -342,13 +387,18 @@ export function AttendanceSubmissionsPage() {
                   onChange={(e) => setSelectedScopeNodeId(e.target.value)}
                   className={selectClassName}
                 >
-                  {rollCallScopes.map((scope) => (
+                  {(canRollCall ? rollCallScopes : pastorDemoCells).map((scope) => (
                     <option key={scope.scopeNodeId} value={scope.scopeNodeId}>
                       {scope.scopeUnitName}
                     </option>
                   ))}
                 </select>
               </div>
+            )}
+            {pastorDemo && pastorDemoCells.length === 1 && (
+              <p className="text-sm text-muted-foreground">
+                Cell: <span className="font-medium text-foreground">{pastorDemoCells[0].scopeUnitName}</span>
+              </p>
             )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -424,6 +474,7 @@ export function AttendanceSubmissionsPage() {
                   scopeNodeId={selectedScopeNodeId}
                   cellName={selectedCell?.scopeUnitName}
                   viewerRole={me.role}
+                  pastorDemo={pastorDemo}
                   values={entryValues}
                   inviteeValues={inviteeValues}
                   onChange={(memberId, status) =>

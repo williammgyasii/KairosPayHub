@@ -64,4 +64,31 @@ public class AttendanceOccurrenceGenerator(KairosDbContext db, AttendanceRollCal
 
         await rollCallSync.EnsureOccurrenceRollCallAsync(occurrence.Id, ct);
     }
+
+    public async Task OpenTodayForDemoAsync(Guid meetingTypeId, CancellationToken ct = default)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var occurrence = await db.AttendanceOccurrences
+            .Include(o => o.ScopeSubmissions)
+            .SingleOrDefaultAsync(o => o.MeetingTypeId == meetingTypeId && o.MeetingDate == today, ct);
+
+        if (occurrence is null)
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+        occurrence.Status = AttendanceOccurrenceStatus.Open;
+        occurrence.SubmissionOpensAt = now.AddMinutes(-5);
+        occurrence.SubmissionDeadlineAt = now.AddDays(2);
+
+        foreach (var submission in occurrence.ScopeSubmissions)
+        {
+            if (submission.ApprovalStatus is AttendanceScopeApprovalStatus.Draft
+                or AttendanceScopeApprovalStatus.Rejected)
+            {
+                submission.LockStatus = AttendanceScopeLockStatus.Editable;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
 }

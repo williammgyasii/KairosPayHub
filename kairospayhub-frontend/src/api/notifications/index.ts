@@ -10,6 +10,7 @@ export type NotificationKind =
   | 'AttendancePendingApproval'
   | 'AttendanceApproved'
   | 'AttendanceRejected'
+  | 'GivingCampaignOpened'
   | string
 
 export type Notification = {

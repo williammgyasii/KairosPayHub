@@ -19,6 +19,7 @@ public record AttendanceEntryDto(
 public record AttendanceScopeSubmissionDto(
     Guid Id,
     Guid ScopeNodeId,
+    string ScopeUnitName,
     string LockStatus,
     string ApprovalStatus,
     DateTimeOffset? SubmittedAt,
@@ -129,6 +130,10 @@ public class AttendanceSubmissionService(
         foreach (var scopeId in visibleScopeIds)
             await rollCallExtras.EnsureInviteeEntryStubsAsync(occurrenceId, scopeId, churchId, ct);
 
+        var scopeNames = await db.StructureNodes.AsNoTracking()
+            .Where(n => visibleScopeIds.Contains(n.Id))
+            .ToDictionaryAsync(n => n.Id, n => n.Name, ct);
+
         var submissions = new List<AttendanceScopeSubmissionDto>();
         foreach (var scopeId in visibleScopeIds)
         {
@@ -137,6 +142,7 @@ public class AttendanceSubmissionService(
             submissions.Add(new AttendanceScopeSubmissionDto(
                 s.Id,
                 s.ScopeNodeId,
+                scopeNames.GetValueOrDefault(s.ScopeNodeId, "Cell"),
                 EffectiveLockStatus(s, occurrence),
                 s.ApprovalStatus.ToString(),
                 s.SubmittedAt,
@@ -500,6 +506,7 @@ public class AttendanceSubmissionService(
         Guid authUserId,
         Guid occurrenceId,
         Guid scopeNodeId,
+        bool pastorOverride = false,
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
@@ -513,7 +520,7 @@ public class AttendanceSubmissionService(
             .SingleOrDefault(s => s.ScopeNodeId == scopeNodeId)
             ?? throw new ForbiddenException("Scope submission not found");
 
-        if (!await scope.CanEditScopeSubmissionAsync(actor, authUserId, occurrence, submission, pastorOverride: false, ct))
+        if (!await scope.CanEditScopeSubmissionAsync(actor, authUserId, occurrence, submission, pastorOverride, ct))
         {
             if (submission.LockStatus == AttendanceScopeLockStatus.NotYetOpen
                 || DateTimeOffset.UtcNow < occurrence.SubmissionOpensAt)

@@ -19,7 +19,8 @@ public record CreateAttendanceMeetingTypeInput(
     string OpensTimeUtc,
     int DeadlineDayOffset,
     string DeadlineTimeUtc,
-    int AutoGenerateWeeksAhead);
+    int AutoGenerateWeeksAhead,
+    bool OpenNowForDemo = false);
 
 public record UpdateAttendanceMeetingTypeInput(
     string Title,
@@ -111,6 +112,8 @@ public class AttendanceMeetingTypeService(
         db.AttendanceMeetingTypes.Add(meetingType);
         await db.SaveChangesAsync(ct);
         await occurrenceGenerator.EnsureOccurrencesAsync(meetingType.Id, ct);
+        if (input.OpenNowForDemo)
+            await occurrenceGenerator.OpenTodayForDemoAsync(meetingType.Id, ct);
 
         return ToDto(meetingType);
     }

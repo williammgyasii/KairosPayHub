@@ -15,6 +15,10 @@ import {
   UnitNodeFormSheet,
   type UnitNodeSheetState,
 } from '@/components/structure/unit-node-form-sheet'
+import {
+  ChangeLeadershipModal,
+  type ChangeLeadershipTarget,
+} from '@/components/structure/change-leadership-modal'
 import { FellowshipCreateWizard } from '@/components/structure/fellowship-create-wizard'
 import { CellCreateWizard } from '@/components/structure/cell-create-wizard'
 import { UnitDeleteModal } from '@/components/structure/unit-delete-modal'
@@ -119,6 +123,7 @@ export function RosterUnitView({
   const [fellowshipWizardOpen, setFellowshipWizardOpen] = useState(false)
   const [cellWizardOpen, setCellWizardOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<StructureUnitNodeRow | null>(null)
+  const [changeLeaderTarget, setChangeLeaderTarget] = useState<ChangeLeadershipTarget | null>(null)
 
   const memberRows = useMemo(() => {
     if (!unit) return []
@@ -331,6 +336,16 @@ export function RosterUnitView({
           onEdit={(row) =>
             setNodeSheet({ mode: 'edit', row, layer: activeTab.layer })
           }
+          onChangeLeader={(row) => {
+            const node = nodeById(tree, row.id)
+            if (!node) return
+            setChangeLeaderTarget({
+              nodeId: node.id,
+              nodeName: node.name,
+              unitNumber: node.unitNumber ?? '',
+              layer: activeTab.layer,
+            })
+          }}
           onDelete={handleDeleteNode}
         />
       )}
@@ -429,6 +444,16 @@ export function RosterUnitView({
           busy={busy}
           submit={submit}
           onClose={() => setCellWizardOpen(false)}
+        />
+      )}
+
+      {!readOnly && changeLeaderTarget && (
+        <ChangeLeadershipModal
+          tree={tree}
+          target={changeLeaderTarget}
+          busy={busy}
+          submit={submit}
+          onClose={() => setChangeLeaderTarget(null)}
         />
       )}
 
