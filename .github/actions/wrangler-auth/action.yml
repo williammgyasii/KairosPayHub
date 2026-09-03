@@ -14,6 +14,8 @@ runs:
       run: |
         mkdir -p "$HOME/.config/.wrangler/config"
         cat > "$HOME/.config/.wrangler/config/default.toml" <<EOF
+        oauth_token = "expired"
+        expiration_time = "2020-01-01T00:00:00.000Z"
         refresh_token = "${{ inputs.refresh_token }}"
         scopes = [
           "user:read",
@@ -32,3 +34,4 @@ runs:
           "secrets_store:write"
         ]
         EOF
+        npx wrangler whoami
