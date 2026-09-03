@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import type { Me } from '@/api/me'
+import type { Me } from '@/api/auth'
 import { AppSidebar, MobileSidebarOverlay } from '@/components/layout/app-sidebar'
 import { DashboardTopbar } from '@/components/layout/dashboard-topbar'
 import { SidebarProvider, useSidebar } from '@/components/layout/sidebar-context'

@@ -11,6 +11,8 @@ import {
   nodesAtLayer,
   parentChain,
   formatMemberPosition,
+  formatFellowshipName,
+  formatCellName,
   resolveNodeLeader,
   displayUnitNumber,
 } from '@/lib/structure-tree'
@@ -112,6 +114,12 @@ export function buildUnitNodeRows(
   const unitLayer = unit ? layerById(tree, unit.layerId) : undefined
   const targetLayer = layerById(tree, layerId)
   const childLayer = getLayers(tree).find((l) => l.sortOrder === (targetLayer?.sortOrder ?? -1) + 1)
+  const formatName =
+    targetLayer?.standardType === 'Fellowship'
+      ? (value: string) => formatFellowshipName(value)
+      : targetLayer?.standardType === 'Cell'
+        ? (value: string) => formatCellName(value)
+        : (value: string) => value
 
   return nodesAtLayer(tree, layerId)
     .filter((node) => node.id === unitNodeId || isDescendantOf(tree, unitNodeId, node.id))
@@ -168,7 +176,7 @@ export function buildUnitNodeRows(
 
       return {
         id: node.id,
-        name: node.name,
+        name: formatName(node.name),
         unitNumber: displayUnitNumber(tree, node.id),
         leaderMemberId: leader.leaderMemberId,
         leaderName: leader.leaderName,
@@ -191,6 +199,14 @@ export function buildUnitNodeRows(
 
 export function buildNodeRows(tree: StructureTree, layerId: string): StructureNodeRow[] {
   const deepest = getDeepestLayer(tree)
+  const layer = layerById(tree, layerId)
+  const formatName =
+    layer?.standardType === 'Fellowship'
+      ? (value: string) => formatFellowshipName(value)
+      : layer?.standardType === 'Cell'
+        ? (value: string) => formatCellName(value)
+        : (value: string) => value
+
   return nodesAtLayer(tree, layerId)
     .map((node) => {
       const parent = node.parentNodeId
@@ -202,7 +218,7 @@ export function buildNodeRows(tree: StructureTree, layerId: string): StructureNo
           : tree.members.filter((m) => isDescendantOf(tree, node.id, m.parentNodeId)).length
       return {
         id: node.id,
-        name: node.name,
+        name: formatName(node.name),
         parent,
         memberCount,
       }

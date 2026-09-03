@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowUpDown, ListTree, MoreHorizontal } from 'lucide-react'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type { GivingProgram, MemberGivingTotal, MemberGivingTotalsQuery } from '@/api/giving'
 import { formatAmount, listMemberGivingTotals } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'

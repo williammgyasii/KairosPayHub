@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { ChevronRight } from 'lucide-react'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type { StructureMemberListResponse, StructureTree } from '@/api/structure'
 import { buildMembersQuery } from '@/api/structure'
 import { MemberTableToolbar } from '@/components/structure/member-table-toolbar'

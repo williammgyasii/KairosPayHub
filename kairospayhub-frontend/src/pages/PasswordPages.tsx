@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { forgotPassword, resetPassword, setPassword } from '@/auth/client'
+import { AuthAlert } from '@/components/layout/auth-alert'
 import { AuthFooterLink, AuthFormCard, AuthLayout } from '@/components/layout/AuthLayout'
+import { authFadeUp, authStagger } from '@/components/layout/auth-motion'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,41 +38,64 @@ export function SetPassword() {
 
   return (
     <AuthLayout
+      variant="centered"
       title="Set your password"
-      subtitle="Create a password for your KairosPayHub account."
+      subtitle="You've been invited to KairosPayHub. Choose a password to finish setting up your account."
       footer={
         <>
-          <AuthFooterLink to="/login">Back to sign in</AuthFooterLink>
+          Already set up? <AuthFooterLink to="/login">Sign in</AuthFooterLink>
         </>
       }
     >
-      <AuthFormCard>
+      <motion.form
+        variants={authStagger}
+        initial="hidden"
+        animate="show"
+        onSubmit={onSubmit}
+        className="space-y-5"
+      >
         {!token && (
-          <p className="mb-4 text-sm text-destructive">
-            This invite link is invalid. Ask your pastor to send a new invite.
-          </p>
+          <motion.div variants={authFadeUp}>
+            <AuthAlert variant="error">
+              This invite link is invalid. Ask your pastor to send a new invite.
+            </AuthAlert>
+          </motion.div>
         )}
-        <form onSubmit={onSubmit} className="space-y-4">
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPasswordValue(e.target.value)}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              8+ characters with upper, lower, and a number
-            </p>
-          </div>
-          <Button className="h-10 w-full" type="submit" disabled={busy || !token}>
-            {busy ? 'Saving…' : 'Set password'}
+        {error && (
+          <motion.div variants={authFadeUp}>
+            <AuthAlert variant="error">{error}</AuthAlert>
+          </motion.div>
+        )}
+
+        <motion.div variants={authFadeUp} className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPasswordValue(e.target.value)}
+            required
+            disabled={!token}
+          />
+          <p className="text-xs text-muted-foreground">
+            8+ characters with upper, lower, and a number
+          </p>
+        </motion.div>
+
+        <motion.div variants={authFadeUp}>
+          <Button
+            className="w-full"
+            size="lg"
+            type="submit"
+            loading={busy}
+            loadingLabel="Saving…"
+            disabled={!token}
+          >
+            Set password
           </Button>
-        </form>
-      </AuthFormCard>
+        </motion.div>
+      </motion.form>
     </AuthLayout>
   )
 }

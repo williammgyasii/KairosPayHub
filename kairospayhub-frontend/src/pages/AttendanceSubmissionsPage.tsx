@@ -3,7 +3,7 @@ import { Lock } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import {
   getOccurrence,
   listMeetingTypes,
@@ -14,7 +14,7 @@ import {
   type AttendanceOccurrenceDetail,
   type AttendanceOccurrenceSummary,
 } from '@/api/attendance'
-import { canManageChurch, canSubmitRollCall, isScopedLeader, rollCallScopesFor } from '@/api/me'
+import { canManageChurch, canSubmitRollCall, isScopedLeader, rollCallScopesFor } from '@/api/auth'
 import {
   AttendanceRollCallSheet,
   buildEntryValues,
@@ -297,7 +297,7 @@ export function AttendanceSubmissionsPage() {
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Attendance', to: churchManager ? '/attendance' : '/attendance/submissions' },
           { label: 'Submissions' },
         ]}

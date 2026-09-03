@@ -1,71 +1,111 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { NavLink, useLocation } from 'react-router-dom'
+import type { LucideIcon } from 'lucide-react'
 import {
-  ClipboardCheck,
-  Gift,
-  LayoutDashboard,
+  BarChart3,
+  CalendarCog,
   CalendarDays,
-  Network,
-  Settings,
-  Users,
+  ChevronDown,
+  ClipboardCheck,
+  ClipboardList,
+  FolderTree,
+  HandCoins,
+  Layers,
+  LayoutDashboard,
+  Megaphone,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PieChart,
+  Receipt,
+  Settings2,
+  ShieldCheck,
+  UserCheck,
+  UsersRound,
 } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { isSidebarNavItemActive } from '@/lib/sidebar-nav'
-import { canApproveAttendance, canManageChurch, canSubmitRollCall, isCellLeader, isScopedLeader, type Me } from '@/api/me'
+import {
+  canApproveAttendance,
+  canManageChurch,
+  canSubmitRollCall,
+  isCellLeader,
+  isScopedLeader,
+  type Me,
+} from '@/api/auth'
 import { canAccessEvents } from '@/lib/calendar-events-ui'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useSidebar } from '@/components/layout/sidebar-context'
 
 const SIDEBAR_WIDTH_EXPANDED = 'w-64'
 const SIDEBAR_WIDTH_COLLAPSED = 'w-[72px]'
 
+type NavChild = {
+  to: string
+  label: string
+  icon: LucideIcon
+  end?: boolean
+}
+
 type NavItem = {
   to: string
   label: string
-  icon: typeof LayoutDashboard
+  icon: LucideIcon
   end?: boolean
   disabled?: boolean
 }
 
 type NavGroup = {
   label: string
-  icon: typeof Users
-  children: { to: string; label: string; end?: boolean }[]
+  icon: LucideIcon
+  children: NavChild[]
 }
 
 type NavEntry =
   | ({ kind: 'item' } & NavItem)
   | ({ kind: 'group' } & NavGroup)
 
+const ROSTER_CHILDREN: NavChild[] = [
+  { to: 'roster', label: 'Units', icon: FolderTree, end: true },
+  { to: 'roster/membership', label: 'Membership', icon: UserCheck, end: true },
+]
+
+const GIVINGS_CHILDREN: NavChild[] = [
+  { to: 'givings', label: 'Campaigns', icon: Megaphone, end: true },
+  { to: 'givings/transactions', label: 'Transactions', icon: Receipt, end: true },
+  { to: 'givings/overall', label: 'Overall givings', icon: PieChart, end: true },
+]
+
 const GIVINGS_NAV_GROUP: NavEntry = {
   kind: 'group',
   label: 'Givings',
-  icon: Gift,
-  children: [
-    { to: 'givings', label: 'Campaigns', end: true },
-    { to: 'givings/transactions', label: 'Transactions', end: true },
-    { to: 'givings/overall', label: 'Overall givings', end: true },
-  ],
+  icon: HandCoins,
+  children: GIVINGS_CHILDREN,
 }
 
 function attendanceNavForRole(me: Me & { onboarded: true }): NavEntry {
   const role = me.role
-  const children: { to: string; label: string; end?: boolean }[] = []
+  const children: NavChild[] = []
 
   if (canManageChurch(role)) {
-    children.push({ to: 'attendance', label: 'Meeting types', end: true })
+    children.push({ to: 'attendance', label: 'Meeting types', icon: CalendarCog, end: true })
   }
 
   if (canSubmitRollCall(me)) {
-    children.push({ to: 'attendance/submissions', label: 'Submissions', end: true })
+    children.push({ to: 'attendance/submissions', label: 'Submissions', icon: ClipboardList, end: true })
   }
 
   if (canApproveAttendance(role)) {
-    children.push({ to: 'attendance/overview', label: 'Overview', end: true })
-    children.push({ to: 'attendance/approvals', label: 'Approvals', end: true })
+    children.push({ to: 'attendance/overview', label: 'Overview', icon: BarChart3, end: true })
+    children.push({ to: 'attendance/approvals', label: 'Approvals', icon: ShieldCheck, end: true })
   }
 
   if (children.length === 0) {
@@ -118,50 +158,41 @@ function navWithAttendance(entries: NavEntry[], me: Me & { onboarded: true }): N
 }
 
 const NAV: NavEntry[] = [
-  { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
-  { kind: 'item', to: 'structure', label: 'Structure', icon: Network, end: true },
+  { kind: 'item', to: '.', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { kind: 'item', to: 'structure', label: 'Structure', icon: Layers, end: true },
   {
     kind: 'group',
     label: 'Roster',
-    icon: Users,
-    children: [
-      { to: 'roster', label: 'Units', end: true },
-      { to: 'roster/membership', label: 'Membership', end: true },
-    ],
+    icon: UsersRound,
+    children: ROSTER_CHILDREN,
   },
   GIVINGS_NAV_GROUP,
-  { kind: 'item', to: 'settings', label: 'Settings', icon: Settings },
+  { kind: 'item', to: 'settings', label: 'Settings', icon: Settings2 },
 ]
 
 const LEADER_NAV: NavEntry[] = [
-  { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
+  { kind: 'item', to: '.', label: 'Dashboard', icon: LayoutDashboard, end: true },
   GIVINGS_NAV_GROUP,
 ]
 
 const CELL_LEADER_NAV: NavEntry[] = [
-  { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
+  { kind: 'item', to: '.', label: 'Dashboard', icon: LayoutDashboard, end: true },
   {
     kind: 'group',
     label: 'Roster',
-    icon: Users,
-    children: [
-      { to: 'roster', label: 'Units', end: true },
-      { to: 'roster/membership', label: 'Membership', end: true },
-    ],
+    icon: UsersRound,
+    children: ROSTER_CHILDREN,
   },
   GIVINGS_NAV_GROUP,
 ]
 
 const SCOPED_LEADER_NAV: NavEntry[] = [
-  { kind: 'item', to: '.', label: 'Overview', icon: LayoutDashboard, end: true },
+  { kind: 'item', to: '.', label: 'Dashboard', icon: LayoutDashboard, end: true },
   {
     kind: 'group',
     label: 'Roster',
-    icon: Users,
-    children: [
-      { to: 'roster', label: 'Units', end: true },
-      { to: 'roster/membership', label: 'Membership', end: true },
-    ],
+    icon: UsersRound,
+    children: ROSTER_CHILDREN,
   },
   GIVINGS_NAV_GROUP,
 ]
@@ -353,8 +384,6 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
   const { pathname } = useLocation()
   const isActive = isNavGroupActive(pathname, group)
   const Icon = group.icon
-  const defaultChild = group.children[0]
-  const isCollapsible = group.children.length > 2
   const [open, setOpen] = useState(() => isActive)
 
   useEffect(() => {
@@ -362,89 +391,99 @@ function SidebarNavGroup({ group, collapsed }: { group: NavGroup; collapsed: boo
   }, [isActive])
 
   if (collapsed) {
-    const link = (
-      <NavLink
-        to={defaultChild.to}
-        end={defaultChild.end}
-        relative="route"
-        aria-current={isActive ? 'page' : undefined}
-        className={navItemStyles(isActive, collapsed)}
-      >
-        <Icon className={cn('size-4 shrink-0', isActive && 'text-primary-foreground')} />
-      </NavLink>
-    )
-
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>{link}</TooltipTrigger>
-        <TooltipContent side="right">
-          <p className="font-medium">{group.label}</p>
-          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-            {group.children.map((child) => (
-              <li key={child.to}>{child.label}</li>
-            ))}
-          </ul>
-        </TooltipContent>
-      </Tooltip>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={group.label}
+            className={navItemStyles(isActive, collapsed)}
+          >
+            <Icon className={cn('size-4 shrink-0', isActive && 'text-primary-foreground')} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="w-52">
+          <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {group.label}
+          </DropdownMenuLabel>
+          {group.children.map((child) => {
+            const ChildIcon = child.icon
+            const childActive = isSidebarNavItemActive(pathname, child)
+            return (
+              <DropdownMenuItem key={child.to} asChild className={cn(childActive && 'bg-accent')}>
+                <NavLink to={child.to} end={child.end} relative="route" className="flex items-center gap-2">
+                  <ChildIcon className="size-4 shrink-0 text-muted-foreground" />
+                  {child.label}
+                </NavLink>
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     )
   }
 
   return (
-    <div className="space-y-0.5">
-      {isCollapsible ? (
-        <button
-          type="button"
-          onClick={() => setOpen((current) => !current)}
-          aria-expanded={open}
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all duration-150',
+          isActive
+            ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
+            : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
+        )}
+      >
+        <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+        <span className="flex-1">{group.label}</span>
+        <ChevronDown
           className={cn(
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide transition-colors hover:bg-accent/50',
-            isActive ? 'text-primary' : 'text-muted-foreground',
+            'size-4 shrink-0 text-muted-foreground transition-transform duration-200',
+            open && 'rotate-180',
           )}
-        >
-          <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
-          <span className="flex-1">{group.label}</span>
-          <ChevronDown
-            className={cn(
-              'size-4 shrink-0 transition-transform duration-200',
-              open && 'rotate-180',
-            )}
-          />
-        </button>
-      ) : (
-        <div
-          className={cn(
-            'flex items-center gap-3 px-3 py-2 text-xs font-semibold uppercase tracking-wide',
-            isActive ? 'text-primary' : 'text-muted-foreground',
-          )}
-        >
-          <Icon className={cn('size-4 shrink-0', isActive && 'text-primary')} />
-          {group.label}
+        />
+      </button>
+
+      <div
+        className={cn(
+          'grid transition-[grid-template-rows,opacity] duration-200 ease-out',
+          open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="ml-2 space-y-0.5 rounded-lg bg-muted/35 p-1.5">
+            {group.children.map((child) => {
+              const ChildIcon = child.icon
+              const childActive = isSidebarNavItemActive(pathname, child)
+              return (
+                <NavLink
+                  key={child.to}
+                  to={child.to}
+                  end={child.end}
+                  relative="route"
+                  aria-current={childActive ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors',
+                    childActive
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-background/80 hover:text-foreground',
+                  )}
+                >
+                  <ChildIcon
+                    className={cn(
+                      'size-3.5 shrink-0',
+                      childActive ? 'text-primary-foreground' : 'text-muted-foreground',
+                    )}
+                  />
+                  {child.label}
+                </NavLink>
+              )
+            })}
+          </div>
         </div>
-      )}
-      {(!isCollapsible || open) && (
-        <div className="ml-3 space-y-0.5 border-l border-border/60 pl-2">
-          {group.children.map((child) => {
-            const childActive = isSidebarNavItemActive(pathname, child)
-            return (
-              <NavLink
-                key={child.to}
-                to={child.to}
-                end={child.end}
-                relative="route"
-                aria-current={childActive ? 'page' : undefined}
-                className={cn(
-                  'block rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  childActive
-                    ? 'bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/30'
-                    : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
-                )}
-              >
-                {child.label}
-              </NavLink>
-            )
-          })}
-        </div>
-      )}
+      </div>
     </div>
   )
 }

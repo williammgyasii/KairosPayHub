@@ -1,18 +1,22 @@
 import { useMemo, useState } from 'react'
-import { Grid3X3, UserRound, Users } from 'lucide-react'
-import { useApi } from '@/api/useApi'
+import { Grid3X3, UserRound } from 'lucide-react'
+import { useApi } from '@/api/core'
 import type { CreateStructureNodeResponse, StructureLayer, StructureTree } from '@/api/structure'
 import {
-  LeaderLoginCredentialsModal,
+  LeaderLoginSuccessModal,
   type GeneratedLeaderLogin,
 } from '@/components/structure/leader-login-credentials-modal'
+import {
+  EmailAvailabilityField,
+  isEmailAvailabilityBlocking,
+  useEmailAvailability,
+} from '@/components/structure/email-availability-field'
 import {
   MemberProfileFields,
   memberProfilePayload,
   isRequiredLeaderProfileComplete,
   type MemberProfileFormValues,
 } from '@/components/structure/member-profile-fields'
-import { StructureChainFromLabels } from '@/components/structure/structure-chain'
 import {
   WizardField,
   WizardFooter,
@@ -26,20 +30,24 @@ import { Modal } from '@/components/ui/modal'
 import { DEFAULT_PHONE_COUNTRY } from '@/lib/phone-countries'
 import {
   getDeepestLayer,
-  getLayers,
-  layerById,
+  formatFellowshipName,
+  layerParentOptions,
+  layerRequiresParent,
   nextUnitNumberForParent,
-  nodeById,
-  nodesUnderUnitAtLayer,
+  parentLayerForLayer,
+  resolveLayerParentId,
 } from '@/lib/structure-tree'
 import { cn } from '@/lib/utils'
 
-const stepLabels = (layerName: string, cellName: string) =>
-  [layerName, 'Leader', cellName] as const
+const stepLabels = (cellName: string | undefined) => {
+  const base = ['Name & place', 'Fellowship leader'] as const
+  if (!cellName) return base
+  return [...base, `First ${cellName.toLowerCase()}`] as const
+}
 
 export function FellowshipCreateWizard({
   tree,
-  unitNodeId,
+  unitNodeId = null,
   layer,
   parentNodeId,
   busy,
@@ -47,7 +55,7 @@ export function FellowshipCreateWizard({
   onClose,
 }: {
   tree: StructureTree
-  unitNodeId: string
+  unitNodeId?: string | null
   layer: StructureLayer
   parentNodeId: string
   busy: boolean
@@ -73,45 +81,54 @@ export function FellowshipCreateWizard({
   })
   const [cellName, setCellName] = useState('')
   const [leaderIsCellLeader, setLeaderIsCellLeader] = useState(true)
+  const [stepError, setStepError] = useState<string | null>(null)
 
-  const unit = nodeById(tree, unitNodeId)
-  const unitLayer = unit ? layerById(tree, unit.layerId) : undefined
-  const parentLayer = getLayers(tree)[layer.sortOrder - 1]
+  const parentLayer = parentLayerForLayer(tree, layer)
   const deepest = getDeepestLayer(tree)
   const cellLayer = deepest && deepest.id !== layer.id ? deepest : undefined
+  const requiresParent = layerRequiresParent(tree, layer)
 
-  const parentOptions = useMemo(() => {
-    if (!unit || !unitLayer || !parentLayer) return []
-    if (layer.sortOrder === unitLayer.sortOrder + 1) {
-      return [{ id: unit.id, label: unit.name }]
-    }
-    return nodesUnderUnitAtLayer(tree, unit.id, parentLayer.id).map((node) => ({
-      id: node.id,
-      label: node.name,
-    }))
-  }, [tree, unit, unitLayer, parentLayer, layer.sortOrder])
-
-  const effectiveParentId = selectedParentId || parentNodeId
-  const fellowshipNumber = useMemo(
-    () => nextUnitNumberForParent(tree, layer.id, effectiveParentId || null),
-    [tree, layer.id, effectiveParentId],
+  const parentOptions = useMemo(
+    () => layerParentOptions(tree, layer, unitNodeId),
+    [tree, layer, unitNodeId],
   )
 
-  const defaultCellName = name.trim() ? `${name.trim()} Cell` : ''
-  const cellNumberPreview = '1'
+  const resolvedParentId = useMemo(
+    () => resolveLayerParentId(parentOptions, selectedParentId || parentNodeId),
+    [parentOptions, selectedParentId, parentNodeId],
+  )
 
-  const steps = stepLabels(layer.displayName, cellLayer?.displayName ?? 'Cell')
+  const fellowshipNumber = useMemo(
+    () => nextUnitNumberForParent(tree, layer.id, resolvedParentId || null),
+    [tree, layer.id, resolvedParentId],
+  )
+
+  const fellowshipDisplayName = useMemo(
+    () => (name.trim() ? formatFellowshipName(name) : ''),
+    [name],
+  )
+
+  const defaultCellName = fellowshipDisplayName ? `${fellowshipDisplayName} Cell` : ''
+
+  const steps = stepLabels(cellLayer?.displayName)
+  const selectedParent = parentOptions.find((option) => option.id === resolvedParentId)
   const progress = ((step + 1) / steps.length) * 100
+  const step0Ready = name.trim().length > 0 && (!requiresParent || Boolean(resolvedParentId))
+  const leaderEmailAvailability = useEmailAvailability(leaderEmail, 'login')
   const leaderReady =
     leaderName.trim().length > 0 &&
-    isRequiredLeaderProfileComplete(leaderEmail, leaderProfile)
+    isRequiredLeaderProfileComplete(leaderEmail, leaderProfile) &&
+    !isEmailAvailabilityBlocking(leaderEmail, leaderEmailAvailability)
   const cellReady = leaderIsCellLeader
-  const canCreate = leaderReady && cellReady && Boolean(cellLayer)
+  const canCreate = cellLayer
+    ? leaderReady && cellReady
+    : leaderReady
 
   if (generatedLogin) {
     return (
-      <LeaderLoginCredentialsModal
-        credentials={generatedLogin}
+      <LeaderLoginSuccessModal
+        title="Fellowship created"
+        leaderEmail={generatedLogin.email}
         leaderName={leaderName}
         onClose={onClose}
       />
@@ -123,59 +140,48 @@ export function FellowshipCreateWizard({
       open
       onOpenChange={(open) => !open && onClose()}
       title="Add fellowship"
-      description={`Set up ${layer.displayName.toLowerCase()}, its leader, and first ${cellLayer?.displayName.toLowerCase() ?? 'cell'}.`}
+      description={`Name the fellowship, add its leader, and create the first ${cellLayer?.displayName.toLowerCase() ?? 'cell'}.`}
       size="xl"
     >
       <div className="space-y-5">
-        <StructureChainFromLabels
-          labels={[layer.displayName, 'Leader', cellLayer?.displayName ?? 'Cell']}
-          includeChurch={false}
-          className="justify-center py-1"
-        />
-
         <WizardStepper steps={steps} currentStep={step} />
         <WizardProgressBar value={progress} />
 
-        <WizardStepPanel stepKey={step} direction={direction}>
+        <WizardStepPanel stepKey={step} direction={direction} className="min-h-[260px]">
+            {stepError && (
+              <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {stepError}
+              </p>
+            )}
+
             {step === 0 && (
-              <>
-                <WizardIntro
-                  icon={Users}
-                  title={`${layer.displayName} details`}
-                  description={`Name the new ${layer.displayName.toLowerCase()} under your structure.`}
-                />
+              <div className="space-y-4">
+                {requiresParent && parentOptions.length === 0 && parentLayer && (
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                    Add a {parentLayer.displayName.toLowerCase()} first, then you can create a
+                    fellowship here.
+                  </p>
+                )}
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <WizardField label={`${layer.displayName} name`} id="fellowship-name">
-                    <Input
-                      id="fellowship-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Titans Fellowship"
-                      required
-                      autoFocus
-                    />
-                  </WizardField>
-                  <WizardField label={`${layer.displayName} number`} id="fellowship-number">
-                    <Input
-                      id="fellowship-number"
-                      value={String(fellowshipNumber)}
-                      readOnly
-                      className="bg-muted/40 text-muted-foreground"
-                    />
-                  </WizardField>
-                </div>
+                {requiresParent && parentOptions.length === 1 && selectedParent && (
+                  <p className="text-sm text-muted-foreground">
+                    Under{' '}
+                    <span className="font-medium text-foreground">{selectedParent.label}</span>
+                  </p>
+                )}
 
-                {parentOptions.length > 1 && parentLayer && (
-                  <WizardField label={`Parent ${parentLayer.displayName}`} id="fellowship-parent">
+                {requiresParent && parentOptions.length > 1 && parentLayer && (
+                  <WizardField label={`Which ${parentLayer.displayName}?`} id="fellowship-parent" required>
                     <select
                       id="fellowship-parent"
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={selectedParentId}
-                      onChange={(e) => setSelectedParentId(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      value={resolvedParentId ?? ''}
+                      onChange={(e) => {
+                        setSelectedParentId(e.target.value)
+                        setStepError(null)
+                      }}
                       required
                     >
-                      <option value="">Select…</option>
                       {parentOptions.map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.label}
@@ -184,7 +190,27 @@ export function FellowshipCreateWizard({
                     </select>
                   </WizardField>
                 )}
-              </>
+
+                <WizardField label={`${layer.displayName} name`} id="fellowship-name" required>
+                  <Input
+                    id="fellowship-name"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value)
+                      setStepError(null)
+                    }}
+                    placeholder="e.g. Titans or Titans Fellowship"
+                    required
+                    autoFocus
+                  />
+                  {fellowshipDisplayName && (
+                    <p className="text-xs text-muted-foreground">
+                      Will appear as{' '}
+                      <span className="font-medium text-foreground">{fellowshipDisplayName}</span>
+                    </p>
+                  )}
+                </WizardField>
+              </div>
             )}
 
             {step === 1 && (
@@ -192,7 +218,7 @@ export function FellowshipCreateWizard({
                 <WizardIntro
                   icon={UserRound}
                   title={`${layer.displayName} leader`}
-                  description="Register the person who leads this fellowship. They'll receive login credentials by email."
+                  description="Register the person who leads this fellowship. They'll receive an email to set their password."
                 />
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -205,16 +231,15 @@ export function FellowshipCreateWizard({
                       autoFocus
                     />
                   </WizardField>
-                  <WizardField label="Leader email" id="leader-email" required>
-                    <Input
-                      id="leader-email"
-                      type="email"
-                      value={leaderEmail}
-                      onChange={(e) => setLeaderEmail(e.target.value)}
-                      placeholder="For login credentials"
-                      required
-                    />
-                  </WizardField>
+                  <EmailAvailabilityField
+                    id="leader-email"
+                    email={leaderEmail}
+                    onChange={setLeaderEmail}
+                    scope="login"
+                    required
+                    label="Leader email"
+                    placeholder="For their login invite"
+                  />
                 </div>
 
                 <MemberProfileFields
@@ -231,7 +256,7 @@ export function FellowshipCreateWizard({
                 <WizardIntro
                   icon={Grid3X3}
                   title={`First ${cellLayer.displayName}`}
-                  description={`Every ${layer.displayName.toLowerCase()} needs at least one ${cellLayer.displayName.toLowerCase()}. We'll create it under ${name || 'this fellowship'}.`}
+                  description={`Every ${layer.displayName.toLowerCase()} needs at least one ${cellLayer.displayName.toLowerCase()}. We'll create it under ${fellowshipDisplayName || 'this fellowship'}.`}
                 />
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -242,14 +267,6 @@ export function FellowshipCreateWizard({
                       onChange={(e) => setCellName(e.target.value)}
                       placeholder={defaultCellName || `e.g. ${cellLayer.displayName} 1`}
                       autoFocus
-                    />
-                  </WizardField>
-                  <WizardField label={`${cellLayer.displayName} number`} id="cell-number">
-                    <Input
-                      id="cell-number"
-                      value={cellNumberPreview}
-                      readOnly
-                      className="bg-muted/40 text-muted-foreground"
                     />
                   </WizardField>
                 </div>
@@ -307,28 +324,44 @@ export function FellowshipCreateWizard({
           isLastStep={step === steps.length - 1}
           canProceed={
             step === 0
-              ? Boolean(name.trim())
+              ? step0Ready
               : step === 1
-                ? leaderReady
+                ? cellLayer
+                  ? leaderReady
+                  : canCreate
                 : canCreate
           }
           submitLabel="Create fellowship"
           onCancel={onClose}
           onBack={() => {
+            setStepError(null)
             setDirection('back')
             setStep((s) => s - 1)
           }}
           onNext={() => {
+            if (step === 0 && requiresParent && !resolvedParentId) {
+              setStepError(
+                parentLayer
+                  ? `Add a ${parentLayer.displayName.toLowerCase()} first, or pick one above.`
+                  : 'Add a parent unit in your structure first.',
+              )
+              return
+            }
+
+            setStepError(null)
+
             if (step === steps.length - 1) {
               void submit(async () => {
                 const profile = memberProfilePayload(leaderProfile)
-                const resolvedCellName = cellName.trim() || defaultCellName || null
+                const resolvedCellName = cellLayer
+                  ? cellName.trim() || defaultCellName || null
+                  : null
                 const response = await api.post<CreateStructureNodeResponse>(
                   '/api/structure/nodes',
                   {
                     layerId: layer.id,
-                    parentNodeId: selectedParentId || parentNodeId,
-                    name,
+                    parentNodeId: resolvedParentId,
+                    name: formatFellowshipName(name),
                     unitNumber: String(fellowshipNumber),
                     newLeader: {
                       name: leaderName,
@@ -339,7 +372,7 @@ export function FellowshipCreateWizard({
                       occupationStatus: profile.occupationStatus,
                       schoolOrWorkplace: profile.schoolOrWorkplace,
                       initialCellName: resolvedCellName,
-                      leaderIsCellLeader: true,
+                      leaderIsCellLeader: cellLayer ? true : false,
                     },
                   },
                 )

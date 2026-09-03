@@ -8,7 +8,7 @@ import { OverallGivingsPage } from './pages/OverallGivingsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 import { ProgramDetailPage } from './pages/ProgramDetailPage'
 import { ProgramStructureContributionsPage } from './pages/ProgramStructureContributionsPage'
-import { MembershipPage, OverviewPage, RosterPage, RosterUnitPage, StructurePage } from './pages/DashboardPages'
+import { MembershipPage, DashboardPage, RosterPage, RosterUnitPage, StructurePage } from './pages/DashboardPages'
 import { SettingsLayout } from './components/settings/settings-layout'
 import { SettingsBrandingPage } from './pages/SettingsBrandingPage'
 import { SettingsAccountPage } from './pages/SettingsAccountPage'
@@ -42,7 +42,7 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<OverviewPage />} />
+        <Route index element={<DashboardPage />} />
         <Route
           path="structure"
           element={

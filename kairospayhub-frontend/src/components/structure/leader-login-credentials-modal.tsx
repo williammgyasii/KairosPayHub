@@ -1,124 +1,61 @@
-import { useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { CheckCircle2, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 
 export type GeneratedLeaderLogin = {
   email: string
-  temporaryPassword: string
 }
 
-export function LeaderLoginCredentialsModal({
-  credentials,
+export function LeaderLoginSuccessModal({
+  leaderEmail,
   leaderName,
+  title = 'Leader login created',
   onClose,
 }: {
-  credentials: GeneratedLeaderLogin
+  leaderEmail: string
   leaderName?: string
+  title?: string
   onClose: () => void
 }) {
-  const [copiedField, setCopiedField] = useState<'email' | 'password' | 'all' | null>(null)
-
-  async function copy(value: string, field: 'email' | 'password' | 'all') {
-    await navigator.clipboard.writeText(value)
-    setCopiedField(field)
-    window.setTimeout(() => setCopiedField(null), 2000)
-  }
-
-  const allText = `Email: ${credentials.email}\nPassword: ${credentials.temporaryPassword}`
+  const recipient = leaderName?.trim() || 'the leader'
 
   return (
     <Modal
       open
       onOpenChange={(open) => !open && onClose()}
-      title="Leader login created"
-      description={
-        leaderName
-          ? `Login credentials were emailed to ${leaderName}. Copy below if they need them again.`
-          : 'Login credentials were emailed to the leader. Copy below if they need them again.'
-      }
+      title={title}
+      description="They can get started from the email we just sent."
     >
-      <div className="space-y-4">
-        <div className="rounded-lg border border-amber-200/80 bg-amber-500/10 px-4 py-3 text-sm text-amber-950">
-          Copy these now — the password is only shown once.
+      <div className="space-y-5 py-2 text-center">
+        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
+          <CheckCircle2 className="size-8" />
         </div>
 
-        <CredentialRow
-          label="Email"
-          value={credentials.email}
-          copied={copiedField === 'email'}
-          onCopy={() => void copy(credentials.email, 'email')}
-        />
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            We emailed <span className="font-medium text-foreground">{recipient}</span> at{' '}
+            <span className="font-medium text-foreground">{leaderEmail}</span> with a link to set
+            their password and get started.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            They must set a password before they can sign in.
+          </p>
+        </div>
 
-        <CredentialRow
-          label="Password"
-          value={credentials.temporaryPassword}
-          copied={copiedField === 'password'}
-          onCopy={() => void copy(credentials.temporaryPassword, 'password')}
-          mono
-        />
+        <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-muted/10 px-4 py-3 text-left text-sm text-muted-foreground">
+          <Mail className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <p>
+            Ask them to check their inbox (and spam folder). The email contains a secure link to
+            choose their password — nothing sensitive is shown in this app.
+          </p>
+        </div>
 
-        <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void copy(allText, 'all')}
-          >
-            {copiedField === 'all' ? (
-              <>
-                <Check className="size-4" />
-                Copied
-              </>
-            ) : (
-              <>
-                <Copy className="size-4" />
-                Copy both
-              </>
-            )}
-          </Button>
+        <div className="flex justify-end border-t pt-4">
           <Button type="button" onClick={onClose}>
             Done
           </Button>
         </div>
       </div>
     </Modal>
-  )
-}
-
-function CredentialRow({
-  label,
-  value,
-  copied,
-  onCopy,
-  mono = false,
-}: {
-  label: string
-  value: string
-  copied: boolean
-  onCopy: () => void
-  mono?: boolean
-}) {
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/10 px-3 py-2">
-        <span className={mono ? 'min-w-0 flex-1 font-mono text-sm' : 'min-w-0 flex-1 text-sm'}>
-          {value}
-        </span>
-        <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={onCopy}>
-          {copied ? (
-            <>
-              <Check className="size-4" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="size-4" />
-              Copy
-            </>
-          )}
-        </Button>
-      </div>
-    </div>
   )
 }

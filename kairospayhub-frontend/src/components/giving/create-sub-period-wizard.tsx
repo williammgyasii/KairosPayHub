@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type { GivingProgram, ProgramScopeKind } from '@/api/giving'
 import { createSubPeriod, formatAmount } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'

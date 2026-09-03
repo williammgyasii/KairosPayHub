@@ -10,7 +10,7 @@ export function SettingsAccountPage() {
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Settings', to: '/settings' },
           { label: 'Account' },
         ]}

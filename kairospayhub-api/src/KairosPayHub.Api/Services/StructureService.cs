@@ -4,6 +4,7 @@ using KairosPayHub.Api.Domain;
 using KairosPayHub.Api.Domain.Structure;
 using KairosPayHub.Api.Email;
 using KairosPayHub.Api.Web;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -12,9 +13,11 @@ namespace KairosPayHub.Api.Services;
 public class StructureService(
     KairosDbContext db,
     StructureLeaderAccountService leaderAccounts,
+    AuthService auth,
     IEmailSender email,
     IOptions<EmailOptions> emailOptions,
-    GivingScopeService givingScope)
+    GivingScopeService givingScope,
+    UserManager<ApplicationUser> users)
 {
     public async Task<StructureTemplateDto?> GetTemplateAsync(Actor actor, CancellationToken ct = default)
     {
@@ -936,6 +939,18 @@ public class StructureService(
         if (parentNode.LayerId != deepestLayer.Id)
             throw new BadRequestException("Members must be placed on the deepest org layer");
 
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var rosterCheck = await CheckEmailAvailabilityAsync(
+                actor,
+                email,
+                scope: "roster",
+                excludeMemberId: null,
+                ct);
+            if (!rosterCheck.Available)
+                throw new BadRequestException(rosterCheck.Message ?? "This email is already in use");
+        }
+
         var member = new Member
         {
             ChurchId = churchId,
@@ -952,6 +967,43 @@ public class StructureService(
         await db.SaveChangesAsync(ct);
 
         return ToMemberDto(member);
+    }
+
+    public async Task<EmailAvailabilityDto> CheckEmailAvailabilityAsync(
+        Actor actor,
+        string email,
+        string scope,
+        Guid? excludeMemberId = null,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+        var trimmed = email.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+            return new EmailAvailabilityDto(false, "Email is required");
+
+        var normalizedScope = scope.Trim().ToLowerInvariant();
+        if (normalizedScope is not ("login" or "roster" or "both"))
+            throw new BadRequestException("Scope must be login, roster, or both");
+
+        if (normalizedScope is "login" or "both")
+        {
+            if (await users.FindByEmailAsync(trimmed) is not null)
+                return new EmailAvailabilityDto(false, "A login account with this email already exists");
+        }
+
+        if (normalizedScope is "roster" or "both")
+        {
+            var normalizedEmail = trimmed.ToUpperInvariant();
+            var query = db.ChurchMembers.AsNoTracking()
+                .Where(m => m.ChurchId == churchId && m.Email != null && m.Email.ToUpper() == normalizedEmail);
+            if (excludeMemberId is Guid memberId)
+                query = query.Where(m => m.Id != memberId);
+
+            if (await query.AnyAsync(ct))
+                return new EmailAvailabilityDto(false, "A member with this email is already on your roster");
+        }
+
+        return new EmailAvailabilityDto(true, null);
     }
 
     private static StructureMemberDto ToMemberDto(Member member) =>
@@ -1310,21 +1362,21 @@ public class StructureService(
                 newLeader.SchoolOrWorkplace);
 
             GeneratedLeaderLoginDto? generatedLogin = null;
-            var password = await leaderAccounts.ProvisionLoginAsync(
+            var authUserId = await leaderAccounts.ProvisionLoginAsync(
                 churchId,
                 node.Id,
                 layer.StandardType,
                 member,
                 newLeader.Email,
                 ct);
-            generatedLogin = new GeneratedLeaderLoginDto(newLeader.Email.Trim(), password);
+            generatedLogin = new GeneratedLeaderLoginDto(newLeader.Email.Trim());
 
             if (autoCell is not null)
             {
                 autoCell.LeaderMemberId = member.Id;
                 leaderAccounts.AssignLeaderRole(
                     churchId,
-                    member.AuthUserId!.Value,
+                    authUserId,
                     ChurchRole.CellLeader,
                     autoCell.Id);
             }
@@ -1334,12 +1386,13 @@ public class StructureService(
             node.LeaderMemberId = member.Id;
 
             if (generatedLogin is not null)
-                await SendLeaderLoginEmailAsync(
+                await SendLeaderSetPasswordEmailAsync(
                     churchId,
                     layer,
                     node.Name,
                     newLeader.Name.Trim(),
-                    generatedLogin,
+                    authUserId,
+                    generatedLogin.Email,
                     ct);
 
             return generatedLogin;
@@ -1357,29 +1410,29 @@ public class StructureService(
         return null;
     }
 
-    private async Task SendLeaderLoginEmailAsync(
+    private async Task SendLeaderSetPasswordEmailAsync(
         Guid churchId,
         StructureLayer layer,
         string unitName,
         string leaderName,
-        GeneratedLeaderLoginDto login,
+        Guid authUserId,
+        string emailAddress,
         CancellationToken ct)
     {
         var church = await db.StructureChurches.AsNoTracking()
             .SingleAsync(c => c.Id == churchId, ct);
 
-        var loginUrl = $"{emailOptions.Value.FrontendBaseUrl.TrimEnd('/')}/login";
+        var token = await auth.CreateSetPasswordTokenAsync(authUserId, ct);
+        var setPasswordUrl = $"{emailOptions.Value.FrontendBaseUrl.TrimEnd('/')}/set-password?token={token}";
         var roleTitle = $"{layer.DisplayName} leader";
-        var (subject, body) = EmailTemplates.LeaderLoginCredentials(
+        var (subject, body) = EmailTemplates.LeaderSetPasswordInvite(
             leaderName,
             church.Name,
             roleTitle,
             unitName.Trim(),
-            loginUrl,
-            login.Email,
-            login.TemporaryPassword);
+            setPasswordUrl);
 
-        await email.SendAsync(login.Email, subject, body, ct);
+        await email.SendAsync(emailAddress, subject, body, ct);
     }
 
     private async Task<List<Guid>> CollectSubtreeNodeIdsAsync(

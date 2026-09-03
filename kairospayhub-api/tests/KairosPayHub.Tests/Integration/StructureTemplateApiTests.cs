@@ -733,7 +733,7 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Create_fellowship_with_leader_email_returns_generated_login()
+    public async Task Create_fellowship_with_leader_email_sends_set_password_invite()
     {
         var client = PastorClient();
         await OnboardAsync(client);
@@ -755,6 +755,7 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
             name = "PFCC 1",
         })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
 
+        _factory.Email.Clear();
         var create = await client.PostAsJsonAsync("/api/structure/nodes", new
         {
             layerId = fellowshipLayerId,
@@ -775,14 +776,37 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
 
         var body = await create.Content.ReadFromJsonAsync<JsonElement>();
         var login = body.GetProperty("generatedLeaderLogin");
-        var password = login.GetProperty("temporaryPassword").GetString();
         Assert.Equal("jane.leader@example.com", login.GetProperty("email").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(password));
+        Assert.False(login.TryGetProperty("temporaryPassword", out _));
 
+        var emailBody = _factory.Email.LastBody ?? throw new InvalidOperationException("No invite email");
         Assert.Equal("jane.leader@example.com", _factory.Email.LastTo);
-        Assert.Contains(password, _factory.Email.LastBody);
-        Assert.Contains("http://localhost:5173/login", _factory.Email.LastBody);
-        Assert.Contains("change your password", _factory.Email.LastBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/set-password?token=", emailBody);
+        Assert.Contains("Set your password", emailBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Password:", emailBody);
+
+        var token = ExtractInviteToken(emailBody);
+        var leaderClient = _factory.CreateClient();
+        var blockedLogin = await leaderClient.PostAsJsonAsync("/auth/login", new
+        {
+            email = "jane.leader@example.com",
+            password = "Password1",
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, blockedLogin.StatusCode);
+
+        var setPwd = await leaderClient.PostAsJsonAsync("/auth/set-password", new
+        {
+            token,
+            password = "Password1",
+        });
+        Assert.Equal(HttpStatusCode.OK, setPwd.StatusCode);
+
+        var loginResp = await leaderClient.PostAsJsonAsync("/auth/login", new
+        {
+            email = "jane.leader@example.com",
+            password = "Password1",
+        });
+        Assert.Equal(HttpStatusCode.OK, loginResp.StatusCode);
 
         await using var db = fx.CreateContext();
         var member = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.leader@example.com");
@@ -802,6 +826,17 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(member.Id, autoCell.LeaderMemberId);
         Assert.Equal(autoCell.Id, member.ParentNodeId);
         Assert.Equal(MemberPosition.FellowshipLeader, member.Position);
+    }
+
+    private static string ExtractInviteToken(string body)
+    {
+        const string prefix = "token=";
+        var idx = body.IndexOf(prefix, StringComparison.Ordinal);
+        if (idx < 0) return string.Empty;
+        var start = idx + prefix.Length;
+        var end = start;
+        while (end < body.Length && !char.IsWhiteSpace(body[end])) end++;
+        return body[start..end];
     }
 
     [Fact]
@@ -948,6 +983,71 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
         var tree = await client.GetFromJsonAsync<JsonElement>("/api/structure");
         Assert.Equal(1, tree.GetProperty("nodes").GetArrayLength());
         Assert.Empty(tree.GetProperty("members").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Email_check_flags_existing_login_and_roster_email()
+    {
+        var client = PastorClient();
+        await OnboardAsync(client, "Email Check Church");
+
+        var template = await PutTemplateAsync(
+            client,
+            ("Fellowship", "Fellowship"),
+            ("Cell", "Cell"));
+
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await client.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = (Guid?)null,
+            name = "Fellowship 1",
+            newLeader = new
+            {
+                name = "Jane Leader",
+                email = "jane.leader@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1990-01-01",
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellId = (await (await client.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell 1",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        await client.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Sam Member",
+            parentNodeId = cellId,
+            email = "sam.member@example.com",
+            position = "Member",
+        });
+
+        var loginCheck = await client.GetFromJsonAsync<JsonElement>(
+            "/api/structure/emails/check?email=jane.leader@example.com&scope=login");
+        Assert.False(loginCheck.GetProperty("available").GetBoolean());
+
+        var rosterCheck = await client.GetFromJsonAsync<JsonElement>(
+            "/api/structure/emails/check?email=sam.member@example.com&scope=roster");
+        Assert.False(rosterCheck.GetProperty("available").GetBoolean());
+
+        var availableCheck = await client.GetFromJsonAsync<JsonElement>(
+            "/api/structure/emails/check?email=fresh.member@example.com&scope=both");
+        Assert.True(availableCheck.GetProperty("available").GetBoolean());
+
+        var duplicateCreate = await client.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Duplicate Sam",
+            parentNodeId = cellId,
+            email = "sam.member@example.com",
+            position = "Member",
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, duplicateCreate.StatusCode);
     }
 
     [Fact]

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import type { CreateStructureNodeResponse, StructureLayer, StructureTree } from '@/api/structure'
 import { buildMemberRows } from '@/lib/structure-table-rows'
 import type { StructureUnitNodeRow } from '@/lib/structure-table-rows'
@@ -19,9 +19,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
 import {
-  LeaderLoginCredentialsModal,
+  LeaderLoginSuccessModal,
   type GeneratedLeaderLogin,
 } from '@/components/structure/leader-login-credentials-modal'
+import {
+  EmailAvailabilityField,
+  isEmailAvailabilityBlocking,
+  useEmailAvailability,
+} from '@/components/structure/email-availability-field'
 import {
   MemberProfileFields,
   memberProfilePayload,
@@ -59,8 +64,8 @@ export function UnitNodeFormSheet({
 
   if (generatedLogin) {
     return (
-      <LeaderLoginCredentialsModal
-        credentials={generatedLogin}
+      <LeaderLoginSuccessModal
+        leaderEmail={generatedLogin.email}
         leaderName={leaderName}
         onClose={() => {
           setGeneratedLogin(null)
@@ -201,9 +206,15 @@ function UnitNodeForm({
   }, [row, defaultParentId])
 
   const numberLabel = `${layer.displayName} number`
+  const leaderEmailAvailability = useEmailAvailability(
+    newLeaderEmail,
+    'login',
+    leaderMode === 'new',
+  )
   const newLeaderReady =
     newLeaderName.trim().length > 0 &&
-    isRequiredLeaderProfileComplete(newLeaderEmail, newLeaderProfile)
+    isRequiredLeaderProfileComplete(newLeaderEmail, newLeaderProfile) &&
+    !isEmailAvailabilityBlocking(newLeaderEmail, leaderEmailAvailability)
   const canSubmit =
     name.trim().length > 0 &&
     (leaderMode !== 'new' || newLeaderReady) &&
@@ -307,7 +318,7 @@ function UnitNodeForm({
           <p className="mt-0.5 text-xs text-muted-foreground">
             {hasLockedLeader
               ? 'This unit already has a leader assigned.'
-              : 'Optional. Search existing members or register someone new with login credentials.'}
+              : 'Optional. Search existing members or register someone new — new leaders get a set-password email.'}
           </p>
         </div>
 
@@ -369,16 +380,15 @@ function UnitNodeForm({
                       required
                     />
                   </Field>
-                  <Field label="Leader email" id="new-leader-email" required>
-                    <Input
-                      id="new-leader-email"
-                      type="email"
-                      value={newLeaderEmail}
-                      onChange={(e) => setNewLeaderEmail(e.target.value)}
-                      placeholder="For login credentials"
-                      required
-                    />
-                  </Field>
+                  <EmailAvailabilityField
+                    id="new-leader-email"
+                    email={newLeaderEmail}
+                    onChange={setNewLeaderEmail}
+                    scope="login"
+                    required
+                    label="Leader email"
+                    placeholder="For their login invite"
+                  />
                   {!isDeepest && (
                     <Field
                       label={`First ${deepest?.displayName ?? 'cell'} name`}

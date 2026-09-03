@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
@@ -9,7 +8,7 @@ namespace KairosPayHub.Api.Services;
 
 public class StructureLeaderAccountService(UserManager<ApplicationUser> users, KairosDbContext db)
 {
-    public async Task<string> ProvisionLoginAsync(
+    public async Task<Guid> ProvisionLoginAsync(
         Guid churchId,
         Guid scopeNodeId,
         StructureLayerType layerType,
@@ -25,17 +24,16 @@ public class StructureLeaderAccountService(UserManager<ApplicationUser> users, K
         if (existing is not null)
             throw new BadRequestException("A login account with this email already exists");
 
-        var password = PasswordGenerator.NewTemporary();
         var identityUser = new ApplicationUser
         {
             Id = Guid.NewGuid(),
             UserName = normalizedEmail,
             Email = normalizedEmail,
             DisplayName = member.Name,
-            EmailConfirmed = true,
+            EmailConfirmed = false,
         };
 
-        var result = await users.CreateAsync(identityUser, password);
+        var result = await users.CreateAsync(identityUser);
         if (!result.Succeeded)
             throw new BadRequestException(string.Join("; ", result.Errors.Select(e => e.Description)));
 
@@ -51,7 +49,7 @@ public class StructureLeaderAccountService(UserManager<ApplicationUser> users, K
             ScopeNodeId = scopeNodeId,
         });
 
-        return password;
+        return identityUser.Id;
     }
 
     public void AssignLeaderRole(
@@ -77,25 +75,4 @@ public class StructureLeaderAccountService(UserManager<ApplicationUser> users, K
             StructureLayerType.Cell => ChurchRole.CellLeader,
             _ => throw new BadRequestException("Login accounts are not supported for this layer type"),
         };
-}
-
-internal static class PasswordGenerator
-{
-    internal static string NewTemporary()
-    {
-        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-        const string lower = "abcdefghjkmnpqrstuvwxyz";
-        const string digits = "23456789";
-        var pool = upper + lower + digits;
-
-        Span<char> chars = stackalloc char[12];
-        chars[0] = upper[RandomNumberGenerator.GetInt32(upper.Length)];
-        chars[1] = lower[RandomNumberGenerator.GetInt32(lower.Length)];
-        chars[2] = digits[RandomNumberGenerator.GetInt32(digits.Length)];
-
-        for (var i = 3; i < chars.Length; i++)
-            chars[i] = pool[RandomNumberGenerator.GetInt32(pool.Length)];
-
-        return new string(chars);
-    }
 }

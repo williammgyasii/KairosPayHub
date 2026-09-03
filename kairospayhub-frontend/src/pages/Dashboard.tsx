@@ -1,38 +1,27 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useApi } from '@/api/useApi'
-import { isNotOnboarded, type Me } from '@/api/me'
+import { useCallback } from 'react'
+import { useGetMeQuery } from '@/store/meApi'
+import { isNotOnboarded } from '@/api/auth'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Spinner } from '@/components/ui/spinner'
+import { formatRtkQueryError } from '@/store/baseQuery'
 
 export function DashboardRoot() {
-  const api = useApi()
-  const [me, setMe] = useState<Me | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { data: me, error, isLoading, refetch } = useGetMeQuery()
 
-  const load = useCallback(async () => {
-    setError(null)
-    try {
-      setMe(await api.get<Me>('/api/me'))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load your account')
-    }
-  }, [api])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load()
-  }, [load])
+  const reloadMe = useCallback(async () => {
+    await refetch()
+  }, [refetch])
 
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
-        <p className="text-sm text-destructive">{error}</p>
+        <p className="text-sm text-destructive">{formatRtkQueryError(error)}</p>
       </div>
     )
   }
 
-  if (!me) {
+  if (isLoading || !me) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Spinner label="Loading your dashboard…" />
@@ -41,12 +30,12 @@ export function DashboardRoot() {
   }
 
   if (isNotOnboarded(me)) {
-    return <OnboardingWizard me={me} onComplete={setMe} />
+    return <OnboardingWizard me={me} onComplete={() => void refetch()} />
   }
 
   if (!me.onboarded) return null
 
-  return <DashboardLayout me={me} reloadMe={load} />
+  return <DashboardLayout me={me} reloadMe={reloadMe} />
 }
 
 // Backwards-compatible export for any imports

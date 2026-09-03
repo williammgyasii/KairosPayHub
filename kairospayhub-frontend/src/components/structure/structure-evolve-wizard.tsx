@@ -7,7 +7,7 @@ import {
   type StructureLayerType,
   type StructureTree,
 } from '@/api/structure'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import { StructureChainFromLabels } from '@/components/structure/structure-chain'
 import {
   WizardField,

@@ -1,14 +1,14 @@
 import { addDays, format, isToday, parseISO } from 'date-fns'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Cake, CalendarDays, ChevronRight, ClipboardCheck, Star } from 'lucide-react'
-import type { ApiClient } from '@/api/client'
-import { getCalendarFeed, type CalendarEvent, type CalendarEventKind } from '@/api/calendar'
 import {
   eventKindLabel,
   upcomingCalendarEvents,
 } from '@/lib/calendar-events-ui'
-import { formatApiError } from '@/lib/structure-tree'
+import { useGetCalendarFeedQuery } from '@/store/calendarApi'
+import { formatRtkQueryError } from '@/store/baseQuery'
+import type { CalendarEventKind } from '@/api/events'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -48,39 +48,14 @@ function kindBadge(kind: CalendarEventKind): string {
   }
 }
 
-export function UpcomingEventsCard({ api }: { api: ApiClient }) {
-  const [events, setEvents] = useState<CalendarEvent[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
+export function UpcomingEventsCard() {
   const fromDate = format(new Date(), 'yyyy-MM-dd')
   const toDate = format(addDays(new Date(), UPCOMING_DAYS), 'yyyy-MM-dd')
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    void getCalendarFeed(api, fromDate, toDate)
-      .then((feed) => {
-        if (!cancelled) setEvents(feed.items)
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(formatApiError(err))
-          setEvents([])
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [api, fromDate, toDate])
+  const { data, isLoading, error } = useGetCalendarFeedQuery({ from: fromDate, to: toDate })
 
   const upcoming = useMemo(
-    () => upcomingCalendarEvents(events, fromDate, UPCOMING_DAYS).slice(0, DISPLAY_LIMIT),
-    [events, fromDate],
+    () => upcomingCalendarEvents(data?.items ?? [], fromDate, UPCOMING_DAYS).slice(0, DISPLAY_LIMIT),
+    [data?.items, fromDate],
   )
 
   return (
@@ -104,7 +79,7 @@ export function UpcomingEventsCard({ api }: { api: ApiClient }) {
       </div>
 
       <div className="relative px-4 py-4 sm:px-5">
-        {loading ? (
+        {isLoading ? (
           <div className="flex gap-3 overflow-hidden">
             {Array.from({ length: 3 }).map((_, index) => (
               <div
@@ -114,7 +89,7 @@ export function UpcomingEventsCard({ api }: { api: ApiClient }) {
             ))}
           </div>
         ) : error ? (
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-destructive">{formatRtkQueryError(error)}</p>
         ) : upcoming.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nothing scheduled in the next {UPCOMING_DAYS} days.

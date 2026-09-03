@@ -2,16 +2,13 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { Bell } from 'lucide-react'
-import type { ApiClient } from '@/api/client'
 import type { Notification } from '@/api/notifications'
 import { useNotifications } from '@/hooks/use-notifications'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-type NotificationsBellProps = {
-  api: ApiClient
-}
+type NotificationsBellProps = Record<string, never>
 
 function notificationLink(notification: Notification): string {
   if (notification.linkPath) {
@@ -23,10 +20,10 @@ function notificationLink(notification: Notification): string {
   return '/givings'
 }
 
-export function NotificationsBell({ api }: NotificationsBellProps) {
+export function NotificationsBell(_props: NotificationsBellProps) {
   const [open, setOpen] = useState(false)
   const { notifications, unreadCount, loading, error, refresh, markRead, markAllRead } =
-    useNotifications({ api })
+    useNotifications()
 
   async function handleOpenChange(next: boolean) {
     setOpen(next)

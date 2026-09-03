@@ -67,9 +67,10 @@ export function MemberProfileFields({
       {showContact && (
         <section className="space-y-3">
           <SectionHeading title="Contact" />
-          <ProfileField label="Phone number" id={phoneId} required={requirePhoneAndDob}>
+          <ProfileField label="Phone number" id={phoneId} required={requirePhoneAndDob} className="w-full">
             <PhoneInput
               id={phoneId}
+              className="w-full"
               dialCode={values.phoneDialCode}
               localNumber={values.phoneLocal}
               onDialCodeChange={(phoneDialCode) => onChange({ phoneDialCode })}
@@ -156,14 +157,16 @@ function ProfileField({
   id,
   children,
   required = false,
+  className,
 }: {
   label: string
   id: string
   children: React.ReactNode
   required?: boolean
+  className?: string
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className={cn('space-y-1.5', className)}>
       <Label htmlFor={id} className="text-xs font-medium">
         {label}
         {required && <span className="text-destructive"> *</span>}

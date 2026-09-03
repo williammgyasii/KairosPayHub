@@ -146,6 +146,20 @@ public class StructureController(CurrentActor current, StructureService structur
             ct));
     }
 
+    [HttpGet("emails/check")]
+    public async Task<IActionResult> CheckEmailAvailability(
+        [FromQuery] string email,
+        [FromQuery] string scope = "roster",
+        [FromQuery] Guid? excludeMemberId = null,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return BadRequest(new { error = "Email is required" });
+
+        var actor = await current.RequireAsync(ct);
+        return Ok(await structure.CheckEmailAvailabilityAsync(actor, email, scope, excludeMemberId, ct));
+    }
+
     [HttpPost("members")]
     public async Task<IActionResult> CreateMember(
         [FromBody] CreateStructureMemberRequest request,

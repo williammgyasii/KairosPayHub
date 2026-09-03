@@ -1,50 +1,53 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useApi } from '@/api/useApi'
+import { useCallback, useState } from 'react'
 import type { StructureTree } from '@/api/structure'
 import { formatApiError } from '@/lib/structure-tree'
 import { hasTemplate, isStructureSetupComplete, structureProgress } from '@/lib/structure-dashboard'
+import { useGetStructureTreeQuery } from '@/store/structureApi'
+import { formatRtkQueryError } from '@/store/baseQuery'
 
 export { hasTemplate, isStructureSetupComplete, structureProgress }
 
 export function useStructureTree() {
-  const api = useApi()
-  const [tree, setTree] = useState<StructureTree | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const {
+    data: tree = null,
+    error: queryError,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useGetStructureTreeQuery({})
 
-  const load = useCallback(async (options?: { includeMembers?: boolean }) => {
-    setError(null)
-    setLoading(true)
-    try {
-      const qs =
-        options?.includeMembers === false ? '?includeMembers=false' : ''
-      setTree(await api.get<StructureTree>(`/api/structure${qs}`))
-    } catch (err) {
-      setError(formatApiError(err))
-      setTree(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [api])
+  const load = useCallback(
+    async (_options?: { includeMembers?: boolean }) => {
+      await refetch()
+    },
+    [refetch],
+  )
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load()
-  }, [load])
+  const error =
+    actionError ??
+    (queryError ? formatRtkQueryError(queryError) : null)
 
   async function submit(action: () => Promise<void>) {
     setBusy(true)
-    setError(null)
+    setActionError(null)
     try {
       await action()
-      await load()
+      await refetch()
     } catch (err) {
-      setError(formatApiError(err))
+      setActionError(formatApiError(err))
     } finally {
       setBusy(false)
     }
   }
 
-  return { tree, error, busy, loading, load, submit }
+  return {
+    tree: tree as StructureTree | null,
+    error,
+    busy,
+    loading: isLoading || isFetching,
+    load,
+    submit,
+  }
 }

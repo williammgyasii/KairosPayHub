@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Me } from '@/api/me'
-import type { ApiClient } from '@/api/client'
+import type { Me } from '@/api/auth'
+import type { ApiClient } from '@/api/core'
 import type { Contribution, ContributionListSummary, GivingProgram, GivingProgramRollup } from '@/api/giving'
 import {
   approveContribution,
@@ -10,7 +10,7 @@ import {
 } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { givingTypeLabel, contributionsAwaitingMyApproval } from '@/lib/giving-ui'
-import { canCreateSubGiving, canManageChurch } from '@/api/me'
+import { canCreateSubGiving, canManageChurch } from '@/api/auth'
 import { structureOptionsForLeader } from '@/lib/contribution-structure'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
@@ -227,7 +227,7 @@ export function ProgramDetailView({
       <DashboardPageHeader
         className={isLogTabActive ? 'shrink-0 space-y-2' : undefined}
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Givings', to: '/givings' },
           { label: program.title },
         ]}

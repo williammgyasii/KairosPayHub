@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type { AttendanceMeetingType } from '@/api/attendance'
 import { createMeetingType, updateMeetingType } from '@/api/attendance'
 import { Modal } from '@/components/ui/modal'

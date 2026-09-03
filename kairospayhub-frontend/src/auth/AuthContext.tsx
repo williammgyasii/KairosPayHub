@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { resetSessionCache } from '@/store/resetSessionCache'
 import * as auth from './client'
 
 type Status = 'loading' | 'authed' | 'anon'
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = useCallback(async (e: string, password: string) => {
+    resetSessionCache()
     const session = await auth.signIn(e, password)
     setEmail(session.email ?? e)
     setEmailConfirmed(session.emailConfirmed)
@@ -46,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     auth.signOut()
+    resetSessionCache()
     setEmail(null)
     setEmailConfirmed(true)
     setStatus('anon')

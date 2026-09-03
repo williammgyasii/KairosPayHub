@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import {
   createAdministrator,
   deactivateAdministrator,
@@ -15,6 +15,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  EmailAvailabilityField,
+  isEmailAvailabilityBlocking,
+  useEmailAvailability,
+} from '@/components/structure/email-availability-field'
 
 export function SettingsAdministratorsPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
@@ -31,6 +36,7 @@ export function SettingsAdministratorsPage() {
   const [affiliationKind, setAffiliationKind] = useState<ChurchAdminAffiliationKind>('External')
   const [password, setPassword] = useState('')
   const [sendInvite, setSendInvite] = useState(false)
+  const emailAvailability = useEmailAvailability(email, 'login')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -96,7 +102,7 @@ export function SettingsAdministratorsPage() {
     <div className="space-y-8">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Settings', to: '/settings' },
           { label: 'Administrators' },
         ]}
@@ -118,20 +124,19 @@ export function SettingsAdministratorsPage() {
             <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
           </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="email">Email (must be unique)</Label>
-          <div className="flex gap-2">
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Button type="button" variant="outline" onClick={() => void onSuggestEmail()}>
-              Suggest
-            </Button>
-          </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <EmailAvailabilityField
+            id="email"
+            email={email}
+            onChange={setEmail}
+            scope="login"
+            required
+            label="Email (must be unique)"
+            className="min-w-0 flex-1"
+          />
+          <Button type="button" variant="outline" className="shrink-0" onClick={() => void onSuggestEmail()}>
+            Suggest
+          </Button>
         </div>
         <div className="space-y-2">
           <Label>Affiliation</Label>
@@ -171,7 +176,10 @@ export function SettingsAdministratorsPage() {
           </div>
         )}
         {formError && <p className="text-sm text-destructive">{formError}</p>}
-        <Button type="submit" disabled={saving}>
+        <Button
+          type="submit"
+          disabled={saving || isEmailAvailabilityBlocking(email, emailAvailability)}
+        >
           {saving ? 'Creating…' : 'Create administrator'}
         </Button>
       </form>

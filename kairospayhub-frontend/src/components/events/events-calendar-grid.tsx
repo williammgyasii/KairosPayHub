@@ -12,7 +12,7 @@ import {
 } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo } from 'react'
-import type { CalendarEvent } from '@/api/calendar'
+import type { CalendarEvent } from '@/api/events'
 import { eventKindLabel, eventKindTone } from '@/lib/calendar-events-ui'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'

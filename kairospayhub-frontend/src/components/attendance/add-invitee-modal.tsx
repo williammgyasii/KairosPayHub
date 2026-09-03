@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type { MemberOccupationStatus } from '@/api/structure'
 import { MEMBER_OCCUPATION_OPTIONS } from '@/api/structure'
 import { createCellInvitee } from '@/api/attendance'

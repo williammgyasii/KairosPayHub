@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Coins, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import {
   formatAmount,
   formatContributionStatus,

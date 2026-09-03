@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Plus } from 'lucide-react'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import type { StructureTree } from '@/api/structure'
 import { StructureFlowNode } from '@/components/structure/structure-node'
 import { Button } from '@/components/ui/button'

@@ -1,5 +1,5 @@
-import type { ApiClient } from './client'
-import { getAccessToken } from '../auth/client'
+import type { ApiClient } from '@/api/core/client'
+import { getAccessToken } from '@/auth/client'
 import { apiBaseUrl } from '@/lib/api-base'
 
 export type GivingType = 'Rhapsody' | 'SundayService' | 'SpecialProgram' | 'FellowshipGiving'

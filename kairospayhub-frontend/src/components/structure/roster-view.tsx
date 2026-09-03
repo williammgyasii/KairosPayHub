@@ -10,15 +10,28 @@ import {
 } from '@tanstack/react-table'
 import { ArrowUpDown, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import type { StructureLayer, StructureTree } from '@/api/structure'
-import { getLayers, nodesAtLayer, parentOptionsForLayer, rosterLayersForScope } from '@/lib/structure-tree'
-import { buildNodeRows, type StructureNodeRow } from '@/lib/structure-table-rows'
+import { AddFellowshipButton } from '@/components/structure/add-fellowship-button'
+import { FellowshipCreateWizard } from '@/components/structure/fellowship-create-wizard'
 import { RosterUnitActionsMenu } from '@/components/structure/roster-unit-actions-menu'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
+import { UnitDeleteModal } from '@/components/structure/unit-delete-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { buildNodeRows, type StructureNodeRow } from '@/lib/structure-table-rows'
+import {
+  getLayers,
+  isRosterLayerUnlocked,
+  layerParentOptions,
+  layerRequiresParent,
+  nodesAtLayer,
+  resolveLayerParentId,
+  rosterLayerLockReason,
+  rosterLayersForScope,
+  unitDeleteImpact,
+} from '@/lib/structure-tree'
 
 interface RosterViewProps {
   tree: StructureTree
@@ -37,42 +50,65 @@ export function RosterView({
   readOnly = false,
   scopeRootNodeId = null,
 }: RosterViewProps) {
+  const api = useApi()
   const layers = useMemo(
     () => rosterLayersForScope(tree, scopeRootNodeId),
     [tree, scopeRootNodeId],
   )
   const [tab, setTab] = useState<string>(layers[0]?.id ?? '')
+  const [fellowshipWizardOpen, setFellowshipWizardOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<StructureNodeRow | null>(null)
   const activeLayer = layers.find((l) => l.id === tab) ?? layers[0]
 
-  useEffect(() => {
-    setTab(layers[0]?.id ?? '')
-  }, [scopeRootNodeId, layers])
+  const deleteImpact = useMemo(
+    () => (deleteTarget ? unitDeleteImpact(tree, deleteTarget.id) : null),
+    [deleteTarget, tree],
+  )
 
-  const tabs = layers.map((layer) => ({
-    id: layer.id,
-    label: layer.displayName,
-    count: nodesAtLayer(tree, layer.id).length,
-  }))
+  const canDeleteLayerUnits = (layer: StructureLayer) =>
+    layer.standardType === 'Fellowship' || layer.standardType === 'Cell'
+
+  const tabs = useMemo(
+    () =>
+      layers.map((layer) => ({
+        id: layer.id,
+        label: layer.displayName,
+        count: nodesAtLayer(tree, layer.id).length,
+        locked: !isRosterLayerUnlocked(tree, layer),
+        lockReason: rosterLayerLockReason(tree, layer) ?? undefined,
+      })),
+    [layers, tree],
+  )
+
+  const firstUnlockedTabId = tabs.find((item) => !item.locked)?.id ?? layers[0]?.id ?? ''
+
+  useEffect(() => {
+    const current = tabs.find((item) => item.id === tab)
+    if (!current || current.locked) {
+      setTab(firstUnlockedTabId)
+    }
+  }, [scopeRootNodeId, tabs, tab, firstUnlockedTabId])
 
   if (!activeLayer) return null
+
+  const fellowshipParentOptions = layerParentOptions(tree, activeLayer, scopeRootNodeId)
+  const fellowshipParentId = resolveLayerParentId(fellowshipParentOptions) ?? ''
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0 flex-1">
-          <StructurePageTabs
-            tabs={tabs.map((t) => ({ id: t.id, label: t.label, count: t.count }))}
-            activeId={tab}
-            onChange={setTab}
-          />
+          <StructurePageTabs tabs={tabs} activeId={tab} onChange={setTab} />
         </div>
 
         <AddLayerButton
           layer={activeLayer}
           tree={tree}
+          scopeRootNodeId={scopeRootNodeId}
           busy={busy}
           submit={submit}
           hidden={readOnly}
+          onOpenFellowshipWizard={() => setFellowshipWizardOpen(true)}
         />
       </div>
 
@@ -82,7 +118,40 @@ export function RosterView({
         </p>
       )}
 
-      <LayerRosterTable tree={tree} layer={activeLayer} />
+      <LayerRosterTable
+        tree={tree}
+        layer={activeLayer}
+        readOnly={readOnly}
+        canDelete={canDeleteLayerUnits(activeLayer)}
+        onDelete={(row) => setDeleteTarget(row)}
+      />
+
+      {!readOnly && deleteTarget && (
+        <UnitDeleteModal
+          impact={deleteImpact}
+          busy={busy}
+          onConfirm={() => {
+            if (!deleteTarget) return
+            void submit(async () => {
+              await api.delete(`/api/structure/nodes/${deleteTarget.id}`)
+              setDeleteTarget(null)
+            })
+          }}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {!readOnly && fellowshipWizardOpen && activeLayer.standardType === 'Fellowship' && (
+        <FellowshipCreateWizard
+          tree={tree}
+          unitNodeId={scopeRootNodeId}
+          layer={activeLayer}
+          parentNodeId={fellowshipParentId}
+          busy={busy}
+          submit={submit}
+          onClose={() => setFellowshipWizardOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -90,25 +159,43 @@ export function RosterView({
 function AddLayerButton({
   layer,
   tree,
+  scopeRootNodeId = null,
   busy,
   submit,
   hidden = false,
+  onOpenFellowshipWizard,
 }: {
   layer: StructureLayer
   tree: StructureTree
+  scopeRootNodeId?: string | null
   busy: boolean
   submit: RosterViewProps['submit']
   hidden?: boolean
+  onOpenFellowshipWizard: () => void
 }) {
   const api = useApi()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [parentNodeId, setParentNodeId] = useState('')
-  const parentOptions = parentOptionsForLayer(tree, layer)
+  const parentOptions = layerParentOptions(tree, layer, scopeRootNodeId)
   const parentLayer = getLayers(tree)[layer.sortOrder - 1]
-  const blocked = layer.sortOrder > 0 && parentOptions.length === 0
+  const isFellowship = layer.standardType === 'Fellowship'
+  const blocked =
+    isFellowship
+      ? layerRequiresParent(tree, layer) && parentOptions.length === 0
+      : layer.sortOrder > 0 && parentOptions.length === 0
 
   if (hidden) return null
+
+  if (isFellowship) {
+    return (
+      <AddFellowshipButton
+        label={`Add new ${layer.displayName.toLowerCase()}`}
+        disabled={busy || blocked}
+        onClick={onOpenFellowshipWizard}
+      />
+    )
+  }
 
   return (
     <div className="relative">
@@ -175,9 +262,29 @@ function AddLayerButton({
   )
 }
 
-function LayerRosterTable({ tree, layer }: { tree: StructureTree; layer: StructureLayer }) {
+function LayerRosterTable({
+  tree,
+  layer,
+  readOnly,
+  canDelete,
+  onDelete,
+}: {
+  tree: StructureTree
+  layer: StructureLayer
+  readOnly: boolean
+  canDelete: boolean
+  onDelete: (row: StructureNodeRow) => void
+}) {
   const rows = useMemo(() => buildNodeRows(tree, layer.id), [tree, layer.id])
-  const columns = useMemo(() => createRosterNodeColumns(tree), [tree])
+  const columns = useMemo(
+    () =>
+      createRosterNodeColumns(tree, {
+        readOnly,
+        canDelete,
+        onDelete,
+      }),
+    [tree, readOnly, canDelete, onDelete],
+  )
 
   return (
     <RosterDataTable
@@ -208,7 +315,18 @@ export function RosterEmptyState() {
 
 const nodeHelper = createColumnHelper<StructureNodeRow>()
 
-function createRosterNodeColumns(tree: StructureTree) {
+function createRosterNodeColumns(
+  tree: StructureTree,
+  {
+    readOnly,
+    canDelete,
+    onDelete,
+  }: {
+    readOnly: boolean
+    canDelete: boolean
+    onDelete: (row: StructureNodeRow) => void
+  },
+) {
   return [
     nodeHelper.accessor('name', {
       header: 'Name',
@@ -237,7 +355,13 @@ function createRosterNodeColumns(tree: StructureTree) {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <RosterUnitActionsMenu tree={tree} unitId={row.original.id} unitName={row.original.name} readOnly />
+        <RosterUnitActionsMenu
+          tree={tree}
+          unitId={row.original.id}
+          unitName={row.original.name}
+          readOnly={readOnly || !canDelete}
+          onDelete={canDelete && !readOnly ? () => onDelete(row.original) : undefined}
+        />
       ),
     }),
   ]

@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { InlineSpinner } from '@/components/ui/spinner'
@@ -15,45 +16,49 @@ export function WizardStepper({
   className?: string
 }) {
   return (
-    <div className={cn('space-y-3', className)}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          Step {currentStep + 1} of {steps.length}
-        </p>
-        <p className="truncate text-xs font-medium text-foreground">{steps[currentStep]}</p>
-      </div>
+    <div className={cn('w-full space-y-3', className)}>
+      <p className="text-center text-xs font-medium text-muted-foreground">
+        Step {currentStep + 1} of {steps.length}
+      </p>
 
-      <div className="flex items-center gap-1.5">
-        {steps.map((step, index) => {
+      <div className="flex w-full items-center gap-1">
+        {steps.map((stepLabel, index) => {
           const isComplete = index < currentStep
           const isActive = index === currentStep
           return (
-            <div key={step} className="flex min-w-0 flex-1 items-center gap-1.5">
-              <div className="flex flex-col items-center gap-1.5">
+            <div key={stepLabel} className="flex min-w-0 flex-1 items-center gap-1">
+              <div
+                className={cn(
+                  'flex min-w-0 flex-1 flex-col items-center rounded-lg border px-2 py-2 text-center transition-colors',
+                  isActive && 'border-primary/40 bg-primary/5 ring-1 ring-primary/10',
+                  isComplete && !isActive && 'border-primary/20 bg-primary/[0.04]',
+                  !isActive && !isComplete && 'border-border/60 bg-muted/10',
+                )}
+              >
                 <span
                   className={cn(
-                    'flex size-2.5 rounded-full transition-all duration-500 ease-out',
-                    isComplete && 'bg-primary scale-100',
-                    isActive && 'scale-125 bg-primary shadow-[0_0_0_4px] shadow-primary/20',
-                    !isComplete && !isActive && 'bg-muted-foreground/25',
-                  )}
-                  title={step}
-                />
-                <span
-                  className={cn(
-                    'hidden max-w-[4.5rem] truncate text-[10px] sm:block',
-                    isActive ? 'font-medium text-foreground' : 'text-muted-foreground',
+                    'text-[10px] font-semibold uppercase tracking-wide',
+                    isActive ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >
-                  {step}
+                  Step {index + 1}
+                </span>
+                <span
+                  className={cn(
+                    'mt-0.5 w-full truncate text-xs font-medium',
+                    isActive ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  {stepLabel}
                 </span>
               </div>
               {index < steps.length - 1 && (
-                <span
+                <ChevronRight
                   className={cn(
-                    'mb-4 h-px flex-1 rounded-full transition-colors duration-500',
-                    index < currentStep ? 'bg-primary/50' : 'bg-border/60',
+                    'size-4 shrink-0',
+                    index < currentStep ? 'text-primary' : 'text-muted-foreground/40',
                   )}
+                  aria-hidden
                 />
               )}
             </div>
@@ -129,6 +134,7 @@ export function WizardFooter({
   return (
     <div className="flex justify-between gap-2 pt-1">
       <Button type="button" variant="ghost" disabled={busy} onClick={step === 0 ? onCancel : onBack}>
+        {step > 0 && <ChevronLeft className="size-4" />}
         {step === 0 ? 'Cancel' : 'Back'}
       </Button>
 
@@ -156,7 +162,10 @@ export function WizardFooter({
               {nextLabel === 'Continue' ? 'Loading…' : nextLabel}
             </>
           ) : (
-            nextLabel
+            <>
+              {nextLabel}
+              <ChevronRight className="size-4" />
+            </>
           )}
         </Button>
       )}

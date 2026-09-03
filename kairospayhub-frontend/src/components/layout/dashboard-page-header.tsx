@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 export type DashboardBreadcrumb = {
@@ -9,11 +10,12 @@ export type DashboardBreadcrumb = {
 }
 
 interface DashboardPageHeaderProps {
-  title: string
+  title: ReactNode
   description?: ReactNode
   breadcrumbs?: DashboardBreadcrumb[]
   titleSize?: 'default' | 'hero'
   actions?: ReactNode
+  onBack?: () => void
   className?: string
 }
 
@@ -23,6 +25,7 @@ export function DashboardPageHeader({
   breadcrumbs = [],
   titleSize = 'default',
   actions,
+  onBack,
   className,
 }: DashboardPageHeaderProps) {
   return (
@@ -66,12 +69,25 @@ export function DashboardPageHeader({
           <h1
             className={cn(
               'font-semibold tracking-tight text-foreground',
+              onBack && 'flex items-center gap-1',
               titleSize === 'hero'
                 ? 'text-3xl sm:text-4xl lg:text-[2.75rem] lg:leading-tight'
                 : 'text-2xl sm:text-3xl',
             )}
           >
-            {title}
+            {onBack && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-ml-2 size-9 shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={onBack}
+                aria-label="Go back"
+              >
+                <ChevronLeft className="size-5" />
+              </Button>
+            )}
+            <span className="min-w-0 truncate">{title}</span>
           </h1>
           {description && (
             <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>

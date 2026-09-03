@@ -1,6 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { setupListeners } from '@reduxjs/toolkit/query'
 import { baseApi } from '@/store/baseApi'
+import '@/store/meApi'
+import '@/store/structureApi'
+import '@/store/notificationsApi'
+import '@/store/calendarApi'
+import '@/store/givingApi'
 import '@/store/attendanceApi'
 
 export const store = configureStore({

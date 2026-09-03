@@ -1,26 +1,29 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useOutletContext, useParams } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import {
-  OverviewDashboard,
-  OverviewSetupPreview,
-} from '@/components/overview/overview-dashboard'
+  DashboardSetupPreview,
+  PastorDashboardHome,
+} from '@/components/overview/dashboard-home'
 import { CellLeaderOverviewDashboard } from '@/components/overview/cell-leader-overview-dashboard'
 import { LeaderOverviewDashboard } from '@/components/overview/leader-overview-dashboard'
-import { UpcomingEventsCard } from '@/components/overview/upcoming-events-card'
 import { StructureSetupCallout } from '@/components/overview/structure-setup-callout'
-import { getGivingDashboard, type GivingDashboard } from '@/api/giving'
+import { dashboardWelcomeSubtitle } from '@/lib/dashboard-setup-actions'
+import { useGetGivingDashboardQuery } from '@/store/givingApi'
+import { formatRtkQueryError } from '@/store/baseQuery'
 import {
   canManageChurch,
+  displayName,
   isCellLeader,
   isScopedLeader,
   canManageMembers,
   rollCallScopesFor,
   rosterScopeRootNodeId,
-} from '@/api/me'
+} from '@/api/auth'
 import { canAccessEvents } from '@/lib/calendar-events-ui'
+import { useAuth } from '@/auth/AuthContext'
 import { filterTreeToSubtree } from '@/lib/structure-tree'
 import { MembershipEmptyState, MembershipView } from '@/components/structure/membership-view'
 import { RosterEmptyState, RosterView } from '@/components/structure/roster-view'
@@ -36,7 +39,7 @@ import { hasTemplate } from '@/lib/structure-dashboard'
 import { getLayers } from '@/lib/structure-tree'
 import { StructureChainFromLabels } from '@/components/structure/structure-chain'
 import { hasDesignedStructure } from '@/lib/structure-table-rows'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
@@ -80,35 +83,21 @@ function scopedRosterTree(
   return tree
 }
 
-export function OverviewPage() {
+export function DashboardPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
-  const api = useApi()
+  const { email } = useAuth()
   const { tree } = useStructureTree()
   const showDashboard = hasTemplate(tree)
   const churchManager = canManageChurch(me.role)
   const scopedLeader = isScopedLeader(me.role)
   const cellLeader = isCellLeader(me.role)
   const leaderDashboardRole = scopedLeader || cellLeader
-  const [leaderDashboard, setLeaderDashboard] = useState<GivingDashboard | null>(null)
-  const [dashboardLoading, setDashboardLoading] = useState(leaderDashboardRole)
-  const [dashboardError, setDashboardError] = useState<string | null>(null)
-
-  const loadLeaderDashboard = useCallback(async () => {
-    if (!leaderDashboardRole) return
-    setDashboardLoading(true)
-    setDashboardError(null)
-    try {
-      setLeaderDashboard(await getGivingDashboard(api))
-    } catch (err) {
-      setDashboardError(err instanceof Error ? err.message : 'Could not load dashboard metrics')
-    } finally {
-      setDashboardLoading(false)
-    }
-  }, [api, leaderDashboardRole])
-
-  useEffect(() => {
-    void loadLeaderDashboard()
-  }, [loadLeaderDashboard])
+  const {
+    data: leaderDashboard,
+    isLoading: dashboardLoading,
+    error: dashboardQueryError,
+  } = useGetGivingDashboardQuery(undefined, { skip: !leaderDashboardRole })
+  const dashboardError = dashboardQueryError ? formatRtkQueryError(dashboardQueryError) : null
 
   const scopedTree = useMemo(() => {
     if (!tree) return tree
@@ -130,31 +119,38 @@ export function OverviewPage() {
     me.churchName ??
     'Your church'
 
+  const firstName = displayName(me, email).split(' ')[0] || 'Pastor'
+
+  const pastorSubtitle =
+    showDashboard && tree
+      ? dashboardWelcomeSubtitle(tree)
+      : 'Define your structure chain, populate Roster, then register members in Membership.'
+
+  const leaderUsesHeader = leaderDashboardRole || !churchManager || !showDashboard
+
   return (
-    <div className="space-y-8">
-      <DashboardPageHeader
-        breadcrumbs={[{ label: 'Overview' }]}
-        title={leaderDashboardRole ? scopeTitle : (me.churchName ?? 'Your church')}
-        description={
-          cellLeader
-            ? 'Your cell at a glance — members, givings, and attendance.'
-            : scopedLeader
-              ? me.role === 'FellowshipLeader'
-                ? 'Live metrics for your cells, members, and giving approvals.'
-                : 'Live metrics and giving totals for your PFCC scope.'
-              : churchManager
-                ? showDashboard
-                  ? tree?.nodes.length || tree?.members.length
-                    ? 'Live metrics, charts, and recommendations from your church structure.'
-                    : `${tree?.template?.name ?? 'Your structure'} is saved. Add org units in Roster and people in Membership.`
-                  : 'Define your structure chain, populate Roster, then register members in Membership.'
-                : 'Your overview and giving activity.'
-        }
-      />
+    <div className="space-y-6 sm:space-y-8">
+      {leaderUsesHeader ? (
+        <DashboardPageHeader
+          breadcrumbs={[{ label: 'Dashboard' }]}
+          title={leaderDashboardRole ? scopeTitle : (me.churchName ?? 'Dashboard')}
+          description={
+            cellLeader
+              ? 'Your cell at a glance — members, givings, and attendance.'
+              : scopedLeader
+                ? me.role === 'FellowshipLeader'
+                  ? 'Live metrics for your cells, members, and giving approvals.'
+                  : 'Live metrics and giving totals for your PFCC scope.'
+                : churchManager
+                  ? pastorSubtitle
+                  : 'Your dashboard and giving activity.'
+          }
+        />
+      ) : null}
 
-      {churchManager && <StructureSetupCallout tree={tree} churchName={me.churchName} />}
-
-      {canAccessEvents(me) && showDashboard ? <UpcomingEventsCard api={api} /> : null}
+      {churchManager && !showDashboard ? (
+        <StructureSetupCallout tree={tree} churchName={me.churchName} />
+      ) : null}
 
       {scopedLeader && showDashboard && scopedTree ? (
         dashboardLoading ? (
@@ -177,9 +173,13 @@ export function OverviewPage() {
           <CellLeaderOverviewDashboard tree={scopedTree} dashboard={leaderDashboard} />
         ) : null
       ) : churchManager && showDashboard && scopedTree ? (
-        <OverviewDashboard tree={scopedTree} churchName={me.churchName} />
+        <PastorDashboardHome
+          tree={scopedTree}
+          firstName={firstName}
+          showEvents={canAccessEvents(me)}
+        />
       ) : churchManager ? (
-        <OverviewSetupPreview tree={tree} />
+        <DashboardSetupPreview tree={tree} />
       ) : (
         <LeaderOverviewFallback />
       )}
@@ -216,7 +216,7 @@ export function StructurePage() {
       <div className="space-y-5">
         <DashboardPageHeader
           breadcrumbs={[
-            { label: 'Overview', to: '/' },
+            { label: 'Dashboard', to: '/' },
             { label: 'Structure' },
           ]}
           title="Structure"
@@ -250,7 +250,7 @@ export function StructurePage() {
     <div className="space-y-5">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Structure' },
         ]}
         title="Structure"
@@ -386,7 +386,7 @@ export function RosterPage() {
       <div className="space-y-5">
         <DashboardPageHeader
           breadcrumbs={[
-            { label: 'Overview', to: '/' },
+            { label: 'Dashboard', to: '/' },
             { label: 'Roster' },
             { label: 'Units' },
           ]}
@@ -402,7 +402,7 @@ export function RosterPage() {
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Roster' },
           { label: 'Units' },
         ]}
@@ -491,7 +491,7 @@ export function MembershipPage() {
       <div className="space-y-5">
         <DashboardPageHeader
           breadcrumbs={[
-            { label: 'Overview', to: '/' },
+            { label: 'Dashboard', to: '/' },
             { label: 'Roster', to: '/roster' },
             { label: 'Membership' },
           ]}
@@ -512,7 +512,7 @@ export function MembershipPage() {
     <div className="space-y-5">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Roster', to: '/roster' },
           { label: 'Membership' },
         ]}
@@ -556,7 +556,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: feature },
         ]}
         title={feature}

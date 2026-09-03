@@ -255,7 +255,7 @@ public record NewStructureNodeLeaderRequest(
     string? InitialCellName,
     bool LeaderIsCellLeader = true);
 
-public record GeneratedLeaderLoginDto(string Email, string TemporaryPassword);
+public record GeneratedLeaderLoginDto(string Email);
 
 public record CreateStructureNodeResponse(
     StructureNodeDto Node,
@@ -270,6 +270,8 @@ public record UpdateStructureNodeRequest(
 public record LinkStructureNodeRequest(Guid? ParentNodeId);
 
 public record LinkStructureMemberRequest(Guid ParentNodeId);
+
+public record EmailAvailabilityDto(bool Available, string? Message);
 
 public record CreateStructureMemberRequest(
     string Name,

@@ -8,8 +8,8 @@ import {
   UserRound,
   Users,
 } from 'lucide-react'
-import { useApi } from '@/api/useApi'
-import { displayName, type Me, type MeNotOnboarded } from '@/api/me'
+import { useApi } from '@/api/core'
+import { displayName, type Me, type MeNotOnboarded } from '@/api/auth'
 import { useAuth } from '@/auth/AuthContext'
 import { AuthAlert } from '@/components/layout/auth-alert'
 import { authEase, authFadeUp, authScaleIn, authStagger } from '@/components/layout/auth-motion'

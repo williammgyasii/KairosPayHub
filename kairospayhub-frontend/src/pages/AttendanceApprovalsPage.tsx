@@ -78,7 +78,7 @@ export function AttendanceApprovalsPage() {
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Attendance', to: '/attendance/approvals' },
           { label: 'Approvals' },
         ]}

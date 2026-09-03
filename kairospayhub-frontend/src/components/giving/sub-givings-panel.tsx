@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, Check, Eye, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type { GivingProgram } from '@/api/giving'
 import { approveSubGiving, formatAmount, rejectSubGiving } from '@/api/giving'
-import type { ChurchRole } from '@/api/me'
-import { canManageChurch } from '@/api/me'
+import type { ChurchRole } from '@/api/auth'
+import { canManageChurch } from '@/api/auth'
 import {
   ProgramApprovalBadge,
   ProgramStatusBadge,

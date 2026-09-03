@@ -1,3 +1,4 @@
+
 export class ApiError extends Error {
   readonly status: number
   readonly body?: unknown

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import type { StructureTree } from '@/api/structure'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { MemberDetailSheet, type MemberDetailTab } from '@/components/structure/member-detail-sheet'
@@ -18,6 +18,7 @@ import {
 import { FellowshipCreateWizard } from '@/components/structure/fellowship-create-wizard'
 import { CellCreateWizard } from '@/components/structure/cell-create-wizard'
 import { UnitDeleteModal } from '@/components/structure/unit-delete-modal'
+import { AddFellowshipButton } from '@/components/structure/add-fellowship-button'
 import { Button } from '@/components/ui/button'
 import {
   applyMemberFilterRules,
@@ -35,12 +36,19 @@ import {
 import {
   countCellsUnderUnit,
   countMembersUnderUnit,
+  formatFellowshipName,
+  formatCellName,
   getDeepestLayer,
   getLayers,
+  isUnitChildLayerUnlocked,
   layerById,
+  layerParentOptions,
+  layerRequiresParent,
   memberBelongsToUnit,
   nodeById,
+  resolveLayerParentId,
   rosterBreadcrumbChain,
+  unitChildLayerLockReason,
   unitDetailTabs,
   unitDeleteImpact,
 } from '@/lib/structure-tree'
@@ -72,15 +80,33 @@ export function RosterUnitView({
   const unit = nodeById(tree, unitNodeId)
   const layer = unit ? layerById(tree, unit.layerId) : undefined
   const tabs = useMemo(() => unitDetailTabs(tree, unitNodeId), [tree, unitNodeId])
+  const isFellowshipUnit = layer?.standardType === 'Fellowship'
+  const isCellUnit = layer?.standardType === 'Cell'
+  const showTitleBack = isFellowshipUnit || isCellUnit
   const pageTabs = useMemo(
     () =>
-      tabs.map((tab) => ({
-        id: tab.id,
-        label: tab.kind === 'layer' ? tab.layer.displayName : tab.label,
-        count: tab.count,
-      })),
-    [tabs],
+      tabs.map((tab) => {
+        if (tab.kind !== 'layer') {
+          return {
+            id: tab.id,
+            label: isFellowshipUnit ? 'Fellowship members' : tab.label,
+            count: tab.count,
+          }
+        }
+        return {
+          id: tab.id,
+          label:
+            isFellowshipUnit && tab.layer.standardType === 'Cell'
+              ? 'Cells'
+              : tab.layer.displayName,
+          count: tab.count,
+          locked: !isUnitChildLayerUnlocked(tree, unitNodeId, tab.layer),
+          lockReason: unitChildLayerLockReason(tree, unitNodeId, tab.layer) ?? undefined,
+        }
+      }),
+    [tabs, tree, unitNodeId, isFellowshipUnit],
   )
+  const firstUnlockedTabId = pageTabs.find((tab) => !tab.locked)?.id ?? tabs[0]?.id ?? 'members'
   const [activeTabId, setActiveTabId] = useState(tabs[0]?.id ?? 'members')
   const [filterRules, setFilterRules] = useState<MemberFilterRule[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -111,17 +137,21 @@ export function RosterUnitView({
   const presetFromUrl = searchParams.get('preset')
 
   useEffect(() => {
-    const defaultTabId = tabs[0]?.id ?? 'members'
-    const allowedTabIds = new Set(tabs.map((tab) => tab.id))
-    const nextTabId =
+    const defaultTabId = firstUnlockedTabId
+    const allowedTabIds = new Set(pageTabs.filter((tab) => !tab.locked).map((tab) => tab.id))
+    const requestedTab =
       tabFromUrl && allowedTabIds.has(tabFromUrl) ? tabFromUrl : defaultTabId
+    const nextTabId =
+      pageTabs.find((tab) => tab.id === requestedTab && !tab.locked)?.id ?? defaultTabId
     setActiveTabId(nextTabId)
     setFilterRules(presetFromUrl === 'leaders' && nextTabId === 'members' ? leadersMemberFilterPreset() : [])
     setSearchQuery('')
     setSearchField('all')
-  }, [unitNodeId, tabs, tabFromUrl, presetFromUrl])
+  }, [unitNodeId, tabs, tabFromUrl, presetFromUrl, pageTabs, firstUnlockedTabId])
 
   function handleTabChange(nextTabId: string) {
+    const nextTab = pageTabs.find((tab) => tab.id === nextTabId)
+    if (nextTab?.locked) return
     setActiveTabId(nextTabId)
     const params = new URLSearchParams(searchParams)
     params.set('tab', nextTabId)
@@ -137,7 +167,7 @@ export function RosterUnitView({
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
   const breadcrumbs = [
-    { label: 'Overview', to: '/' },
+    { label: 'Dashboard', to: '/' },
     { label: 'Roster', to: '/roster' },
     { label: 'Units', to: '/roster' },
     ...rosterBreadcrumbChain(tree, unit.id, scopeRootNodeId).map((node) => ({
@@ -184,6 +214,31 @@ export function RosterUnitView({
     [deleteTarget, tree],
   )
 
+  const fellowshipParentOptions = useMemo(() => {
+    if (activeTab?.kind !== 'layer' || activeTab.layer.standardType !== 'Fellowship') return []
+    return layerParentOptions(tree, activeTab.layer, unit.id)
+  }, [tree, unit.id, activeTab])
+
+  const fellowshipParentId = resolveLayerParentId(fellowshipParentOptions) ?? ''
+  const fellowshipAddBlocked =
+    activeTab?.kind === 'layer' &&
+    activeTab.layer.standardType === 'Fellowship' &&
+    layerRequiresParent(tree, activeTab.layer) &&
+    fellowshipParentOptions.length === 0
+
+  const cellParentOptions = useMemo(() => {
+    if (activeTab?.kind !== 'layer' || !deepest || activeTab.layer.id !== deepest.id) return []
+    return layerParentOptions(tree, activeTab.layer, unit.id)
+  }, [tree, unit.id, activeTab, deepest])
+
+  const cellParentId = resolveLayerParentId(cellParentOptions, unit.id) ?? ''
+  const cellAddBlocked =
+    activeTab?.kind === 'layer' &&
+    deepest &&
+    activeTab.layer.id === deepest.id &&
+    layerRequiresParent(tree, activeTab.layer) &&
+    cellParentOptions.length === 0
+
   const handleDeleteNode = (row: StructureUnitNodeRow) => {
     setDeleteTarget(row)
   }
@@ -200,26 +255,49 @@ export function RosterUnitView({
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={breadcrumbs}
-        title={unit.name}
+        title={
+          isFellowshipUnit
+            ? formatFellowshipName(unit.name)
+            : isCellUnit
+              ? formatCellName(unit.name)
+              : unit.name
+        }
         description={summary}
+        onBack={showTitleBack ? handleBack : undefined}
         actions={
           <>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-9 shrink-0"
-              onClick={handleBack}
-              aria-label="Go back"
-            >
-              <ArrowLeft className="size-4" />
-            </Button>
+            {!showTitleBack && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-9 shrink-0"
+                onClick={handleBack}
+                aria-label="Go back"
+              >
+                <ArrowLeft className="size-4" />
+              </Button>
+            )}
 
             {activeTab?.kind === 'layer' && !readOnly && (
-              <Button className="shrink-0" onClick={openCreateNode}>
-                <Plus className="size-4" />
-                Add new {activeTab.layer.displayName.toLowerCase()}
-              </Button>
+              activeTab.layer.standardType === 'Fellowship' ? (
+                <AddFellowshipButton
+                  label={`Add new ${activeTab.layer.displayName.toLowerCase()}`}
+                  disabled={busy || fellowshipAddBlocked}
+                  onClick={openCreateNode}
+                />
+              ) : deepest && activeTab.layer.id === deepest.id ? (
+                <AddFellowshipButton
+                  label={`Add new ${activeTab.layer.displayName.toLowerCase()}`}
+                  disabled={busy || cellAddBlocked}
+                  onClick={openCreateNode}
+                />
+              ) : (
+                <Button className="shrink-0" onClick={openCreateNode}>
+                  <Plus className="size-4" />
+                  Add new {activeTab.layer.displayName.toLowerCase()}
+                </Button>
+              )
             )}
 
             {activeTab?.kind === 'members' && !membersReadOnly && (
@@ -335,7 +413,7 @@ export function RosterUnitView({
           tree={tree}
           unitNodeId={unit.id}
           layer={activeTab.layer}
-          parentNodeId={unit.id}
+          parentNodeId={fellowshipParentId}
           busy={busy}
           submit={submit}
           onClose={() => setFellowshipWizardOpen(false)}
@@ -347,7 +425,7 @@ export function RosterUnitView({
           tree={tree}
           unitNodeId={unit.id}
           layer={activeTab.layer}
-          parentNodeId={unit.id}
+          parentNodeId={cellParentId}
           busy={busy}
           submit={submit}
           onClose={() => setCellWizardOpen(false)}

@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import * as signalR from '@microsoft/signalr'
-import type { ApiClient } from '@/api/client'
-import {
-  listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-  type Notification,
-} from '@/api/notifications'
+import type { Notification } from '@/api/notifications'
 import { getToken } from '@/auth/client'
 import { apiBaseUrl } from '@/lib/api-base'
+import { useAppDispatch } from '@/store/hooks'
+import {
+  notificationsApi,
+  useListNotificationsQuery,
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+} from '@/store/notificationsApi'
+import { formatRtkQueryError } from '@/store/baseQuery'
 
 type UseNotificationsOptions = {
-  api: ApiClient
   enabled?: boolean
+  limit?: number
 }
 
 const LOG_PREFIX = '[KairosPayHub notifications]'
@@ -30,35 +32,23 @@ function logTransport(connection: signalR.HubConnection): string {
   return transport ?? 'unknown'
 }
 
-export function useNotifications({ api, enabled = true }: UseNotificationsOptions) {
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function useNotifications({ enabled = true, limit = 30 }: UseNotificationsOptions = {}) {
+  const dispatch = useAppDispatch()
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useListNotificationsQuery({ limit }, { skip: !enabled })
+  const [markReadMutation] = useMarkNotificationReadMutation()
+  const [markAllReadMutation] = useMarkAllNotificationsReadMutation()
   const connectionRef = useRef<signalR.HubConnection | null>(null)
 
   const refresh = useCallback(async () => {
     if (!enabled) return
-    try {
-      setError(null)
-      const res = await listNotifications(api, { limit: 30 })
-      setNotifications(res.notifications)
-      setUnreadCount(res.unreadCount)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notifications')
-    } finally {
-      setLoading(false)
-    }
-  }, [api, enabled])
-
-  useEffect(() => {
-    if (!enabled) {
-      setLoading(false)
-      return
-    }
-
-    void refresh()
-  }, [enabled, refresh])
+    await refetch()
+  }, [enabled, refetch])
 
   useEffect(() => {
     if (!enabled) return
@@ -81,8 +71,8 @@ export function useNotifications({ api, enabled = true }: UseNotificationsOption
         )
         .build()
 
-      connection.onreconnecting((error) => {
-        console.warn(`${LOG_PREFIX} reconnecting…`, error?.message ?? '')
+      connection.onreconnecting((err) => {
+        console.warn(`${LOG_PREFIX} reconnecting…`, err?.message ?? '')
       })
 
       connection.onreconnected((connectionId) => {
@@ -92,18 +82,19 @@ export function useNotifications({ api, enabled = true }: UseNotificationsOption
         })
       })
 
-      connection.onclose((error) => {
-        console.warn(`${LOG_PREFIX} disconnected`, error?.message ?? 'connection closed')
+      connection.onclose((err) => {
+        console.warn(`${LOG_PREFIX} disconnected`, err?.message ?? 'connection closed')
       })
 
       connection.on('NotificationReceived', (notification: Notification) => {
-        setNotifications((prev) => {
-          if (prev.some((n) => n.id === notification.id)) return prev
-          return [notification, ...prev].slice(0, 30)
-        })
-        if (!notification.readAt) {
-          setUnreadCount((count) => count + 1)
-        }
+        dispatch(
+          notificationsApi.util.updateQueryData('listNotifications', { limit }, (draft) => {
+            if (draft.notifications.some((n) => n.id === notification.id)) return
+            draft.notifications.unshift(notification)
+            draft.notifications = draft.notifications.slice(0, limit)
+            if (!notification.readAt) draft.unreadCount += 1
+          }),
+        )
       })
 
       connectionRef.current = connection
@@ -131,33 +122,24 @@ export function useNotifications({ api, enabled = true }: UseNotificationsOption
       void connectionRef.current?.stop()
       connectionRef.current = null
     }
-  }, [enabled])
+  }, [dispatch, enabled, limit])
 
   const markRead = useCallback(
     async (notificationId: string) => {
-      const updated = await markNotificationRead(api, notificationId)
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notificationId ? updated : n)),
-      )
-      setUnreadCount((count) => Math.max(0, count - 1))
-      return updated
+      return markReadMutation(notificationId).unwrap()
     },
-    [api],
+    [markReadMutation],
   )
 
   const markAllRead = useCallback(async () => {
-    await markAllNotificationsRead(api)
-    setNotifications((prev) =>
-      prev.map((n) => (n.readAt ? n : { ...n, readAt: new Date().toISOString() })),
-    )
-    setUnreadCount(0)
-  }, [api])
+    await markAllReadMutation().unwrap()
+  }, [markAllReadMutation])
 
   return {
-    notifications,
-    unreadCount,
-    loading,
-    error,
+    notifications: data?.notifications ?? [],
+    unreadCount: data?.unreadCount ?? 0,
+    loading: isLoading || isFetching,
+    error: error ? formatRtkQueryError(error) : null,
     refresh,
     markRead,
     markAllRead,

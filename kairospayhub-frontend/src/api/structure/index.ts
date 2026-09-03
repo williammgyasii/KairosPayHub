@@ -104,7 +104,6 @@ export function buildMembersQuery(params: StructureMemberListParams): string {
 
 export type GeneratedLeaderLogin = {
   email: string
-  temporaryPassword: string
 }
 
 export type CreateStructureNodeResponse = {

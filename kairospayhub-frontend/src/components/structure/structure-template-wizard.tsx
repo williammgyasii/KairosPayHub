@@ -4,7 +4,7 @@ import {
   TEMPLATE_PRESETS,
   type StructureLayerInput,
 } from '@/api/structure'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import { StructureChainPreviewDialog } from '@/components/structure/structure-chain-preview-dialog'
 import { StructureLayerCanvas } from '@/components/structure/structure-layer-canvas'
 import { formatApiError } from '@/lib/structure-tree'

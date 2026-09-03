@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import type { StructureLayer, StructureTree } from '@/api/structure'
 import { StructureChainFromLabels } from '@/components/structure/structure-chain'
 import {

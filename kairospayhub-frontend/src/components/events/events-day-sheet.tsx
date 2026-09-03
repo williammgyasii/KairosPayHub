@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { Cake, ClipboardCheck, Star, Trash2 } from 'lucide-react'
-import type { CalendarEvent, CalendarEventKind } from '@/api/calendar'
+import type { CalendarEvent, CalendarEventKind } from '@/api/events'
 import { eventKindLabel, eventKindTone } from '@/lib/calendar-events-ui'
 import { SideSheet } from '@/components/ui/side-sheet'
 import { Button } from '@/components/ui/button'

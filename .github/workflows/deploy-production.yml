@@ -41,8 +41,6 @@ jobs:
 
       - name: Deploy production gateway
         working-directory: cloudflare/api
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --env production
 
       - name: Build production frontend
@@ -55,6 +53,4 @@ jobs:
 
       - name: Deploy production frontend
         working-directory: kairospayhub-frontend
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler pages deploy dist --project-name kairospayhub-frontend --branch main

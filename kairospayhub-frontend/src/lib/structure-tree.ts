@@ -1,5 +1,5 @@
 import type { MemberPosition, StructureLayer, StructureLayerType, StructureNode, StructureTree } from '@/api/structure'
-import { ApiError } from '@/api/client'
+import { ApiError } from '@/api/core'
 
 export function hasTemplate(tree: StructureTree | null): boolean {
   return (tree?.template?.layers.length ?? 0) > 0
@@ -189,11 +189,105 @@ export function displayUnitNumber(tree: StructureTree, nodeId: string): string {
   return index >= 0 ? String(index + 1) : ''
 }
 
+export function parentLayerForLayer(
+  tree: StructureTree,
+  layer: StructureLayer,
+): StructureLayer | undefined {
+  if (layer.sortOrder <= 0) return undefined
+  return getLayers(tree).find((candidate) => candidate.sortOrder === layer.sortOrder - 1)
+}
+
+export type StructureParentOption = { id: string; label: string }
+
+export function layerParentOptions(
+  tree: StructureTree,
+  layer: StructureLayer,
+  unitNodeId?: string | null,
+): StructureParentOption[] {
+  const parentLayer = parentLayerForLayer(tree, layer)
+  if (!parentLayer) return []
+
+  const toOptions = (nodes: StructureNode[]) =>
+    nodes.map((node) => ({ id: node.id, label: node.name }))
+
+  if (unitNodeId) {
+    const unit = nodeById(tree, unitNodeId)
+    const unitLayer = unit ? layerById(tree, unit.layerId) : undefined
+    if (unit && unitLayer) {
+      if (layer.sortOrder === unitLayer.sortOrder + 1) {
+        return toOptions([unit])
+      }
+
+      const underUnit = toOptions(nodesUnderUnitAtLayer(tree, unitNodeId, parentLayer.id))
+      if (underUnit.length > 0) return underUnit
+    }
+  }
+
+  return toOptions(parentOptionsForLayer(tree, layer))
+}
+
+export function resolveLayerParentId(
+  options: StructureParentOption[],
+  preferredParentId?: string | null,
+): string | null {
+  if (options.length === 0) return null
+  if (options.length === 1) return options[0].id
+  if (preferredParentId && options.some((option) => option.id === preferredParentId)) {
+    return preferredParentId
+  }
+  return options[0].id
+}
+
+export function layerRequiresParent(tree: StructureTree, layer: StructureLayer): boolean {
+  return layer.sortOrder > 0 && parentLayerForLayer(tree, layer) !== undefined
+}
+
 export function parentOptionsForLayer(tree: StructureTree, layer: StructureLayer) {
   if (layer.sortOrder === 0) return []
-  const parentLayer = getLayers(tree)[layer.sortOrder - 1]
+  const parentLayer = parentLayerForLayer(tree, layer)
   if (!parentLayer) return []
   return nodesAtLayer(tree, parentLayer.id)
+}
+
+/** Church-wide roster tab: unlocked when every layer above has at least one unit. */
+export function isRosterLayerUnlocked(tree: StructureTree, layer: StructureLayer): boolean {
+  if (layer.sortOrder === 0) return true
+  const parentLayer = parentLayerForLayer(tree, layer)
+  if (!parentLayer) return true
+  return nodesAtLayer(tree, parentLayer.id).length > 0
+}
+
+export function rosterLayerLockReason(tree: StructureTree, layer: StructureLayer): string | null {
+  if (isRosterLayerUnlocked(tree, layer)) return null
+  const parentLayer = parentLayerForLayer(tree, layer)
+  return parentLayer ? `Add a ${parentLayer.displayName.toLowerCase()} first` : null
+}
+
+/** Unit drill-down tab: child layers unlock in order under this unit. */
+export function isUnitChildLayerUnlocked(
+  tree: StructureTree,
+  unitNodeId: string,
+  layer: StructureLayer,
+): boolean {
+  const childLayers = childLayersFromUnit(tree, unitNodeId)
+  const index = childLayers.findIndex((child) => child.id === layer.id)
+  if (index <= 0) return true
+  const previousLayer = childLayers[index - 1]
+  return nodesUnderUnitAtLayer(tree, unitNodeId, previousLayer.id).length > 0
+}
+
+export function unitChildLayerLockReason(
+  tree: StructureTree,
+  unitNodeId: string,
+  layer: StructureLayer,
+): string | null {
+  if (isUnitChildLayerUnlocked(tree, unitNodeId, layer)) return null
+  const childLayers = childLayersFromUnit(tree, unitNodeId)
+  const index = childLayers.findIndex((child) => child.id === layer.id)
+  const previousLayer = index > 0 ? childLayers[index - 1] : undefined
+  return previousLayer
+    ? `Add a ${previousLayer.displayName.toLowerCase()} under this unit first`
+    : null
 }
 
 export function memberPlacementOptions(tree: StructureTree) {
@@ -455,8 +549,12 @@ export function unitDeleteImpact(tree: StructureTree, nodeId: string): UnitDelet
   const ids = subtreeNodeIds(tree, nodeId)
   const childUnits = getLayers(tree)
     .map((entry) => ({
-      layerName: entry.displayName,
-      count: tree.nodes.filter((n) => n.layerId === entry.id && ids.has(n.id) && n.id !== nodeId).length,
+      layerName:
+        layer.standardType === 'Fellowship' && entry.standardType === 'Cell'
+          ? 'Cells'
+          : entry.displayName,
+      count: tree.nodes.filter((n) => n.layerId === entry.id && ids.has(n.id) && n.id !== nodeId)
+        .length,
     }))
     .filter((entry) => entry.count > 0)
 
@@ -465,7 +563,7 @@ export function unitDeleteImpact(tree: StructureTree, nodeId: string): UnitDelet
   return {
     nodeId,
     unitName: node.name,
-    layerName: layer.displayName,
+    layerName: layer.standardType === 'Fellowship' ? 'Fellowship' : layer.displayName,
     childUnits,
     memberCount,
   }
@@ -487,6 +585,34 @@ const MEMBER_POSITION_LABELS: Record<string, string> = {
   CellLeader: 'Cell leader',
   FellowshipLeader: 'Fellowship leader',
   PfccManager: 'PFCC manager',
+}
+
+export function formatFellowshipName(raw: string): string {
+  return formatLayerUnitName(raw, 'Fellowship')
+}
+
+export function formatCellName(raw: string): string {
+  return formatLayerUnitName(raw, 'Cell')
+}
+
+function formatLayerUnitName(raw: string, suffixWord: string): string {
+  const trimmed = raw.trim().replace(/\s+/g, ' ')
+  if (!trimmed) return trimmed
+
+  const suffixPattern = new RegExp(`\\b${suffixWord}$`, 'i')
+  if (suffixPattern.test(trimmed)) {
+    return titleCaseWords(trimmed)
+  }
+
+  return `${titleCaseWords(trimmed)} ${suffixWord}`
+}
+
+function titleCaseWords(value: string): string {
+  return value
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
 }
 
 export function formatApiError(err: unknown): string {

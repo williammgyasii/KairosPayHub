@@ -78,20 +78,13 @@ function ChartCard({
   )
 }
 
-export function OverviewDashboard({
-  tree,
-  churchName,
-}: {
-  tree: StructureTree
-  churchName?: string | null
-}) {
+export function OverviewDashboard({ tree }: { tree: StructureTree }) {
   const metrics = dashboardMetrics(tree)
   const layerData = structureLayerChartData(tree)
   const pieData = membersByFellowshipChart(tree)
   const rows = fellowshipBreakdown(tree)
   const tips = dashboardRecommendations(tree)
   const quickStats = dashboardQuickStats(tree)
-  const label = churchName?.trim() || 'Your church'
 
   return (
     <div className="space-y-6">
@@ -122,7 +115,7 @@ export function OverviewDashboard({
 
       {/* Charts row */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard title="Structure layers" description={`Hierarchy size for ${label}`}>
+        <ChartCard title="Structure layers" description="Hierarchy size across your structure">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={layerData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.91 0.01 255)" />

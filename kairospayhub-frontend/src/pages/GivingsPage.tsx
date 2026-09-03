@@ -3,7 +3,7 @@ import { Coins, Plus } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import {
   closeProgram,
   deleteProgram,
@@ -30,7 +30,7 @@ import { GivingTable, type GivingTableRow } from '@/components/giving/giving-tab
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
-import { canCreateGivingProgram, canManageChurch, isScopedLeader } from '@/api/me'
+import { canCreateGivingProgram, canManageChurch, isScopedLeader } from '@/api/auth'
 import { formatApiError } from '@/lib/structure-tree'
 
 function canCreateGiving(role: string) {
@@ -116,7 +116,7 @@ export function GivingsPage() {
   return (
     <div className="space-y-6">
       <DashboardPageHeader
-        breadcrumbs={[{ label: 'Overview', to: '/' }, { label: 'Givings' }, { label: 'Campaigns' }]}
+        breadcrumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Givings' }, { label: 'Campaigns' }]}
         title="Campaigns"
         description={pageDescription}
         actions={

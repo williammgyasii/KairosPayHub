@@ -146,7 +146,7 @@ export function ProgramStructureContributionsView({
   const parent = path.length > 1 ? path[path.length - 2] : null
 
   const breadcrumbs = [
-    { label: 'Overview', to: '/' },
+    { label: 'Dashboard', to: '/' },
     { label: 'Givings', to: '/givings' },
     { label: program.title, to: `/givings/${program.id}` },
     { label: 'Contributions', to: `/givings/${program.id}?tab=contributions` },

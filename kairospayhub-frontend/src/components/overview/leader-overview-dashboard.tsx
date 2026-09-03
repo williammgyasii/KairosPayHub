@@ -14,7 +14,7 @@ import {
 import { CheckCircle2, Clock3, Coins, Network, Users } from 'lucide-react'
 import type { GivingDashboard } from '@/api/giving'
 import { formatAmount } from '@/api/giving'
-import type { ChurchRole } from '@/api/me'
+import type { ChurchRole } from '@/api/auth'
 import type { StructureTree } from '@/api/structure'
 import {
   cellBreakdownRows,

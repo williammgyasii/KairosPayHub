@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ImageIcon, Upload } from 'lucide-react'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import { buildMembersQuery } from '@/api/structure'
 import { createContribution, uploadGivingAttachment } from '@/api/giving'
 import { SearchPicker } from '@/components/structure/search-picker'

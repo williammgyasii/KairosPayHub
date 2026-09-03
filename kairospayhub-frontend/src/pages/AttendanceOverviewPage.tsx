@@ -246,7 +246,7 @@ export function AttendanceOverviewPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <DashboardPageHeader
           breadcrumbs={[
-            { label: 'Overview', to: '/' },
+            { label: 'Dashboard', to: '/' },
             { label: 'Attendance', to: '/attendance/overview' },
             { label: 'Overview' },
           ]}

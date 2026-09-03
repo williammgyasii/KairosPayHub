@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import { useStructureTree } from '@/components/structure/structure-setup'
 import {
   getProgram,
@@ -15,7 +15,7 @@ import {
 } from '@/api/giving'
 import { ProgramDetailView } from '@/components/giving/program-detail-view'
 import type { ProgramDetailTab } from '@/components/giving/program-dashboard'
-import { canManageChurch, isScopedLeader } from '@/api/me'
+import { canManageChurch, isScopedLeader } from '@/api/auth'
 import { Spinner } from '@/components/ui/spinner'
 
 export function ProgramDetailPage() {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowUpDown, Eye } from 'lucide-react'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type {
   Contribution,
   ContributionListQuery,

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
-import { canManageChurch, isCellLeader, isScopedLeader } from '@/api/me'
+import { canManageChurch, isCellLeader, isScopedLeader } from '@/api/auth'
 
 export function ScopedLeaderRoute({ children }: { children: ReactNode }) {
   const { me } = useOutletContext<DashboardOutletContext>()

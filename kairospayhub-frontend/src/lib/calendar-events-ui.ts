@@ -1,5 +1,5 @@
-import { canManageChurch, isCellLeader, isScopedLeader, type Me } from '@/api/me'
-import type { CalendarEvent, CalendarEventKind } from '@/api/calendar'
+import { canManageChurch, isCellLeader, isScopedLeader, type Me } from '@/api/auth'
+import type { CalendarEvent, CalendarEventKind } from '@/api/events'
 
 export function canAccessEvents(me: Me): boolean {
   if (!me.onboarded) return false

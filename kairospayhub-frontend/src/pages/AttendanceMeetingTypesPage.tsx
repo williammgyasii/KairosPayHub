@@ -3,9 +3,9 @@ import { MoreHorizontal, Plus } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import { listMeetingTypes, deleteMeetingType, type AttendanceMeetingType } from '@/api/attendance'
-import { canManageChurch } from '@/api/me'
+import { canManageChurch } from '@/api/auth'
 import { MeetingTypeFormModal } from '@/components/attendance/meeting-type-form-modal'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -65,7 +65,7 @@ export function AttendanceMeetingTypesPage() {
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Attendance', to: '/attendance' },
           { label: 'Meeting types' },
         ]}

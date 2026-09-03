@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type { Contribution, GivingProgram } from '@/api/giving'
 import { formatAmount, listMemberContributions } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'

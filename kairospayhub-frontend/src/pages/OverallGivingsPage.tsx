@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import { listPrograms, type GivingProgram, type MemberGivingTotalsSummary } from '@/api/giving'
 import { useStructureTree } from '@/components/structure/structure-setup'
 import { OverallGivingsMetrics } from '@/components/giving/overall-givings-metrics'
@@ -38,7 +38,7 @@ export function OverallGivingsPage() {
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Givings', to: '/givings' },
           { label: 'Overall givings' },
         ]}

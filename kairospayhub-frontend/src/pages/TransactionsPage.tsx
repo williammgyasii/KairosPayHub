@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import {
   approveContribution,
   approveSubGiving,
@@ -12,7 +12,7 @@ import {
   type GivingProgram,
 } from '@/api/giving'
 import { useStructureTree } from '@/components/structure/structure-setup'
-import { canManageChurch, isScopedLeader } from '@/api/me'
+import { canManageChurch, isScopedLeader } from '@/api/auth'
 import { ContributionsApprovalTable } from '@/components/giving/contributions-approval-table'
 import { GivingTransactionsLedger } from '@/components/giving/giving-transactions-ledger'
 import { cn } from '@/lib/utils'
@@ -131,7 +131,7 @@ export function TransactionsPage() {
     <div className="space-y-6">
       <DashboardPageHeader
         breadcrumbs={[
-          { label: 'Overview', to: '/' },
+          { label: 'Dashboard', to: '/' },
           { label: 'Givings', to: '/givings' },
           { label: 'Transactions' },
         ]}

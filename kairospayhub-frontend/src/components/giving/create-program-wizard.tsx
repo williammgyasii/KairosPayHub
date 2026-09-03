@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import type { Me } from '@/api/me'
-import { canManageChurch } from '@/api/me'
+import type { Me } from '@/api/auth'
+import { canManageChurch } from '@/api/auth'
 import type { GivingType, ProgramScopeKind } from '@/api/giving'
 import { createProgram } from '@/api/giving'
-import type { ApiClient } from '@/api/client'
+import type { ApiClient } from '@/api/core'
 import type { StructureTree } from '@/api/structure'
 import {
   defaultPeriodLabel,

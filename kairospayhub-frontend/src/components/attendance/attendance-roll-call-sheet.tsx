@@ -6,7 +6,7 @@ import type {
   AttendanceOccurrenceDetail,
 } from '@/api/attendance'
 import { graduateCellInvitee, listCellInvitees } from '@/api/attendance'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import { rollCallState, rollCallStatusLabel } from '@/lib/attendance-ui'
 import { AddInviteeModal } from '@/components/attendance/add-invitee-modal'
 import { MemberRollCallGrid } from '@/components/attendance/member-roll-call-grid'

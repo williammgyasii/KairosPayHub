@@ -7,7 +7,7 @@ import type {
   StructureTree,
 } from '@/api/structure'
 import { buildMembersQuery } from '@/api/structure'
-import { useApi } from '@/api/useApi'
+import { useApi } from '@/api/core'
 import { MemberCreateWizard } from '@/components/structure/member-create-wizard'
 import { MemberDetailSheet, type MemberDetailTab } from '@/components/structure/member-detail-sheet'
 import { MemberDeleteModal } from '@/components/structure/member-delete-modal'

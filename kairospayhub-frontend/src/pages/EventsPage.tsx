@@ -6,9 +6,9 @@ import {
   deleteCalendarEvent,
   getCalendarFeed,
   type CalendarEvent,
-} from '@/api/calendar'
-import { canManageChurch } from '@/api/me'
-import { useApi } from '@/api/useApi'
+} from '@/api/events'
+import { canManageChurch } from '@/api/auth'
+import { useApi } from '@/api/core'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { EventsCalendarGrid } from '@/components/events/events-calendar-grid'
 import { EventsDaySheet } from '@/components/events/events-day-sheet'
