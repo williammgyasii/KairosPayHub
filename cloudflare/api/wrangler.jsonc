@@ -1,0 +1,123 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kairospayhub-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-03",
+  "account_id": "e23518956f08ff35812d9ab001a39880",
+  "env": {
+    "development": {
+      "name": "kairospayhub-api-dev",
+      "routes": [
+        {
+          "pattern": "dev.api.kairospayhub.com/*",
+          "zone_name": "kairospayhub.com"
+        }
+      ],
+      "workers_dev": true,
+      "secrets": {
+        "required": [
+          "DB_CONNECTION_STRING",
+          "JWT_SIGNING_KEY",
+          "EMAIL_SMTP_HOST",
+          "EMAIL_SMTP_USERNAME",
+          "EMAIL_SMTP_PASSWORD",
+          "EMAIL_FROM_ADDRESS",
+          "R2_PUBLIC_BASE_URL",
+          "R2_ACCESS_KEY_ID",
+          "R2_SECRET_ACCESS_KEY",
+          "R2_ENDPOINT"
+        ]
+      },
+      "containers": [
+        {
+          "class_name": "KairosApiContainer",
+          "image": "../../kairospayhub-api/Dockerfile",
+          "instance_type": "standard-1",
+          "max_instances": 5
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "API",
+            "class_name": "KairosApiContainer"
+          }
+        ]
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": ["KairosApiContainer"]
+        }
+      ],
+      "vars": {
+        "JWT_ISSUER": "https://dev.api.kairospayhub.com",
+        "JWT_AUDIENCE": "kairospayhub-dev",
+        "EMAIL_FRONTEND_BASE_URL": "https://dev.app.kairospayhub.com",
+        "EMAIL_FROM_NAME": "KairosPayHub (Dev)",
+        "EMAIL_SMTP_PORT": "587",
+        "EMAIL_SMTP_USE_TLS": "true",
+        "R2_BUCKET_NAME": "kairospayhub-assets-dev",
+        "CORS_ORIGIN_PRIMARY": "https://dev.app.kairospayhub.com",
+        "CORS_ORIGIN_SECONDARY": "http://127.0.0.1:5173"
+      }
+    },
+    "production": {
+      "name": "kairospayhub-api",
+      "routes": [
+        {
+          "pattern": "api.kairospayhub.com/*",
+          "zone_name": "kairospayhub.com"
+        }
+      ],
+      "workers_dev": true,
+      "secrets": {
+        "required": [
+          "DB_CONNECTION_STRING",
+          "JWT_SIGNING_KEY",
+          "EMAIL_SMTP_HOST",
+          "EMAIL_SMTP_USERNAME",
+          "EMAIL_SMTP_PASSWORD",
+          "EMAIL_FROM_ADDRESS",
+          "R2_PUBLIC_BASE_URL",
+          "R2_ACCESS_KEY_ID",
+          "R2_SECRET_ACCESS_KEY",
+          "R2_ENDPOINT"
+        ]
+      },
+      "containers": [
+        {
+          "class_name": "KairosApiContainer",
+          "image": "../../kairospayhub-api/Dockerfile",
+          "instance_type": "standard-1",
+          "max_instances": 5
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "API",
+            "class_name": "KairosApiContainer"
+          }
+        ]
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": ["KairosApiContainer"]
+        }
+      ],
+      "vars": {
+        "JWT_ISSUER": "https://api.kairospayhub.com",
+        "JWT_AUDIENCE": "kairospayhub",
+        "EMAIL_FRONTEND_BASE_URL": "https://app.kairospayhub.com",
+        "EMAIL_FROM_NAME": "KairosPayHub",
+        "EMAIL_SMTP_PORT": "587",
+        "EMAIL_SMTP_USE_TLS": "true",
+        "R2_BUCKET_NAME": "kairospayhub-assets",
+        "CORS_ORIGIN_PRIMARY": "https://app.kairospayhub.com",
+        "CORS_ORIGIN_SECONDARY": "http://127.0.0.1:5173"
+      }
+    }
+  }
+}

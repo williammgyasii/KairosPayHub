@@ -15,28 +15,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            cloudflare/api/package-lock.json
+            kairospayhub-frontend/package-lock.json
+
+      - name: Install API worker dependencies
+        working-directory: cloudflare/api
+        run: npm ci
+
       - name: Deploy production API
+        working-directory: cloudflare/api
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          SERVICE_ID: ${{ secrets.RENDER_PROD_API_SERVICE_ID }}
-          COMMIT_SHA: ${{ github.sha }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler deploy --env production
+
+      - name: Build production frontend
+        working-directory: kairospayhub-frontend
+        env:
+          VITE_API_URL: https://api.kairospayhub.com
         run: |
-          test -n "$RENDER_API_KEY"
-          test -n "$SERVICE_ID"
-          curl -fsS -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
-            -H "Authorization: Bearer ${RENDER_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d "{\"commitId\":\"${COMMIT_SHA}\",\"clearCache\":\"do_not_clear\"}"
+          npm ci
+          npm run build
 
       - name: Deploy production frontend
+        working-directory: kairospayhub-frontend
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          SERVICE_ID: ${{ secrets.RENDER_PROD_FRONTEND_SERVICE_ID }}
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          test -n "$RENDER_API_KEY"
-          test -n "$SERVICE_ID"
-          curl -fsS -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
-            -H "Authorization: Bearer ${RENDER_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d "{\"commitId\":\"${COMMIT_SHA}\",\"clearCache\":\"do_not_clear\"}"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler pages deploy dist --project-name kairospayhub-frontend --branch main

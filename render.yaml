@@ -1,5 +1,7 @@
 # KairosPayHub — single Blueprint, two environments
-# Sync at https://dashboard.render.com/blueprints
+# DEPRECATED: Hosting moved to Cloudflare (Pages + Workers/Containers) + Neon.
+# Kept for historical reference only. Do not sync to Render.
+# See: infra/environments.md and scripts/provision-cloudflare-environments.sh
 #
 # Deploy model (Option A):
 #   main + CI green  → Development (.github/workflows/deploy-development.yml)
