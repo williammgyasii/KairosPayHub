@@ -4,3 +4,13 @@
 !.env.example
 .wrangler/
 .dev.vars
+
+# macOS / editor
+.DS_Store
+**/.DS_Store
+
+# Local tooling
+.neon
+
+# Local-only seed scripts (dev data)
+scripts/seed-william-powerhouse-*.py
