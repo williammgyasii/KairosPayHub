@@ -9,7 +9,7 @@
       "name": "kairospayhub-api-dev",
       "routes": [
         {
-          "pattern": "dev.api.kairospayhub.com/*",
+          "pattern": "dev.app.kairospayhub.com/*",
           "zone_name": "kairospayhub.com"
         }
       ],
@@ -51,7 +51,8 @@
         }
       ],
       "vars": {
-        "JWT_ISSUER": "https://dev.api.kairospayhub.com",
+        "PAGES_ORIGIN": "https://kairospayhub-frontend-dev.pages.dev",
+        "JWT_ISSUER": "https://dev.app.kairospayhub.com",
         "JWT_AUDIENCE": "kairospayhub-dev",
         "EMAIL_FRONTEND_BASE_URL": "https://dev.app.kairospayhub.com",
         "EMAIL_FROM_NAME": "KairosPayHub (Dev)",
@@ -66,7 +67,7 @@
       "name": "kairospayhub-api",
       "routes": [
         {
-          "pattern": "api.kairospayhub.com/*",
+          "pattern": "app.kairospayhub.com/*",
           "zone_name": "kairospayhub.com"
         }
       ],
@@ -108,7 +109,8 @@
         }
       ],
       "vars": {
-        "JWT_ISSUER": "https://api.kairospayhub.com",
+        "PAGES_ORIGIN": "https://kairospayhub-frontend.pages.dev",
+        "JWT_ISSUER": "https://app.kairospayhub.com",
         "JWT_AUDIENCE": "kairospayhub",
         "EMAIL_FRONTEND_BASE_URL": "https://app.kairospayhub.com",
         "EMAIL_FROM_NAME": "KairosPayHub",

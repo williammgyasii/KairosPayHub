@@ -1,0 +1,34 @@
+name: Wrangler OAuth
+description: Configure wrangler to use a stored OAuth refresh token (Workers + Pages deploy)
+
+inputs:
+  refresh_token:
+    description: Cloudflare wrangler OAuth refresh token (cfort_...)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Write wrangler OAuth config
+      shell: bash
+      run: |
+        mkdir -p "$HOME/.config/.wrangler/config"
+        cat > "$HOME/.config/.wrangler/config/default.toml" <<EOF
+        refresh_token = "${{ inputs.refresh_token }}"
+        scopes = [
+          "user:read",
+          "offline_access",
+          "account:read",
+          "workers:write",
+          "workers_kv:write",
+          "workers_routes:write",
+          "workers_scripts:write",
+          "workers_tail:read",
+          "d1:write",
+          "pages:write",
+          "zone:read",
+          "ssl_certs:write",
+          "containers:write",
+          "secrets_store:write"
+        ]
+        EOF

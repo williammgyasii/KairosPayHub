@@ -1,5 +1,6 @@
 export interface Env {
   API: DurableObjectNamespace<KairosApiContainer>
+  PAGES_ORIGIN: string
   DB_CONNECTION_STRING: string
   JWT_SIGNING_KEY: string
   EMAIL_SMTP_HOST: string

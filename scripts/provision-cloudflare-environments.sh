@@ -133,7 +133,7 @@ deploy_api "development" "$DEV_DB" "$JWT_KEY" "${R2__PublicBaseUrl:-}"
 echo "==> Building + deploying development frontend"
 cd "${ROOT}/kairospayhub-frontend"
 npm ci
-VITE_API_URL=https://dev.api.kairospayhub.com npm run build
+VITE_API_URL=https://dev.app.kairospayhub.com npm run build
 wrangler pages deploy dist --project-name kairospayhub-frontend-dev --branch main
 
 if [[ -n "${NEON_PROD_CONNECTION_STRING:-}" ]]; then
@@ -143,15 +143,15 @@ if [[ -n "${NEON_PROD_CONNECTION_STRING:-}" ]]; then
 
   echo "==> Building + deploying production frontend"
   cd "${ROOT}/kairospayhub-frontend"
-  VITE_API_URL=https://api.kairospayhub.com npm run build
+  VITE_API_URL=https://app.kairospayhub.com npm run build
   wrangler pages deploy dist --project-name kairospayhub-frontend --branch main
 fi
 
 echo ""
 echo "Done. Verify:"
-echo "  curl -s https://dev.api.kairospayhub.com/health"
+echo "  curl -s https://dev.app.kairospayhub.com/health"
 echo "  curl -sI https://dev.app.kairospayhub.com/"
 if [[ -n "${NEON_PROD_CONNECTION_STRING:-}" ]]; then
-  echo "  curl -s https://api.kairospayhub.com/health"
+  echo "  curl -s https://app.kairospayhub.com/health"
   echo "  curl -sI https://app.kairospayhub.com/"
 fi

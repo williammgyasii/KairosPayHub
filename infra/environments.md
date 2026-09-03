@@ -8,22 +8,27 @@ Full design history: [`docs/superpowers/specs/2026-08-08-environments-design.md`
 
 ## URLs
 
-| Env | App | API | Health |
-|-----|-----|-----|--------|
-| Prod | https://app.kairospayhub.com | https://api.kairospayhub.com | `/health` |
-| Dev | https://dev.app.kairospayhub.com | https://dev.api.kairospayhub.com | `/health` |
+| Env | App (gateway) | API paths | Health |
+|-----|---------------|-----------|--------|
+| Prod | https://app.kairospayhub.com | same origin `/api/*`, `/auth/*`, `/hubs/*` | `/health` |
+| Dev | https://dev.app.kairospayhub.com | same origin | `/health` |
 | Local | http://127.0.0.1:5173 | http://localhost:5192 | `/health` |
 
 ## Cloudflare stack
 
-| Env | Frontend (Pages) | API (Worker + Container) | Database |
-|-----|------------------|---------------------------|----------|
+Single **gateway Worker** on the app hostname proxies:
+
+- `/api/*`, `/auth/*`, `/hubs/*`, `/health` → .NET container
+- everything else → Cloudflare Pages (`*.pages.dev`)
+
+| Env | Pages project | Gateway Worker | Database |
+|-----|---------------|----------------|----------|
 | **Development** | `kairospayhub-frontend-dev` | `kairospayhub-api-dev` | Neon `kairospayhub-dev` |
 | **Production** | `kairospayhub-frontend` | `kairospayhub-api` | Neon `kairospayhub-prod` |
 
 | Path | Purpose |
 |------|---------|
-| `cloudflare/api/` | Worker router + .NET container (`kairospayhub-api/Dockerfile`) |
+| `cloudflare/api/` | Gateway Worker + .NET container (`kairospayhub-api/Dockerfile`) |
 | `kairospayhub-frontend/` | Vite SPA → Cloudflare Pages |
 | `scripts/provision-cloudflare-environments.sh` | One-time / manual full provision + deploy |
 
@@ -43,8 +48,18 @@ git tag v1.2.3 → deploy-production.yml → Prod Pages + API
 
 | Secret | Purpose |
 |--------|-----------|
-| `CLOUDFLARE_API_TOKEN` | Wrangler deploy (Workers + Pages) |
+| `CLOUDFLARE_WRANGLER_REFRESH_TOKEN` | Wrangler OAuth refresh token (`cfort_…`) for CI deploy |
 | `CLOUDFLARE_ACCOUNT_ID` | `e23518956f08ff35812d9ab001a39880` |
+
+`CLOUDFLARE_API_TOKEN` (DNS-only) is optional in repo `.env` for DNS scripts — **not** used by deploy workflows.
+
+Generate the refresh token locally after `npx wrangler login`:
+
+```bash
+grep refresh_token ~/.config/.wrangler/config/default.toml   # Linux CI path
+# macOS: ~/Library/Preferences/.wrangler/config/default.toml
+gh secret set CLOUDFLARE_WRANGLER_REFRESH_TOKEN
+```
 
 API runtime secrets (`DB_CONNECTION_STRING`, `JWT_SIGNING_KEY`, SMTP, R2) are set once per environment via:
 
@@ -78,28 +93,14 @@ Store URLs in `.env` as `ConnectionStrings__Default` (local/dev) and `NEON_PROD_
 
 ## DNS cutover (one-time)
 
-Worker **zone routes** handle `dev.api` / `api` when hostnames are in the Cloudflare zone (orange-cloud proxied).
-
-Pages frontends need CNAME updates away from Render:
-
-| Hostname | Target |
-|----------|--------|
-| `dev.app.kairospayhub.com` | `kairospayhub-frontend-dev.pages.dev` |
-| `app.kairospayhub.com` | `kairospayhub-frontend.pages.dev` |
-
-With a Cloudflare API token (`Zone.DNS` Edit):
+The gateway Worker owns `dev.app` / `app` via **Workers custom domains** (required for two-level subdomains + SSL). Pages stays on `*.pages.dev`; the Worker proxies static assets.
 
 ```bash
-chmod +x scripts/setup-cloudflare-dns.sh
-./scripts/setup-cloudflare-dns.sh
+chmod +x scripts/finish-cloudflare-cutover.sh
+./scripts/finish-cloudflare-cutover.sh
 ```
 
-Or update manually in the Cloudflare dashboard. Until then, use:
-
-- Dev app: https://kairospayhub-frontend-dev.pages.dev
-- Prod app: https://kairospayhub-frontend.pages.dev
-- Dev API: https://kairospayhub-api-dev.williammgyasii.workers.dev (or `dev.api` after DNS)
-- Prod API: https://kairospayhub-api.williammgyasii.workers.dev
+Until cutover completes, use workers.dev URLs for API smoke tests.
 
 **Local wrangler auth:** run `cd cloudflare/api && npx wrangler login` if deploy fails. Remove invalid `CLOUDFLARE_API_KEY` from `.env` — it overrides OAuth.
 
@@ -110,8 +111,8 @@ Or update manually in the Cloudflare dashboard. Until then, use:
 ## Smoke test
 
 ```bash
-curl -s https://dev.api.kairospayhub.com/health
-curl -s https://api.kairospayhub.com/health
+curl -s https://dev.app.kairospayhub.com/health
+curl -s https://app.kairospayhub.com/health
 ```
 
 Both should return `{"status":"healthy"}`.
