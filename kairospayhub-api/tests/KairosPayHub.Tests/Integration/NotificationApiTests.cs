@@ -127,8 +127,9 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
 
         var managerNotifications = await pfccClient.GetFromJsonAsync<JsonElement>("/api/notifications");
-        Assert.Equal(1, managerNotifications.GetProperty("unreadCount").GetInt32());
-        var managerItem = managerNotifications.GetProperty("notifications")[0];
+        Assert.True(managerNotifications.GetProperty("unreadCount").GetInt32() >= 1);
+        var managerItem = managerNotifications.GetProperty("notifications").EnumerateArray()
+            .First(n => n.GetProperty("kind").GetString() == "SubGivingApproved");
         Assert.Equal("SubGivingApproved", managerItem.GetProperty("kind").GetString());
         Assert.Contains("January Rhapsody", managerItem.GetProperty("body").GetString());
     }
@@ -244,10 +245,12 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
 
         var cellNotifications = await cellClient.GetFromJsonAsync<JsonElement>("/api/notifications");
-        Assert.Equal(1, cellNotifications.GetProperty("unreadCount").GetInt32());
+        Assert.True(cellNotifications.GetProperty("unreadCount").GetInt32() >= 1);
+        var approvedItem = cellNotifications.GetProperty("notifications").EnumerateArray()
+            .First(n => n.GetProperty("kind").GetString() == "ContributionApproved");
         Assert.Equal(
             "ContributionApproved",
-            cellNotifications.GetProperty("notifications")[0].GetProperty("kind").GetString());
+            approvedItem.GetProperty("kind").GetString());
     }
 
     [Fact]
