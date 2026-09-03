@@ -5,6 +5,9 @@ public class Church
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
+    public string? Location { get; set; }
+    public string? PrimaryPastorName { get; set; }
+    public int? ApproximateMemberCount { get; set; }
     public string? LogoUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 

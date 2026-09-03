@@ -1,153 +1,339 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { FormEvent } from 'react'
-import { ArrowRight, CheckCircle2, Church } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  ChevronRight,
+  Church,
+  MapPin,
+  UserRound,
+  Users,
+} from 'lucide-react'
 import { useApi } from '@/api/useApi'
-import { displayName, type Me } from '@/api/me'
+import { displayName, type Me, type MeNotOnboarded } from '@/api/me'
 import { useAuth } from '@/auth/AuthContext'
+import { AuthAlert } from '@/components/layout/auth-alert'
+import { authEase, authFadeUp, authScaleIn, authStagger } from '@/components/layout/auth-motion'
+import { CenteredPageShell } from '@/components/layout/centered-page-shell'
+import { KairosLogo, KairosWordmark } from '@/components/layout/kairos-logo'
+import { OnboardingContinueButton, OnboardingStepFooter } from '@/components/onboarding/onboarding-step-footer'
+import {
+  ONBOARDING_FINISH_LABELS,
+  OnboardingFinishOverlay,
+  runOnboardingFinishSequence,
+} from '@/components/onboarding/onboarding-finish-overlay'
+import { StructureTemplateWizard } from '@/components/structure/structure-template-wizard'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
-import { initials } from '@/lib/utils'
+import { cn, initials } from '@/lib/utils'
 
 interface OnboardingWizardProps {
-  me: Me & { onboarded: false }
+  me: MeNotOnboarded
   onComplete: (me: Me) => void
 }
 
-const STEPS = ['Welcome', 'Your church', 'Ready'] as const
+const STEPS = ['Welcome', 'Church details', 'Structure'] as const
+
+const stepMotion = {
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: authEase } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.25, ease: authEase } },
+}
+
+function FieldIcon({ children }: { children: ReactNode }) {
+  return (
+    <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+      {children}
+    </span>
+  )
+}
+
+function StepHeader({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof Church
+  title: string
+  description: string
+}) {
+  return (
+    <div className="mb-4 flex items-start gap-3 text-left">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0 pt-0.5">
+        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{description}</p>
+      </div>
+    </div>
+  )
+}
 
 export function OnboardingWizard({ me, onComplete }: OnboardingWizardProps) {
   const api = useApi()
   const { email } = useAuth()
-  const [step, setStep] = useState(0)
-  const [churchName, setChurchName] = useState('')
+  const [step, setStep] = useState(() => (me.onboardingStep === 'structure' ? 2 : 0))
+  const [churchName, setChurchName] = useState(me.churchName ?? '')
+  const [location, setLocation] = useState(me.location ?? '')
+  const [pastorName, setPastorName] = useState(me.pastorName ?? displayName(me, email))
+  const [memberCount, setMemberCount] = useState(
+    me.memberCount != null ? String(me.memberCount) : '',
+  )
+  const [churchCreated, setChurchCreated] = useState(Boolean(me.churchId))
   const [busy, setBusy] = useState(false)
+  const [finishing, setFinishing] = useState(false)
+  const [finishLabelIndex, setFinishLabelIndex] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
+  const firstName = displayName(me, email).split(' ')[0] || 'Pastor'
   const progress = ((step + 1) / STEPS.length) * 100
-  const name = displayName(me, email)
+  const shellWidth = step === 2 ? '2xl' : 'xl'
 
   async function createChurch(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      await api.post('/api/onboarding', { churchName })
+      const parsedCount = Number.parseInt(memberCount, 10)
+      await api.post('/api/onboarding', {
+        churchName: churchName.trim(),
+        location: location.trim(),
+        pastorName: pastorName.trim(),
+        memberCount: Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : undefined,
+      })
+      setChurchCreated(true)
       setStep(2)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create church')
+      setError(err instanceof Error ? err.message : 'Could not save church details')
     } finally {
       setBusy(false)
     }
   }
 
-  async function finish() {
+  async function saveStructure(action: () => Promise<void>) {
     setBusy(true)
+    setFinishing(true)
+    setFinishLabelIndex(0)
     setError(null)
     try {
-      onComplete(await api.get<Me>('/api/me'))
+      let me: Me | null = null
+      await runOnboardingFinishSequence(setFinishLabelIndex, async () => {
+        await action()
+        me = await api.get<Me>('/api/me')
+      })
+      if (me) onComplete(me)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load your account')
+      setFinishing(false)
+      setError(err instanceof Error ? err.message : 'Could not save structure')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-10">
-      <div className="mb-8 space-y-4">
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            Step {step + 1} of {STEPS.length}
-          </span>
-          <span>{STEPS[step]}</span>
-        </div>
-        <Progress value={progress} />
+    <>
+      <AnimatePresence>
+        {finishing && (
+          <OnboardingFinishOverlay label={ONBOARDING_FINISH_LABELS[finishLabelIndex]} />
+        )}
+      </AnimatePresence>
+
+      <CenteredPageShell maxWidth={shellWidth} compact>
+      <div className="fixed inset-x-0 top-0 z-10 h-0.5 bg-muted/60">
+        <motion.div
+          className="h-full bg-primary"
+          initial={false}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.5, ease: authEase }}
+        />
       </div>
 
-      <Card className="border-none shadow-lg">
-        {step === 0 && (
-          <>
-            <CardHeader className="items-center text-center">
-              <Avatar className="h-16 w-16">
-                <AvatarFallback className="text-lg">{initials(me.name, me.email)}</AvatarFallback>
-              </Avatar>
-              <CardTitle className="text-xl">Welcome, {name.split(' ')[0] || 'Pastor'}</CardTitle>
-              <CardDescription>
-                Let&apos;s set up your church in KairosPayHub. This only takes a minute.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
-              <Button className="w-full" onClick={() => setStep(1)}>
-                Get started
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </CardContent>
-          </>
-        )}
+      <motion.div
+        variants={authStagger}
+        initial="hidden"
+        animate="show"
+        className="flex w-full flex-col items-center text-center"
+      >
+        <motion.div variants={authScaleIn} className="mb-4 flex flex-col items-center gap-1.5">
+          <KairosLogo size="sm" />
+          <KairosWordmark className="text-xs text-muted-foreground" />
+        </motion.div>
 
-        {step === 1 && (
-          <>
-            <CardHeader>
-              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Church className="h-5 w-5" />
-              </div>
-              <CardTitle>Name your church</CardTitle>
-              <CardDescription>
-                This creates your church tenant and assigns you as pastor.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={createChurch} className="space-y-4">
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <div className="space-y-2">
-                  <Label htmlFor="church">Church name</Label>
-                  <Input
-                    id="church"
-                    placeholder="e.g. Grace Assembly"
-                    value={churchName}
-                    onChange={(e) => setChurchName(e.target.value)}
-                    required
-                  />
+        <motion.p
+          variants={authFadeUp}
+          className="mb-4 text-xs font-medium text-muted-foreground"
+        >
+          Step {step + 1} of {STEPS.length} · {STEPS[step]}
+        </motion.p>
+
+        <AnimatePresence mode="wait">
+          {step === 0 && (
+            <motion.div
+              key="welcome"
+              {...stepMotion}
+              className="flex w-full max-w-md flex-col items-center"
+            >
+              <Avatar className="mb-4 size-16 border border-primary/10">
+                <AvatarFallback className="bg-primary/5 text-lg font-semibold text-primary">
+                  {initials(me.name, me.email)}
+                </AvatarFallback>
+              </Avatar>
+
+              <h1 className="text-xl font-semibold tracking-tight">Welcome, {firstName}</h1>
+              <p className="mt-2 max-w-sm text-sm leading-snug text-muted-foreground">
+                Set up your church, define your structure, and start tracking giving.
+              </p>
+
+              {error && (
+                <div className="mt-4 w-full">
+                  <AuthAlert variant="error">{error}</AuthAlert>
                 </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => setStep(0)}>
-                    Back
-                  </Button>
-                  <Button className="flex-1" type="submit" disabled={busy}>
-                    {busy ? 'Creating…' : 'Create church'}
-                  </Button>
+              )}
+
+              <Button className="mt-6 w-full max-w-xs" onClick={() => setStep(1)}>
+                Get started
+                <ChevronRight className="size-4" />
+              </Button>
+            </motion.div>
+          )}
+
+          {step === 1 && (
+            <motion.div key="church" {...stepMotion} className="w-full text-left">
+              <StepHeader
+                icon={Church}
+                title="Church details"
+                description="Creates your workspace and assigns you as pastor."
+              />
+
+              <form onSubmit={createChurch}>
+                {error && (
+                  <div className="mb-3">
+                    <AuthAlert variant="error">{error}</AuthAlert>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="church" className="text-xs">
+                      Church name
+                    </Label>
+                    <div className="relative">
+                      <FieldIcon>
+                        <Church className="size-3.5" />
+                      </FieldIcon>
+                      <Input
+                        id="church"
+                        className="h-9 pl-8 text-sm"
+                        placeholder="Grace Assembly"
+                        value={churchName}
+                        onChange={(e) => setChurchName(e.target.value)}
+                        required
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="location" className="text-xs">
+                      Location
+                    </Label>
+                    <div className="relative">
+                      <FieldIcon>
+                        <MapPin className="size-3.5" />
+                      </FieldIcon>
+                      <Input
+                        id="location"
+                        className="h-9 pl-8 text-sm"
+                        placeholder="City, state"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pastor" className="text-xs">
+                      Lead pastor
+                    </Label>
+                    <div className="relative">
+                      <FieldIcon>
+                        <UserRound className="size-3.5" />
+                      </FieldIcon>
+                      <Input
+                        id="pastor"
+                        className="h-9 pl-8 text-sm"
+                        placeholder="Full name"
+                        value={pastorName}
+                        onChange={(e) => setPastorName(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="members" className="text-xs">
+                      Member count
+                    </Label>
+                    <div className="relative">
+                      <FieldIcon>
+                        <Users className="size-3.5" />
+                      </FieldIcon>
+                      <Input
+                        id="members"
+                        type="number"
+                        min={1}
+                        className="h-9 pl-8 text-sm"
+                        placeholder="250"
+                        value={memberCount}
+                        onChange={(e) => setMemberCount(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <OnboardingStepFooter onBack={() => setStep(0)}>
+                      <OnboardingContinueButton type="submit" loading={busy} loadingLabel="Saving…">
+                        Continue
+                      </OnboardingContinueButton>
+                    </OnboardingStepFooter>
+                  </div>
                 </div>
               </form>
-            </CardContent>
-          </>
-        )}
+            </motion.div>
+          )}
 
-        {step === 2 && (
-          <>
-            <CardHeader className="items-center text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
-              <CardTitle>You&apos;re all set</CardTitle>
-              <CardDescription>
-                <span className="font-medium text-foreground">{churchName}</span> is ready.
-                Head to your dashboard to set up structure when you&apos;re ready.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
-              <Button className="w-full" onClick={finish} disabled={busy}>
-                {busy ? 'Loading…' : 'Go to dashboard'}
-              </Button>
-            </CardContent>
-          </>
-        )}
-      </Card>
-    </div>
+          {step === 2 && (
+            <motion.div
+              key="structure"
+              {...stepMotion}
+              className={cn('w-full', error && 'space-y-3')}
+            >
+              {error && <AuthAlert variant="error">{error}</AuthAlert>}
+
+              <StructureTemplateWizard
+                variant="embedded"
+                churchName={churchName}
+                submitLabel={busy ? 'Finishing…' : 'Finish setup'}
+                busy={busy}
+                submit={saveStructure}
+                onBack={
+                  churchCreated
+                    ? () => {
+                        setError(null)
+                        setStep(1)
+                      }
+                    : undefined
+                }
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+      </CenteredPageShell>
+    </>
   )
 }

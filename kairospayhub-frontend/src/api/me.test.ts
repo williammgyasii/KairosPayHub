@@ -34,6 +34,20 @@ describe('needsOnboarding', () => {
     expect(needsOnboarding(notOnboarded)).toBe(true)
   })
 
+  it('is true when the pastor saved church details but not structure', () => {
+    expect(
+      needsOnboarding({
+        onboarded: false,
+        email: 'p@example.com',
+        name: 'Pastor Paul',
+        churchId: 'church-1',
+        churchName: 'Grace',
+        onboardingStep: 'structure',
+        role: 'Pastor',
+      }),
+    ).toBe(true)
+  })
+
   it('is false when the user is onboarded', () => {
     expect(needsOnboarding(onboarded)).toBe(false)
   })

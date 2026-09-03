@@ -23,9 +23,15 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
     [HttpPost]
     public async Task<IActionResult> Onboard([FromBody] OnboardRequest request, CancellationToken ct)
     {
-        var churchName = (request.ChurchName ?? request.OrganizationName)?.Trim();
-        if (string.IsNullOrWhiteSpace(churchName))
-            return BadRequest(new { error = "ChurchName is required" });
+        string churchName;
+        try
+        {
+            churchName = ResolveChurchName(request);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
 
         var existing = await current.TryGetAsync(ct);
         if (existing is not null)
@@ -48,9 +54,31 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         var legacyUser = await FindLegacyUserAsync(current.Sub, email, ct);
 
         if (legacyUser is not null)
-            return Ok(await RelinkLegacyUserAsync(legacyUser, authUserId, churchName, ct));
+            return Ok(await RelinkLegacyUserAsync(legacyUser, authUserId, request, ct));
 
-        return Ok(await CreateFreshTenantAsync(authUserId, churchName, ct));
+        return Ok(await CreateFreshTenantAsync(authUserId, request, ct));
+    }
+
+    private static void ApplyChurchProfile(Domain.Structure.Church church, OnboardRequest request)
+    {
+        var location = request.Location?.Trim();
+        if (!string.IsNullOrWhiteSpace(location))
+            church.Location = location;
+
+        var pastorName = request.PastorName?.Trim();
+        if (!string.IsNullOrWhiteSpace(pastorName))
+            church.PrimaryPastorName = pastorName;
+
+        if (request.MemberCount is > 0)
+            church.ApproximateMemberCount = request.MemberCount;
+    }
+
+    private static string ResolveChurchName(OnboardRequest request)
+    {
+        var churchName = (request.ChurchName ?? request.OrganizationName)?.Trim();
+        if (string.IsNullOrWhiteSpace(churchName))
+            throw new ArgumentException("ChurchName is required");
+        return churchName;
     }
 
     private async Task<User?> FindLegacyUserAsync(string authSubject, string email, CancellationToken ct)
@@ -70,9 +98,10 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
     private async Task<object> RelinkLegacyUserAsync(
         User legacyUser,
         Guid authUserId,
-        string churchName,
+        OnboardRequest request,
         CancellationToken ct)
     {
+        var churchName = ResolveChurchName(request);
         var previousAuthSubject = legacyUser.AuthSubject;
         legacyUser.AuthSubject = current.Sub;
         legacyUser.Name = current.Name ?? legacyUser.Name;
@@ -105,7 +134,10 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         {
             var church = await db.StructureChurches.FindAsync([assignment.ChurchId], ct);
             if (church is not null)
+            {
                 church.Name = churchName;
+                ApplyChurchProfile(church, request);
+            }
 
             var org = await db.Organizations.FindAsync([legacyUser.OrganizationId], ct);
             if (org is not null)
@@ -135,6 +167,7 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         }
 
         var newChurch = new Domain.Structure.Church { Name = churchName };
+        ApplyChurchProfile(newChurch, request);
         var pastorAssignment = new RoleAssignment
         {
             ChurchId = newChurch.Id,
@@ -155,9 +188,11 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         };
     }
 
-    private async Task<object> CreateFreshTenantAsync(Guid authUserId, string churchName, CancellationToken ct)
+    private async Task<object> CreateFreshTenantAsync(Guid authUserId, OnboardRequest request, CancellationToken ct)
     {
+        var churchName = ResolveChurchName(request);
         var church = new Domain.Structure.Church { Name = churchName };
+        ApplyChurchProfile(church, request);
         var org = new Organization { Name = churchName };
         var assignment = new RoleAssignment
         {
@@ -170,7 +205,7 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         {
             OrganizationId = org.Id,
             AuthSubject = current.Sub,
-            Name = current.Name ?? current.Email ?? "Pastor",
+            Name = request.PastorName?.Trim() ?? current.Name ?? current.Email ?? "Pastor",
             Email = current.Email ?? string.Empty,
             Role = Role.Pastor,
         };

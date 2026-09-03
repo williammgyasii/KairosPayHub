@@ -3,6 +3,8 @@ import type { FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Mail, RefreshCw } from 'lucide-react'
 import { OtpInput } from '@/components/auth/otp-input'
+import { AuthAlert } from '@/components/layout/auth-alert'
+import { authFadeUp, authStagger } from '@/components/layout/auth-motion'
 import { Button } from '@/components/ui/button'
 
 function maskEmail(email: string): string {
@@ -77,71 +79,86 @@ export function EmailOtpForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <motion.form
+      variants={authStagger}
+      initial="hidden"
+      animate="show"
+      onSubmit={onSubmit}
+      className="space-y-5"
+    >
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
+        variants={authFadeUp}
         className="flex flex-col items-center gap-3 text-center"
       >
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <Mail className="size-6" aria-hidden />
+        <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Mail className="size-5" aria-hidden />
         </div>
         <div className="space-y-1">
           <p className="text-sm font-medium">Check your inbox</p>
-          <p className="inline-flex items-center rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+          <p className="inline-flex items-center rounded-md border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
             {maskEmail(email)}
           </p>
         </div>
       </motion.div>
 
       {error && (
-        <motion.p
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-center text-sm text-destructive"
-        >
-          {error}
-        </motion.p>
-      )}
-
-      {resent && (
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-primary"
-        >
-          <CheckCircle2 className="size-4 shrink-0" aria-hidden />
-          New code sent — check your email
+        <motion.div variants={authFadeUp}>
+          <AuthAlert variant="error">{error}</AuthAlert>
         </motion.div>
       )}
 
-      <div className="space-y-3">
+      {resent && (
+        <motion.div variants={authFadeUp}>
+          <AuthAlert variant="success">
+            <span className="inline-flex items-center justify-center gap-2">
+              <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+              New code sent — check your email
+            </span>
+          </AuthAlert>
+        </motion.div>
+      )}
+
+      <motion.div variants={authFadeUp} className="space-y-3">
         <OtpInput value={code} onChange={setCode} disabled={busy} autoFocus />
         <p className="text-center text-xs text-muted-foreground">
           Enter the 6-digit code we emailed you
         </p>
-      </div>
+      </motion.div>
 
       {devHint && (
-        <p className="rounded-xl border border-dashed border-border/80 bg-muted/30 px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground">
+        <motion.p
+          variants={authFadeUp}
+          className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground"
+        >
           Local dev: if email is not configured, the code appears in the API terminal.
-        </p>
+        </motion.p>
       )}
 
-      <Button className="h-11 w-full" type="submit" disabled={busy || code.length !== 6}>
-        {busy ? 'Verifying…' : confirmLabel}
-      </Button>
+      <motion.div variants={authFadeUp}>
+        <Button
+          className="w-full"
+          size="lg"
+          type="submit"
+          loading={busy}
+          loadingLabel="Verifying…"
+          disabled={code.length !== 6}
+        >
+          {confirmLabel}
+        </Button>
+      </motion.div>
 
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-10 w-full gap-2 text-muted-foreground"
-        disabled={resendBusy || busy}
-        onClick={() => void onResendClick()}
-      >
-        <RefreshCw className={`size-4 ${resendBusy ? 'animate-spin' : ''}`} aria-hidden />
-        {resendBusy ? 'Sending new code…' : 'Send a new code'}
-      </Button>
-    </form>
+      <motion.div variants={authFadeUp}>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full gap-2 text-muted-foreground"
+          disabled={resendBusy || busy}
+          onClick={() => void onResendClick()}
+        >
+          <RefreshCw className={`size-4 ${resendBusy ? 'animate-spin' : ''}`} aria-hidden />
+          {resendBusy ? 'Sending new code…' : 'Send a new code'}
+        </Button>
+      </motion.div>
+    </motion.form>
   )
 }

@@ -25,16 +25,52 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
             });
         }
 
+        var churchId = actor.StructureChurchId != default ? actor.StructureChurchId : (Guid?)null;
+        var hasStructureTemplate = churchId is not null
+            && await db.StructureTemplates.AsNoTracking().AnyAsync(t => t.ChurchId == churchId, ct);
+
         string? churchName = null;
         string? churchLogoUrl = null;
-        if (actor.StructureChurchId != default)
+        string? location = null;
+        string? pastorName = null;
+        int? memberCount = null;
+        if (churchId is not null)
         {
             var church = await db.StructureChurches.AsNoTracking()
-                .Where(c => c.Id == actor.StructureChurchId)
-                .Select(c => new { c.Name, c.LogoUrl })
+                .Where(c => c.Id == churchId)
+                .Select(c => new
+                {
+                    c.Name,
+                    c.LogoUrl,
+                    c.Location,
+                    c.PrimaryPastorName,
+                    c.ApproximateMemberCount,
+                })
                 .FirstOrDefaultAsync(ct);
             churchName = church?.Name;
             churchLogoUrl = church?.LogoUrl;
+            location = church?.Location;
+            pastorName = church?.PrimaryPastorName;
+            memberCount = church?.ApproximateMemberCount;
+        }
+
+        if (actor.StructureRole == Domain.Structure.ChurchRole.Pastor
+            && churchId is not null
+            && !hasStructureTemplate)
+        {
+            return Ok(new
+            {
+                onboarded = false,
+                email = current.Email,
+                name = current.Name,
+                churchId,
+                churchName,
+                location,
+                pastorName,
+                memberCount,
+                onboardingStep = "structure",
+                role = actor.StructureRole?.ToString() ?? actor.Role.ToString(),
+            });
         }
 
         var role = actor.StructureRole?.ToString() ?? actor.Role.ToString();
@@ -80,7 +116,7 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
         {
             onboarded = true,
             id = actor.Id,
-            churchId = actor.StructureChurchId != default ? actor.StructureChurchId : (Guid?)null,
+            churchId,
             churchName,
             churchLogoUrl,
             organizationId = actor.OrganizationId,

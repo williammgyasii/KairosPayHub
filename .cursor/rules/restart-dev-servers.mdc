@@ -1,0 +1,45 @@
+---
+description: Restart frontend and backend after code changes
+alwaysApply: true
+---
+
+# Restart dev servers after changes
+
+After making **any code changes** in this repo (frontend, backend, or shared scripts that affect runtime), finish the task by restarting both local dev servers.
+
+## When to restart
+
+- Always restart after edits that could affect the running app.
+- Skip only for read-only work (questions, reviews with no file edits).
+
+## How to restart
+
+1. **Kill existing processes** on the dev ports:
+
+```bash
+lsof -ti:5192,5173 | xargs kill -9 2>/dev/null || true
+```
+
+2. **Start the API** (background):
+
+```bash
+cd "kairospayhub-api/src/KairosPayHub.Api" && \
+  set -a && source "../../../.env" 2>/dev/null; set +a && \
+  dotnet run --urls "http://localhost:5192"
+```
+
+3. **Start the frontend** (background):
+
+```bash
+cd "kairospayhub-frontend" && \
+  VITE_API_URL=http://localhost:5192 npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+4. **Verify** both are up (API health + Vite ready) before saying the task is done.
+
+## URLs
+
+- Frontend: http://127.0.0.1:5173
+- API: http://localhost:5192
+
+Briefly mention in the final response that servers were restarted.

@@ -177,6 +177,23 @@ public class AuthTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
 
         me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        Assert.False(me.GetProperty("onboarded").GetBoolean());
+        Assert.Equal("structure", me.GetProperty("onboardingStep").GetString());
+        Assert.Equal("Pastor", me.GetProperty("role").GetString());
+
+        var template = await client.PutAsJsonAsync("/api/structure/template", new
+        {
+            name = "Main structure",
+            layers = new[]
+            {
+                new { standardType = "PFCC", displayName = "PFCC" },
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, template.StatusCode);
+
+        me = await client.GetFromJsonAsync<JsonElement>("/api/me");
         Assert.True(me.GetProperty("onboarded").GetBoolean());
         Assert.Equal("Pastor", me.GetProperty("role").GetString());
     }

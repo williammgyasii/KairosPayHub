@@ -11,8 +11,21 @@ export type RollCallScope = {
   scopeUnitName: string
 }
 
+export type MeNotOnboarded = {
+  onboarded: false
+  email: string | null
+  name: string | null
+  churchId?: string | null
+  churchName?: string | null
+  location?: string | null
+  pastorName?: string | null
+  memberCount?: number | null
+  onboardingStep?: 'structure' | null
+  role?: string | null
+}
+
 export type Me =
-  | { onboarded: false; email: string | null; name: string | null }
+  | MeNotOnboarded
   | {
       onboarded: true
       id: string
@@ -30,6 +43,10 @@ export type Me =
     }
 
 export function needsOnboarding(me: Me): boolean {
+  return !me.onboarded
+}
+
+export function isNotOnboarded(me: Me): me is MeNotOnboarded {
   return !me.onboarded
 }
 

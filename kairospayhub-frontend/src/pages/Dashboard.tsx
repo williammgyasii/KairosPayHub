@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '@/api/useApi'
-import { needsOnboarding, type Me } from '@/api/me'
+import { isNotOnboarded, type Me } from '@/api/me'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Spinner } from '@/components/ui/spinner'
@@ -40,8 +40,7 @@ export function DashboardRoot() {
     )
   }
 
-  if (needsOnboarding(me)) {
-    if (me.onboarded) return null
+  if (isNotOnboarded(me)) {
     return <OnboardingWizard me={me} onComplete={setMe} />
   }
 

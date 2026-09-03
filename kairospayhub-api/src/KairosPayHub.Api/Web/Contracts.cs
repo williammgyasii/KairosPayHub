@@ -2,7 +2,12 @@ using KairosPayHub.Api.Domain;
 
 namespace KairosPayHub.Api.Web;
 
-public record OnboardRequest(string? OrganizationName, string? ChurchName);
+public record OnboardRequest(
+    string? OrganizationName,
+    string? ChurchName,
+    string? Location = null,
+    string? PastorName = null,
+    int? MemberCount = null);
 
 public record CreateChurchRequest(string Name);
 

@@ -57,6 +57,22 @@ public class ApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
 
         var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        Assert.False(me.GetProperty("onboarded").GetBoolean());
+        Assert.Equal("structure", me.GetProperty("onboardingStep").GetString());
+        Assert.Equal("Grace Church", me.GetProperty("churchName").GetString());
+
+        await client.PutAsJsonAsync("/api/structure/template", new
+        {
+            name = "Main structure",
+            layers = new[]
+            {
+                new { standardType = "PFCC", displayName = "PFCC" },
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        me = await client.GetFromJsonAsync<JsonElement>("/api/me");
         Assert.True(me.GetProperty("onboarded").GetBoolean());
         Assert.Equal("Pastor", me.GetProperty("role").GetString());
         Assert.Equal("Grace Church", me.GetProperty("churchName").GetString());

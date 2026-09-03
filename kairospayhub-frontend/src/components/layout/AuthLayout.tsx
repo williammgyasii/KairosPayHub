@@ -2,15 +2,57 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AuthCarousel } from '@/components/layout/auth-carousel'
+import { authFadeIn, authFadeUp, authScaleIn, authStagger } from '@/components/layout/auth-motion'
+import { CenteredPageShell } from '@/components/layout/centered-page-shell'
+import { KairosLogo, KairosWordmark } from '@/components/layout/kairos-logo'
+import { cn } from '@/lib/utils'
 
 interface AuthLayoutProps {
   title: string
   subtitle: string
   children: ReactNode
   footer?: ReactNode
+  /** `split` = marketing sidebar (signup, etc.). `centered` = single-column auth (login). */
+  variant?: 'split' | 'centered'
 }
 
-export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
+export function AuthLayout({
+  title,
+  subtitle,
+  children,
+  footer,
+  variant = 'split',
+}: AuthLayoutProps) {
+  if (variant === 'centered') {
+    return (
+      <CenteredPageShell>
+        <motion.div
+          variants={authStagger}
+          initial="hidden"
+          animate="show"
+        >
+          <motion.div variants={authScaleIn} className="mb-8 flex flex-col items-center gap-3">
+            <KairosLogo size="md" />
+            <KairosWordmark />
+          </motion.div>
+
+          <motion.header variants={authFadeUp} className="mb-8 text-center">
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
+          </motion.header>
+
+          <motion.div variants={authFadeUp}>{children}</motion.div>
+
+          {footer && (
+            <motion.div variants={authFadeIn} className="mt-8 text-center text-sm text-muted-foreground">
+              {footer}
+            </motion.div>
+          )}
+        </motion.div>
+      </CenteredPageShell>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-2">
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-primary to-primary/85 p-10 text-primary-foreground lg:flex">
@@ -22,9 +64,8 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="flex size-12 items-center justify-center rounded-2xl bg-white/15 text-2xl backdrop-blur-sm"
           >
-            ⛪
+            <KairosLogo size="lg" className="shadow-md ring-1 ring-white/20" />
           </motion.div>
           <motion.p
             initial={{ opacity: 0, y: 8 }}
@@ -52,11 +93,9 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
       <main className="flex flex-col justify-center px-6 py-10 sm:px-10 lg:px-14">
         <div className="mx-auto w-full max-w-[420px]">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-lg">
-              ⛪
-            </div>
+            <KairosLogo size="sm" />
             <div>
-              <p className="text-sm font-semibold">KairosPayHub</p>
+              <KairosWordmark />
               <p className="text-xs text-muted-foreground">Church giving, simplified</p>
             </div>
           </div>
@@ -85,9 +124,20 @@ export function AuthFooterLink({ to, children }: { to: string; children: ReactNo
   )
 }
 
-export function AuthFormCard({ children }: { children: ReactNode }) {
+export function AuthFormCard({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
   return (
-    <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-7">
+    <div
+      className={cn(
+        'rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-7',
+        className,
+      )}
+    >
       {children}
     </div>
   )
