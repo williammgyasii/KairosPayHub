@@ -48,16 +48,21 @@ git tag v1.2.3 → deploy-production.yml → Prod Pages + API
 
 | Secret | Purpose |
 |--------|-----------|
-| `CLOUDFLARE_WRANGLER_REFRESH_TOKEN` | Wrangler OAuth refresh token (`cfort_…`) for CI deploy |
+| `CLOUDFLARE_API_TOKEN` | **Recommended** — Cloudflare API token for CI deploy (Workers, Pages, Containers). Does not rotate. |
+| `CLOUDFLARE_WRANGLER_REFRESH_TOKEN` | Fallback — wrangler OAuth refresh token (`cfort_…`). **Rotates on each CI refresh**; re-sync after deploy auth failures. |
 | `CLOUDFLARE_ACCOUNT_ID` | `e23518956f08ff35812d9ab001a39880` |
 
-`CLOUDFLARE_API_TOKEN` (DNS-only) is optional in repo `.env` for DNS scripts — **not** used by deploy workflows.
-
-Generate the refresh token locally after `npx wrangler login`:
+Create a deploy API token in Cloudflare Dashboard → My Profile → API Tokens → Create Token → **Edit Cloudflare Workers** template, then add **Cloudflare Pages — Edit** and **Account — Cloudflare Containers — Edit**. Store as:
 
 ```bash
-grep refresh_token ~/.config/.wrangler/config/default.toml   # Linux CI path
-# macOS: ~/Library/Preferences/.wrangler/config/default.toml
+gh secret set CLOUDFLARE_API_TOKEN
+```
+
+If OAuth fallback is used, re-sync after `npx wrangler login` (refresh tokens rotate when wrangler refreshes in CI):
+
+```bash
+grep refresh_token ~/Library/Preferences/.wrangler/config/default.toml   # macOS
+# Linux CI path: ~/.config/.wrangler/config/default.toml
 gh secret set CLOUDFLARE_WRANGLER_REFRESH_TOKEN
 ```
 

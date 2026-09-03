@@ -1,19 +1,32 @@
-name: Wrangler OAuth
-description: Configure wrangler to use a stored OAuth refresh token (Workers + Pages deploy)
+name: Wrangler auth
+description: Configure wrangler for CI deploy (API token preferred; OAuth refresh token fallback)
 
 inputs:
+  api_token:
+    description: Cloudflare API token for CI (recommended — does not rotate like OAuth refresh tokens)
+    required: false
   refresh_token:
-    description: Cloudflare wrangler OAuth refresh token (cfort_...)
-    required: true
+    description: Cloudflare wrangler OAuth refresh token (cfort_...) — re-sync after each OAuth refresh in CI
+    required: false
 
 runs:
   using: composite
   steps:
-    - name: Write wrangler OAuth config
+    - name: Configure wrangler credentials
       shell: bash
       run: |
-        mkdir -p "$HOME/.config/.wrangler/config"
-        cat > "$HOME/.config/.wrangler/config/default.toml" <<EOF
+        set -euo pipefail
+
+        if [[ -n "${{ inputs.api_token }}" ]]; then
+          export CLOUDFLARE_API_TOKEN="${{ inputs.api_token }}"
+          echo "Using CLOUDFLARE_API_TOKEN for wrangler auth"
+          npx wrangler whoami
+          exit 0
+        fi
+
+        if [[ -n "${{ inputs.refresh_token }}" ]]; then
+          mkdir -p "$HOME/.config/.wrangler/config"
+          cat > "$HOME/.config/.wrangler/config/default.toml" <<EOF
         oauth_token = "expired"
         expiration_time = "2020-01-01T00:00:00.000Z"
         refresh_token = "${{ inputs.refresh_token }}"
@@ -34,4 +47,10 @@ runs:
           "secrets_store:write"
         ]
         EOF
-        npx wrangler whoami
+          echo "Using OAuth refresh token for wrangler auth"
+          npx wrangler whoami
+          exit 0
+        fi
+
+        echo "Missing Cloudflare credentials: set CLOUDFLARE_API_TOKEN (recommended) or CLOUDFLARE_WRANGLER_REFRESH_TOKEN in GitHub secrets"
+        exit 1

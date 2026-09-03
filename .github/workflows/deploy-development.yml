@@ -27,9 +27,10 @@ jobs:
             cloudflare/api/package-lock.json
             kairospayhub-frontend/package-lock.json
 
-      - name: Configure Wrangler OAuth
+      - name: Configure Wrangler auth
         uses: ./.github/actions/wrangler-auth
         with:
+          api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           refresh_token: ${{ secrets.CLOUDFLARE_WRANGLER_REFRESH_TOKEN }}
 
       - name: Set up Docker
