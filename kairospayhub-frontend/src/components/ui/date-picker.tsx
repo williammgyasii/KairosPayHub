@@ -1,14 +1,13 @@
-import { format, parseISO, isValid } from 'date-fns'
+import { format, isAfter, isBefore, startOfDay } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { parseCampaignDate } from '@/lib/campaign-date-validation'
 
 function parseDateValue(value: string): Date | undefined {
-  if (!value) return undefined
-  const parsed = parseISO(value)
-  return isValid(parsed) ? parsed : undefined
+  return parseCampaignDate(value) ?? undefined
 }
 
 export function DatePicker({
@@ -20,7 +19,12 @@ export function DatePicker({
   disabled,
   required,
   fromYear = 1940,
-  toYear = new Date().getFullYear(),
+  toYear = new Date().getFullYear() + 5,
+  minDate,
+  maxDate,
+  disablePast = false,
+  disableFuture = false,
+  invalid = false,
 }: {
   id?: string
   value: string
@@ -31,10 +35,27 @@ export function DatePicker({
   required?: boolean
   fromYear?: number
   toYear?: number
+  minDate?: string
+  maxDate?: string
+  disablePast?: boolean
+  disableFuture?: boolean
+  invalid?: boolean
 }) {
   const selected = parseDateValue(value)
   const startMonth = new Date(fromYear, 0)
   const endMonth = new Date(toYear, 11)
+  const min = minDate ? parseCampaignDate(minDate) : null
+  const max = maxDate ? parseCampaignDate(maxDate) : null
+  const today = startOfDay(new Date())
+
+  function isDisabled(date: Date) {
+    const day = startOfDay(date)
+    if (disableFuture && isAfter(day, today)) return true
+    if (disablePast && isBefore(day, today)) return true
+    if (min && isBefore(day, min)) return true
+    if (max && isAfter(day, max)) return true
+    return false
+  }
 
   return (
     <Popover modal>
@@ -45,9 +66,11 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           aria-required={required}
+          aria-invalid={invalid}
           className={cn(
-            'h-9 w-full justify-start gap-2 px-3 text-left font-normal',
+            'h-10 w-full justify-start gap-2 px-3 text-left font-normal',
             !selected && 'text-muted-foreground',
+            invalid && 'border-destructive ring-1 ring-destructive/30',
             className,
           )}
         >
@@ -62,10 +85,10 @@ export function DatePicker({
           hideNavigation
           selected={selected}
           onSelect={(date) => onChange(date ? format(date, 'yyyy-MM-dd') : '')}
-          defaultMonth={selected ?? new Date(toYear - 25, 0)}
+          defaultMonth={selected ?? max ?? min ?? today}
           startMonth={startMonth}
           endMonth={endMonth}
-          disabled={{ after: new Date() }}
+          disabled={isDisabled}
           initialFocus
         />
       </PopoverContent>

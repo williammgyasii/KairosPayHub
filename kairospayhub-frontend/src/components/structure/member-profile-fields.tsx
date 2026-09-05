@@ -92,6 +92,7 @@ export function MemberProfileFields({
                 onChange={(dateOfBirth) => onChange({ dateOfBirth })}
                 placeholder="Select date of birth"
                 required={requirePhoneAndDob}
+                disableFuture
               />
             </ProfileField>
             <ProfileField label="Residence / location" id="member-residence">

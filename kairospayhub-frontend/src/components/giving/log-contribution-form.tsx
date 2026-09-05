@@ -137,6 +137,7 @@ export function LogContributionForm({
               onChange={setDateSent}
               disabled={disabled || busy}
               required
+              disableFuture
             />
           </WizardField>
         </div>
