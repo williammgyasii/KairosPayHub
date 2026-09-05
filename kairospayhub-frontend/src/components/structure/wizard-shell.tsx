@@ -89,15 +89,15 @@ export function WizardStepPanel({
   return (
     <div
       className={cn(
-        'relative overflow-hidden',
-        fill ? 'min-h-0 flex-1' : 'min-h-[380px]',
+        'relative',
+        fill ? 'min-h-0 flex-1' : 'min-h-0',
         className,
       )}
     >
       <div
         key={stepKey}
         className={cn(
-          'duration-500 ease-out fill-mode-both animate-in fade-in',
+          'duration-500 ease-out fill-mode-both animate-in fade-in px-0.5',
           fill ? 'flex h-full min-h-0 flex-col' : 'space-y-4',
           direction === 'forward' ? 'slide-in-from-right-6' : 'slide-in-from-left-6',
         )}
@@ -179,12 +179,14 @@ export function WizardField({
   children,
   className,
   required = false,
+  error,
 }: {
   label: string
   id: string
   children: React.ReactNode
   className?: string
   required?: boolean
+  error?: string | null
 }) {
   return (
     <div className={cn('space-y-1.5', className)}>
@@ -193,6 +195,7 @@ export function WizardField({
         {required && <span className="text-destructive"> *</span>}
       </label>
       {children}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }

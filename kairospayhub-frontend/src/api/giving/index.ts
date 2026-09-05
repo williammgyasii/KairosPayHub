@@ -2,9 +2,9 @@ import type { ApiClient } from '@/api/core/client'
 import { getAccessToken } from '@/auth/client'
 import { apiBaseUrl } from '@/lib/api-base'
 
-export type GivingType = 'Rhapsody' | 'SundayService' | 'SpecialProgram' | 'FellowshipGiving'
+export type GivingType = 'Rhapsody' | 'SundayService' | 'SpecialProgram' | 'FellowshipGiving' | 'Other'
 export type ProgramScopeKind = 'ChurchWide' | 'Fellowship' | 'PFCC' | 'FellowshipGroup'
-export type ProgramStatus = 'Open' | 'Closed'
+export type ProgramStatus = 'Open' | 'Closed' | 'Scheduled'
 export type ProgramApprovalStatus = 'Approved' | 'PendingPastorApproval' | 'Rejected'
 export type ContributionStatus = 'PendingApproval' | 'Approved' | 'Rejected'
 export type RemittanceMedium = 'PastorBank' | 'ChurchMomo' | 'PastorMomo' | 'Other'
@@ -13,8 +13,14 @@ export type GivingProgram = {
   id: string
   parentProgramId: string | null
   givingType: GivingType | string
+  customTypeLabel?: string | null
   title: string
   periodLabel: string
+  startsOn?: string | null
+  endsOn?: string | null
+  goLiveAt?: string | null
+  eventDate?: string | null
+  logOpensAt?: string | null
   scopeKind: ProgramScopeKind | string
   scopeNodeId: string | null
   status: ProgramStatus | string
@@ -169,17 +175,43 @@ export type GivingDashboard = {
 
 export type CreateGivingProgramInput = {
   givingType?: GivingType | string
+  customTypeLabel?: string
   title: string
-  periodLabel: string
+  periodLabel?: string
+  startsOn?: string
+  endsOn?: string
+  goLiveAt?: string
+  eventDate?: string
+  logOpensAt?: string
   scopeKind: ProgramScopeKind | string
   scopeNodeId?: string | null
   scopeNodeIds?: string[]
   parentProgramId?: string | null
 }
 
+export type BatchSubCampaignInput = {
+  frequency: 'Weekly'
+  dayOfWeek: number
+  rangeStart: string
+  rangeEnd: string
+  logOpensOffsetDays?: number
+  titlePrefix?: string
+  scopeKind?: ProgramScopeKind | string
+  scopeNodeId?: string | null
+  scopeNodeIds?: string[]
+}
+
+export type BatchSubCampaignPreview = {
+  count: number
+  sampleTitles: string[]
+  sampleEventDates: string[]
+}
+
 export type CreateSubPeriodInput = {
   title: string
-  periodLabel: string
+  periodLabel?: string
+  eventDate?: string
+  logOpensAt?: string
   scopeKind: ProgramScopeKind | string
   scopeNodeId?: string | null
   scopeNodeIds?: string[]
@@ -214,6 +246,28 @@ export async function listChildPrograms(api: ApiClient, parentProgramId: string)
 
 export async function getGivingDashboard(api: ApiClient) {
   return api.get<GivingDashboard>('/api/giving/dashboard')
+}
+
+export async function previewBatchSubCampaigns(
+  api: ApiClient,
+  parentProgramId: string,
+  input: BatchSubCampaignInput,
+) {
+  return api.post<BatchSubCampaignPreview>(
+    `/api/giving/programs/${parentProgramId}/sub-campaigns/preview`,
+    input,
+  )
+}
+
+export async function createBatchSubCampaigns(
+  api: ApiClient,
+  parentProgramId: string,
+  input: BatchSubCampaignInput,
+) {
+  return api.post<{ programs: GivingProgram[] }>(
+    `/api/giving/programs/${parentProgramId}/sub-campaigns/batch`,
+    input,
+  )
 }
 
 export async function createSubPeriod(api: ApiClient, input: CreateSubPeriodInput) {

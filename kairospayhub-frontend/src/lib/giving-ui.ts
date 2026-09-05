@@ -24,8 +24,16 @@ export const SCOPE_KIND_LABELS: Record<ProgramScopeKind | string, string> = {
   FellowshipGroup: 'Fellowship group',
 }
 
-export function givingTypeLabel(value: string) {
+export function givingTypeLabel(value: string, customTypeLabel?: string | null) {
+  if (value === 'Other' && customTypeLabel?.trim()) return customTypeLabel.trim()
   return GIVING_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? value
+}
+
+export function subCampaignLogStatus(program: GivingProgram): string | null {
+  if (program.status === 'Scheduled') return 'Scheduled'
+  if (!program.logOpensAt) return null
+  if (new Date(program.logOpensAt) > new Date()) return 'Logging opens later'
+  return null
 }
 
 export function scopeKindLabel(value: string) {
@@ -352,7 +360,9 @@ export function bulkRemittanceOtherPlaceholder(role: string) {
 }
 
 export function programStatusLabel(status: ProgramStatus | string) {
-  return status === 'Open' ? 'Open' : 'Closed'
+  if (status === 'Open') return 'Open'
+  if (status === 'Scheduled') return 'Scheduled'
+  return 'Closed'
 }
 
 export function contributionStatusTone(status: ContributionStatus | string) {

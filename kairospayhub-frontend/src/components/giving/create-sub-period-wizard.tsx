@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ApiClient } from '@/api/core'
-import type { GivingProgram, ProgramScopeKind } from '@/api/giving'
-import { createSubPeriod, formatAmount } from '@/api/giving'
+import type { BatchSubCampaignPreview, GivingProgram, ProgramScopeKind } from '@/api/giving'
+import {
+  createBatchSubCampaigns,
+  createSubPeriod,
+  formatAmount,
+  previewBatchSubCampaigns,
+} from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import {
-  defaultPeriodLabel,
   nodePathLabel,
   nodesForScopeKind,
   scopeKindLabel,
@@ -19,8 +23,12 @@ import {
 } from '@/components/structure/wizard-shell'
 import { Modal } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
-
+import {
+  validateSubCampaignOneOffDates,
+  validateSubCampaignRecurringDates,
+} from '@/lib/campaign-date-validation'
 import { nodesBelowScopeRoot } from '@/lib/structure-tree'
 
 type CreateSubPeriodWizardProps = {
@@ -33,6 +41,18 @@ type CreateSubPeriodWizardProps = {
   requiresPastorApproval?: boolean
   scopeRootNodeId?: string | null
 }
+
+type SubMode = 'one-off' | 'recurring'
+
+const WEEKDAYS = [
+  { value: 0, label: 'Sunday' },
+  { value: 1, label: 'Monday' },
+  { value: 2, label: 'Tuesday' },
+  { value: 3, label: 'Wednesday' },
+  { value: 4, label: 'Thursday' },
+  { value: 5, label: 'Friday' },
+  { value: 6, label: 'Saturday' },
+]
 
 function scopeOptionsForParent(
   parent: GivingProgram,
@@ -56,6 +76,12 @@ function scopeOptionsForParent(
   return ['FellowshipGroup']
 }
 
+function computeLogOpensAt(eventDate: string, offsetDays: number) {
+  const d = new Date(`${eventDate}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + offsetDays)
+  return d.toISOString()
+}
+
 export function CreateSubPeriodWizard({
   open,
   onOpenChange,
@@ -68,22 +94,30 @@ export function CreateSubPeriodWizard({
 }: CreateSubPeriodWizardProps) {
   const scopeOptions = useMemo(
     () => scopeOptionsForParent(parent, !requiresPastorApproval, scopeRootNodeId),
-    [parent.scopeKind, parent.id, requiresPastorApproval, scopeRootNodeId],
+    [parent.scopeKind, requiresPastorApproval, scopeRootNodeId],
   )
   const defaultScopeKind = scopeOptions[0]
-  const steps = ['Details', 'Scope', 'Review'] as const
+  const steps = ['Mode', 'Schedule', 'Scope', 'Review'] as const
 
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [mode, setMode] = useState<SubMode>('one-off')
   const [title, setTitle] = useState('')
-  const [periodLabel, setPeriodLabel] = useState(defaultPeriodLabel())
+  const [eventDate, setEventDate] = useState(parent.startsOn ?? '')
+  const [logOffsetDays, setLogOffsetDays] = useState(1)
+  const [dayOfWeek, setDayOfWeek] = useState(0)
+  const [rangeStart, setRangeStart] = useState(parent.startsOn ?? '')
+  const [rangeEnd, setRangeEnd] = useState(parent.endsOn ?? '')
+  const [titlePrefix, setTitlePrefix] = useState('')
+  const [preview, setPreview] = useState<BatchSubCampaignPreview | null>(null)
   const [scopeKind, setScopeKind] = useState<ProgramScopeKind>(defaultScopeKind)
   const [scopeNodeId, setScopeNodeId] = useState('')
   const [scopeNodeIds, setScopeNodeIds] = useState<string[]>([])
   const [moveParentContributions, setMoveParentContributions] = useState(false)
+  const [datesTouched, setDatesTouched] = useState(false)
 
   const parentDirectCount = parent.directContributionCount ?? 0
   const parentDirectTotal = parent.directContributionTotalAmount ?? 0
@@ -91,7 +125,11 @@ export function CreateSubPeriodWizard({
   useEffect(() => {
     if (!open) return
     setMoveParentContributions(parentDirectCount > 0)
-  }, [open, parent.id, parentDirectCount])
+    setRangeStart(parent.startsOn ?? '')
+    setRangeEnd(parent.endsOn ?? '')
+    setPreview(null)
+    setDatesTouched(false)
+  }, [open, parent.id, parent.startsOn, parent.endsOn, parentDirectCount])
 
   const scopeNodes = useMemo(() => {
     if (!tree) return []
@@ -110,15 +148,92 @@ export function CreateSubPeriodWizard({
     [scopeNodes, tree, scopeRootNodeId],
   )
 
+  const oneOffValidation = useMemo(
+    () =>
+      validateSubCampaignOneOffDates({
+        eventDate,
+        parentStartsOn: parent.startsOn,
+        parentEndsOn: parent.endsOn,
+      }),
+    [eventDate, parent.startsOn, parent.endsOn],
+  )
+
+  const recurringValidation = useMemo(
+    () =>
+      validateSubCampaignRecurringDates({
+        rangeStart,
+        rangeEnd,
+        parentStartsOn: parent.startsOn,
+        parentEndsOn: parent.endsOn,
+      }),
+    [rangeStart, rangeEnd, parent.startsOn, parent.endsOn],
+  )
+
+  const showDateErrors = datesTouched
+
   const canProceed = useMemo(() => {
-    if (step === 0) return title.trim().length > 0 && periodLabel.trim().length > 0
+    if (step === 0) return true
     if (step === 1) {
+      if (mode === 'one-off') {
+        return title.trim().length > 0 && oneOffValidation.isValid
+      }
+      return recurringValidation.isValid
+    }
+    if (step === 2) {
       if (scopeKind === 'ChurchWide') return true
       if (scopeKind === 'FellowshipGroup') return scopeNodeIds.length > 0
       if (scopeKind === 'Fellowship' || scopeKind === 'PFCC') return Boolean(scopeNodeId)
     }
     return true
-  }, [step, title, periodLabel, scopeKind, scopeNodeId, scopeNodeIds])
+  }, [
+    step,
+    mode,
+    title,
+    oneOffValidation.isValid,
+    recurringValidation.isValid,
+    scopeKind,
+    scopeNodeId,
+    scopeNodeIds,
+  ])
+
+  useEffect(() => {
+    if (step !== 3 || mode !== 'recurring' || !canProceed) return
+    let cancelled = false
+    void previewBatchSubCampaigns(api, parent.id, {
+      frequency: 'Weekly',
+      dayOfWeek,
+      rangeStart,
+      rangeEnd,
+      logOpensOffsetDays: logOffsetDays,
+      titlePrefix: titlePrefix.trim() || undefined,
+      scopeKind,
+      scopeNodeId: scopeKind === 'Fellowship' || scopeKind === 'PFCC' ? scopeNodeId || null : null,
+      scopeNodeIds: scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
+    })
+      .then((result) => {
+        if (!cancelled) setPreview(result)
+      })
+      .catch(() => {
+        if (!cancelled) setPreview(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    step,
+    mode,
+    api,
+    parent.id,
+    dayOfWeek,
+    rangeStart,
+    rangeEnd,
+    logOffsetDays,
+    titlePrefix,
+    scopeKind,
+    scopeNodeId,
+    scopeNodeIds,
+    canProceed,
+  ])
 
   function go(next: number) {
     setDirection(next > step ? 'forward' : 'back')
@@ -135,27 +250,44 @@ export function CreateSubPeriodWizard({
     setBusy(true)
     setError(null)
     try {
-      await createSubPeriod(api, {
-        parentProgramId: parent.id,
-        title: title.trim(),
-        periodLabel: periodLabel.trim(),
-        scopeKind,
-        scopeNodeId:
-          scopeKind === 'Fellowship' || scopeKind === 'PFCC' ? scopeNodeId || null : null,
-        scopeNodeIds: scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
-        moveParentContributions: parentDirectCount > 0 ? moveParentContributions : undefined,
-      })
+      if (mode === 'recurring') {
+        await createBatchSubCampaigns(api, parent.id, {
+          frequency: 'Weekly',
+          dayOfWeek,
+          rangeStart,
+          rangeEnd,
+          logOpensOffsetDays: logOffsetDays,
+          titlePrefix: titlePrefix.trim() || undefined,
+          scopeKind,
+          scopeNodeId: scopeKind === 'Fellowship' || scopeKind === 'PFCC' ? scopeNodeId || null : null,
+          scopeNodeIds: scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
+        })
+      } else {
+        await createSubPeriod(api, {
+          parentProgramId: parent.id,
+          title: title.trim(),
+          eventDate,
+          logOpensAt: computeLogOpensAt(eventDate, logOffsetDays),
+          scopeKind,
+          scopeNodeId:
+            scopeKind === 'Fellowship' || scopeKind === 'PFCC' ? scopeNodeId || null : null,
+          scopeNodeIds: scopeKind === 'FellowshipGroup' ? scopeNodeIds : undefined,
+          moveParentContributions: parentDirectCount > 0 ? moveParentContributions : undefined,
+        })
+      }
       onOpenChange(false)
       onCreated()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create sub-giving')
+      setError(err instanceof Error ? err.message : 'Could not create sub-campaign')
     } finally {
       setBusy(false)
     }
   }
 
   function handleNext() {
+    if (step === 1) setDatesTouched(true)
     if (step < steps.length - 1) {
+      if (step === 1 && !canProceed) return
       go(step + 1)
       return
     }
@@ -166,12 +298,8 @@ export function CreateSubPeriodWizard({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title="Add sub-giving"
-      description={
-        requiresPastorApproval
-          ? 'Your sub-giving will be sent to the pastor for approval before contributions can be logged.'
-          : 'Cell leaders log contributions on sub givings, not the parent campaign.'
-      }
+      title="Add sub-campaign"
+      description="Create a one-off slice or generate recurring dates under this campaign."
       size="lg"
     >
       <div className="space-y-5">
@@ -182,42 +310,154 @@ export function CreateSubPeriodWizard({
 
         <WizardStepPanel stepKey={step} direction={direction}>
           {step === 0 && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ['one-off', 'One-off', 'A single date or period under this campaign.'],
+                  ['recurring', 'Recurring', 'Generate many dates (e.g. every Sunday).'],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={cn(
+                    'rounded-xl border px-4 py-3 text-left transition-colors',
+                    mode === value
+                      ? 'border-primary bg-primary/10 ring-1 ring-primary/20'
+                      : 'border-border/60 hover:bg-muted/40',
+                  )}
+                  onClick={() => setMode(value)}
+                >
+                  <p className="font-medium">{label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {step === 1 && mode === 'one-off' && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Under <strong className="text-foreground">{parent.title}</strong>
-              </p>
               <WizardField label="Title" id="sub-title" required>
                 <Input
                   id="sub-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="January 2026"
+                  placeholder="Sunday 9 Feb"
                 />
               </WizardField>
-              <WizardField label="Period label" id="sub-period" required>
+              <WizardField
+                label="Event date"
+                id="sub-event-date"
+                required
+                error={showDateErrors ? oneOffValidation.eventDate.error : null}
+              >
+                <DatePicker
+                  id="sub-event-date"
+                  value={eventDate}
+                  minDate={parent.startsOn ?? undefined}
+                  maxDate={parent.endsOn ?? undefined}
+                  disablePast
+                  onChange={(value) => {
+                    setDatesTouched(true)
+                    setEventDate(value)
+                  }}
+                  placeholder="Pick event date"
+                  invalid={Boolean(showDateErrors && oneOffValidation.eventDate.error)}
+                />
+              </WizardField>
+              <WizardField label="Logging opens (days after event)" id="sub-log-offset">
                 <Input
-                  id="sub-period"
-                  value={periodLabel}
-                  onChange={(e) => setPeriodLabel(e.target.value)}
+                  id="sub-log-offset"
+                  type="number"
+                  min={0}
+                  max={14}
+                  value={logOffsetDays}
+                  onChange={(e) => setLogOffsetDays(Number(e.target.value) || 0)}
                 />
               </WizardField>
-              {parentDirectCount > 0 && (
-                <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.08] px-4 py-3 text-sm text-muted-foreground">
-                  <p>
-                    This campaign already has{' '}
-                    <strong className="text-foreground">
-                      {parentDirectCount} contribution{parentDirectCount === 1 ? '' : 's'}
-                    </strong>{' '}
-                    logged directly on it ({formatAmount(parentDirectTotal)}). After you add a
-                    sub-giving, new payments go there — you can move the existing ones on the final
-                    step.
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
-          {step === 1 && (
+          {step === 1 && mode === 'recurring' && (
+            <div className="space-y-4">
+              <WizardField label="Every" id="sub-day">
+                <select
+                  id="sub-day"
+                  value={dayOfWeek}
+                  onChange={(e) => setDayOfWeek(Number(e.target.value))}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  {WEEKDAYS.map((day) => (
+                    <option key={day.value} value={day.value}>
+                      {day.label}
+                    </option>
+                  ))}
+                </select>
+              </WizardField>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <WizardField
+                  label="From"
+                  id="sub-range-start"
+                  required
+                  error={showDateErrors ? recurringValidation.rangeStart.error : null}
+                >
+                  <DatePicker
+                    id="sub-range-start"
+                    value={rangeStart}
+                    minDate={parent.startsOn ?? undefined}
+                    maxDate={parent.endsOn ?? undefined}
+                    disablePast
+                    onChange={(value) => {
+                      setDatesTouched(true)
+                      setRangeStart(value)
+                    }}
+                    placeholder="Pick start date"
+                    invalid={Boolean(showDateErrors && recurringValidation.rangeStart.error)}
+                  />
+                </WizardField>
+                <WizardField
+                  label="To"
+                  id="sub-range-end"
+                  required
+                  error={showDateErrors ? recurringValidation.rangeEnd.error : null}
+                >
+                  <DatePicker
+                    id="sub-range-end"
+                    value={rangeEnd}
+                    minDate={rangeStart || parent.startsOn || undefined}
+                    maxDate={parent.endsOn ?? undefined}
+                    disablePast
+                    onChange={(value) => {
+                      setDatesTouched(true)
+                      setRangeEnd(value)
+                    }}
+                    placeholder="Pick end date"
+                    invalid={Boolean(showDateErrors && recurringValidation.rangeEnd.error)}
+                  />
+                </WizardField>
+              </div>
+              <WizardField label="Title prefix (optional)" id="sub-prefix">
+                <Input
+                  id="sub-prefix"
+                  value={titlePrefix}
+                  onChange={(e) => setTitlePrefix(e.target.value)}
+                  placeholder="Sunday"
+                />
+              </WizardField>
+              <WizardField label="Logging opens (days after each event)" id="sub-rec-log-offset">
+                <Input
+                  id="sub-rec-log-offset"
+                  type="number"
+                  min={0}
+                  max={14}
+                  value={logOffsetDays}
+                  onChange={(e) => setLogOffsetDays(Number(e.target.value) || 0)}
+                />
+              </WizardField>
+            </div>
+          )}
+
+          {step === 2 && (
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 {scopeOptions.map((kind) => (
@@ -297,22 +537,52 @@ export function CreateSubPeriodWizard({
                 <dd className="font-medium">{parent.title}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Title</dt>
-                <dd className="font-medium">{title}</dd>
+                <dt className="text-muted-foreground">Mode</dt>
+                <dd className="font-medium">{mode === 'one-off' ? 'One-off' : 'Recurring'}</dd>
               </div>
+              {mode === 'one-off' ? (
+                <>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Title</dt>
+                    <dd className="font-medium">{title}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Event</dt>
+                    <dd className="font-medium">{eventDate}</dd>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Schedule</dt>
+                    <dd className="text-right font-medium">
+                      Every {WEEKDAYS.find((d) => d.value === dayOfWeek)?.label}
+                      <br />
+                      {rangeStart} → {rangeEnd}
+                    </dd>
+                  </div>
+                  {preview && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+                      <p className="font-medium text-foreground">
+                        Will create {preview.count} sub-campaign
+                        {preview.count === 1 ? '' : 's'}
+                      </p>
+                      {preview.sampleTitles.length > 0 && (
+                        <p className="mt-1 text-muted-foreground">
+                          e.g. {preview.sampleTitles.slice(0, 3).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Period</dt>
-                <dd className="font-medium">{periodLabel}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Scope</dt>
-                <dd className="text-right font-medium">
-                  {scopeKind === 'FellowshipGroup'
-                    ? `${scopeNodeIds.length} fellowships`
-                    : scopeKindLabel(scopeKind)}
+                <dt className="text-muted-foreground">Log opens</dt>
+                <dd className="font-medium">
+                  {logOffsetDays === 0 ? 'Same day' : `${logOffsetDays} day(s) after event`}
                 </dd>
               </div>
-              {parentDirectCount > 0 && (
+              {mode === 'one-off' && parentDirectCount > 0 && (
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-3">
                   <label className="flex cursor-pointer items-start gap-3">
                     <input
@@ -322,14 +592,8 @@ export function CreateSubPeriodWizard({
                       className="mt-1"
                     />
                     <span>
-                      <span className="block font-medium text-foreground">
-                        Move {parentDirectCount} existing contribution
-                        {parentDirectCount === 1 ? '' : 's'} ({formatAmount(parentDirectTotal)})
-                        into {title.trim() || 'this sub-giving'}
-                      </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        Recommended so all giving for this campaign lives under sub-givings.
-                      </span>
+                      Move {parentDirectCount} existing contribution
+                      {parentDirectCount === 1 ? '' : 's'} ({formatAmount(parentDirectTotal)})
                     </span>
                   </label>
                 </div>
@@ -346,7 +610,13 @@ export function CreateSubPeriodWizard({
           onNext={handleNext}
           isLastStep={step === steps.length - 1}
           canProceed={canProceed}
-          submitLabel={requiresPastorApproval ? 'Submit for approval' : 'Create sub-giving'}
+          submitLabel={
+            mode === 'recurring'
+              ? `Create ${preview?.count ?? ''} sub-campaigns`.trim()
+              : requiresPastorApproval
+                ? 'Submit for approval'
+                : 'Create sub-campaign'
+          }
         />
       </div>
     </Modal>

@@ -12,7 +12,7 @@ import {
   ScopeKindBadge,
   SubGivingTagBadge,
 } from '@/components/giving/giving-badges'
-import { programCreatorLabel } from '@/lib/giving-ui'
+import { programCreatorLabel, subCampaignLogStatus } from '@/lib/giving-ui'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -212,7 +212,10 @@ export function SubGivingsPanel({
                     Title
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Period
+                    Event
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Logging
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Scope
@@ -250,7 +253,12 @@ export function SubGivingsPanel({
                         {row.title}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 align-middle text-muted-foreground">{row.periodLabel}</td>
+                    <td className="px-4 py-3 align-middle text-muted-foreground">
+                      {row.eventDate ?? row.periodLabel}
+                    </td>
+                    <td className="px-4 py-3 align-middle text-muted-foreground">
+                      {subCampaignLogStatus(row) ?? 'Open'}
+                    </td>
                     <td className="px-4 py-3 align-middle">
                       <ScopeKindBadge scopeKind={row.scopeKind} />
                     </td>
