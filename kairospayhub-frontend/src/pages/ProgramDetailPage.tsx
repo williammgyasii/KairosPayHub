@@ -13,7 +13,7 @@ import {
   type GivingProgram,
   type GivingProgramRollup,
 } from '@/api/giving'
-import { ProgramDetailView } from '@/components/giving/program-detail-view'
+import { ProgramDetailView, type ProgramDetailModal } from '@/components/giving/program-detail-view'
 import type { ProgramDetailTab } from '@/components/giving/program-dashboard'
 import { canManageChurch, isScopedLeader } from '@/api/auth'
 import { Spinner } from '@/components/ui/spinner'
@@ -32,11 +32,17 @@ export function ProgramDetailPage() {
       'subgivings',
       'pending',
       'approved',
-      'log',
       'contributions',
       'history',
     ]
+    if (tab === 'log') return undefined
     return allowed.includes(tab as ProgramDetailTab) ? (tab as ProgramDetailTab) : undefined
+  }, [searchParams])
+
+  const initialModal = useMemo((): ProgramDetailModal | undefined => {
+    const tab = searchParams.get('tab')
+    if (tab === 'log') return 'log'
+    return undefined
   }, [searchParams])
 
   const [program, setProgram] = useState<GivingProgram | null>(null)
@@ -109,6 +115,7 @@ export function ProgramDetailPage() {
       onRefresh={load}
       onRefreshChildren={reloadChildren}
       initialTab={initialTab}
+      initialModal={initialModal}
     />
   )
 }

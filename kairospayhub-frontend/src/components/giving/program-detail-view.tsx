@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { HandCoins, Plus } from 'lucide-react'
 import type { Me } from '@/api/auth'
 import type { ApiClient } from '@/api/core'
 import type { Contribution, ContributionListSummary, GivingProgram, GivingProgramRollup } from '@/api/giving'
@@ -18,10 +19,14 @@ import { ContributionsApprovalTable } from '@/components/giving/contributions-ap
 import { CreateSubPeriodWizard } from '@/components/giving/create-sub-period-wizard'
 import { LogContributionWizard } from '@/components/giving/log-contribution-wizard'
 import { ProgramDashboard, type ProgramDetailTab } from '@/components/giving/program-dashboard'
+import { ProgramDetailTabs } from '@/components/giving/program-detail-tabs'
 import { ProgramStatusBadge, ScopeKindBadge } from '@/components/giving/giving-badges'
 import { SubGivingsPanel } from '@/components/giving/sub-givings-panel'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { cn } from '@/lib/utils'
+import { Modal } from '@/components/ui/modal'
+import { Button } from '@/components/ui/button'
+
+export type ProgramDetailModal = 'log'
 
 type DetailTab = ProgramDetailTab
 
@@ -37,6 +42,7 @@ interface ProgramDetailViewProps {
   onRefresh: () => Promise<void>
   onRefreshChildren?: () => Promise<void>
   initialTab?: ProgramDetailTab
+  initialModal?: ProgramDetailModal
 }
 
 export function ProgramDetailView({
@@ -51,6 +57,7 @@ export function ProgramDetailView({
   onRefresh,
   onRefreshChildren,
   initialTab,
+  initialModal,
 }: ProgramDetailViewProps) {
   const churchManager = canManageChurch(me.role)
   const canCreateSubGivingRole = canCreateSubGiving(me.role)
@@ -63,6 +70,8 @@ export function ProgramDetailView({
     program.status === 'Open' &&
     acceptsContributions
   const [subGivingOpen, setSubGivingOpen] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
+  const showSubGivings = program.hasChildren || !program.parentProgramId
   const structureOptions = useMemo(
     () => structureOptionsForLeader(me.role, me.scopeNodeId),
     [me.role, me.scopeNodeId],
@@ -94,20 +103,17 @@ export function ProgramDetailView({
 
   const tabs = useMemo(() => {
     const items: { id: DetailTab; label: string; badge?: number }[] = [{ id: 'dashboard', label: 'Dashboard' }]
-    if (program.hasChildren || !program.parentProgramId) {
+    if (showSubGivings) {
       const badge = churchManager
         ? pendingSubGivingsCount || children.length || undefined
         : children.length || undefined
-      items.push({ id: 'subgivings', label: 'Sub givings', badge })
+      items.push({ id: 'subgivings', label: 'Sub-campaigns', badge })
     }
     if (pendingTabCount > 0) {
       items.push({ id: 'pending', label: 'Pending', badge: pendingTabCount })
     }
     if (churchManager && approvedCount > 0) {
       items.push({ id: 'approved', label: 'Approved', badge: approvedCount })
-    }
-    if (canLogContributions) {
-      items.push({ id: 'log', label: 'Log giving' })
     }
     items.push({ id: 'contributions', label: 'Contributions', badge: contributions.length })
     if (contributions.length > 0) {
@@ -116,21 +122,12 @@ export function ProgramDetailView({
     return items
   }, [
     churchManager,
-    isFellowshipLeader,
-    isCellLeader,
-    isPfccManager,
-    awaitingMyApprovalCount,
+    showSubGivings,
+    pendingSubGivingsCount,
+    children.length,
     pendingTabCount,
     approvedCount,
-    canLogContributions,
-    pendingContributions.length,
-    pendingSubGivingsCount,
-    program.status,
-    program.hasChildren,
-    program.parentProgramId,
-    acceptsContributions,
     contributions.length,
-    children.length,
   ])
 
   const [tab, setTab] = useState<DetailTab>(initialTab ?? 'dashboard')
@@ -144,6 +141,12 @@ export function ProgramDetailView({
       return 'dashboard'
     })
   }, [program.id, initialTab, tabs])
+
+  useEffect(() => {
+    if (initialModal === 'log' && canLogContributions) {
+      setLogOpen(true)
+    }
+  }, [program.id, initialModal, canLogContributions])
 
   useEffect(() => {
     if (tab === 'subgivings' && onRefreshChildren) {
@@ -214,69 +217,45 @@ export function ProgramDetailView({
     }
   }
 
-  const isLogTabActive = tab === 'log' && canLogContributions
-
   return (
-    <div
-      className={cn(
-        isLogTabActive
-          ? 'flex h-[calc(100dvh-6.5rem)] min-h-0 flex-col gap-3 overflow-hidden'
-          : 'space-y-6',
-      )}
-    >
+    <div className="space-y-5">
       <DashboardPageHeader
-        className={isLogTabActive ? 'shrink-0 space-y-2' : undefined}
         breadcrumbs={[
           { label: 'Dashboard', to: '/' },
           { label: 'Givings', to: '/givings' },
           { label: program.title },
         ]}
         title={program.title}
-        description={
-          isLogTabActive
-            ? undefined
-            : `${givingTypeLabel(program.givingType)} · ${program.periodLabel}`
-        }
+        description={`${givingTypeLabel(program.givingType)} · ${program.periodLabel}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <ScopeKindBadge scopeKind={program.scopeKind} />
             <ProgramStatusBadge status={program.status} />
+            {canLogContributions && (
+              <Button type="button" size="sm" className="gap-1.5" onClick={() => setLogOpen(true)}>
+                <HandCoins className="size-4" />
+                Log giving
+              </Button>
+            )}
+            {canCreateSubGivingRole && showSubGivings && !program.parentProgramId && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setSubGivingOpen(true)}
+              >
+                <Plus className="size-4" />
+                Add sub-campaign
+              </Button>
+            )}
           </div>
         }
       />
 
-      {error && <p className="shrink-0 text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <nav className="flex shrink-0 flex-wrap gap-2">
-        {tabs.map((item) => {
-          const active = tab === item.id
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={cn(
-                'inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
-                active
-                  ? 'border-primary bg-primary/5 text-primary shadow-sm'
-                  : 'border-border/60 bg-background text-muted-foreground hover:border-border hover:bg-muted/20 hover:text-foreground',
-              )}
-            >
-              {item.label}
-              {item.badge != null && item.badge > 0 && (
-                <span
-                  className={cn(
-                    'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                    active ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground',
-                  )}
-                >
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </nav>
+      <ProgramDetailTabs tabs={tabs} activeId={tab} onChange={setTab} />
 
       {tab === 'dashboard' && (
         <ProgramDashboard
@@ -295,10 +274,11 @@ export function ProgramDetailView({
           viewerRole={me.role}
           structureOptions={structureOptions}
           onTabChange={setTab}
+          onLogGiving={canLogContributions ? () => setLogOpen(true) : undefined}
         />
       )}
 
-      {tab === 'subgivings' && (
+      {tab === 'subgivings' && showSubGivings && (
         <SubGivingsPanel
           meRole={me.role}
           children={children}
@@ -346,24 +326,6 @@ export function ProgramDetailView({
         />
       )}
 
-      {tab === 'log' && canLogContributions && (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <LogContributionWizard
-            api={api}
-            programId={program.id}
-            meRole={me.role}
-            tree={tree}
-            scopeNodeId={me.scopeNodeId}
-            disabled={busy}
-            className="min-h-0 flex-1"
-            onLogged={async () => {
-              await onRefresh()
-              if (onRefreshChildren) await onRefreshChildren()
-            }}
-          />
-        </div>
-      )}
-
       {tab === 'contributions' && (
         <ContributionsStructureTable
           programId={program.id}
@@ -377,6 +339,34 @@ export function ProgramDetailView({
       {tab === 'history' && (
         <ContributionsHistoryTable contributions={contributions} tree={tree} viewerRole={me.role} />
       )}
+
+      {logOpen && canLogContributions ? (
+        <Modal
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen && !busy) setLogOpen(false)
+          }}
+          title="Log giving"
+          description="Record a member payment with proof. Submissions stay pending until approved."
+          size="xl"
+          className="max-w-3xl"
+        >
+          <LogContributionWizard
+            embedded
+            api={api}
+            programId={program.id}
+            meRole={me.role}
+            tree={tree}
+            scopeNodeId={me.scopeNodeId}
+            disabled={busy}
+            className="min-h-[min(70vh,640px)]"
+            onLogged={async () => {
+              await onRefresh()
+              if (onRefreshChildren) await onRefreshChildren()
+            }}
+          />
+        </Modal>
+      ) : null}
 
       {canCreateSubGivingRole && subGivingOpen ? (
         <CreateSubPeriodWizard

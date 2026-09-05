@@ -55,6 +55,7 @@ interface LogContributionWizardProps {
   tree: StructureTree | null
   scopeNodeId?: string | null
   paymentModes?: ChurchPaymentMode[]
+  embedded?: boolean
   disabled?: boolean
   className?: string
   onLogged: () => void | Promise<void>
@@ -71,6 +72,7 @@ export function LogContributionWizard({
   scopeNodeId,
   paymentModes = [],
   disabled,
+  embedded,
   className,
   onLogged,
 }: LogContributionWizardProps) {
@@ -345,40 +347,59 @@ export function LogContributionWizard({
           : 'Log a member payment with proof. Submissions stay pending until approved.'
 
   return (
-    <Card className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}>
-      <CardHeader className="shrink-0 space-y-2 border-b border-border/50 bg-muted/10 px-5 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <CardTitle className="text-lg">{modeTitle}</CardTitle>
-              {mode !== null && (
-                <span
-                  className={cn(
-                    'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                    mode === 'bulk'
-                      ? 'border-primary/30 bg-primary/10 text-primary'
-                      : 'border-border/60 bg-muted/40 text-muted-foreground',
-                  )}
-                >
-                  {mode === 'bulk' ? 'Bulk' : 'Single'}
-                </span>
-              )}
+    <Card
+      className={cn(
+        'flex min-h-0 flex-1 flex-col overflow-hidden',
+        embedded && 'border-0 bg-transparent shadow-none',
+        className,
+      )}
+    >
+      {!embedded && (
+        <CardHeader className="shrink-0 space-y-2 border-b border-border/50 bg-muted/10 px-5 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-lg">{modeTitle}</CardTitle>
+                {mode !== null && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                      mode === 'bulk'
+                        ? 'border-primary/30 bg-primary/10 text-primary'
+                        : 'border-border/60 bg-muted/40 text-muted-foreground',
+                    )}
+                  >
+                    {mode === 'bulk' ? 'Bulk' : 'Single'}
+                  </span>
+                )}
+              </div>
+              <CardDescription className="text-xs sm:text-sm">{modeDescription}</CardDescription>
             </div>
-            <CardDescription className="text-xs sm:text-sm">{modeDescription}</CardDescription>
+            {mode !== null && !success && (
+              <div className="shrink-0 text-right text-xs">
+                <p className="font-medium text-foreground">{steps[step]}</p>
+                <p className="text-muted-foreground">
+                  Step {step + 1} of {steps.length}
+                </p>
+              </div>
+            )}
           </div>
-          {mode !== null && !success && (
-            <div className="shrink-0 text-right text-xs">
-              <p className="font-medium text-foreground">{steps[step]}</p>
-              <p className="text-muted-foreground">
-                Step {step + 1} of {steps.length}
-              </p>
-            </div>
+          {mode !== null && (
+            <Progress value={progress} className="h-1 transition-all duration-500 ease-out" />
           )}
-        </div>
-        {mode !== null && (
+        </CardHeader>
+      )}
+      {embedded && mode !== null && !success && (
+        <div className="shrink-0 space-y-2 border-b border-border/50 px-1 pb-3">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <p className="font-medium text-foreground">{steps[step]}</p>
+            <p className="text-muted-foreground">
+              Step {step + 1} of {steps.length}
+            </p>
+          </div>
           <Progress value={progress} className="h-1 transition-all duration-500 ease-out" />
-        )}
-      </CardHeader>
+        </div>
+      )}
       <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
         {busy && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-[1px]">
@@ -482,6 +503,7 @@ export function LogContributionWizard({
                       onChange={setDateSent}
                       disabled={disabled || busy}
                       required
+                      disableFuture
                     />
                   </WizardField>
                 </div>
@@ -659,6 +681,7 @@ export function LogContributionWizard({
                     onChange={setDateSent}
                     disabled={disabled || busy}
                     required
+                    disableFuture
                   />
                 </WizardField>
 
