@@ -92,14 +92,44 @@ public record CreateGivingProgramRequest(
     Guid? ScopeNodeId,
     IReadOnlyList<Guid>? ScopeNodeIds = null,
     Guid? ParentProgramId = null,
-    bool? MoveParentContributions = null);
+    bool? MoveParentContributions = null,
+    DateOnly? StartsOn = null,
+    DateOnly? EndsOn = null,
+    DateTimeOffset? GoLiveAt = null,
+    string? CustomTypeLabel = null,
+    DateOnly? EventDate = null,
+    DateTimeOffset? LogOpensAt = null);
+
+public record BatchSubCampaignRequest(
+    string Frequency,
+    int DayOfWeek,
+    DateOnly RangeStart,
+    DateOnly RangeEnd,
+    int LogOpensOffsetDays = 1,
+    string? TitlePrefix = null,
+    string? ScopeKind = null,
+    Guid? ScopeNodeId = null,
+    IReadOnlyList<Guid>? ScopeNodeIds = null);
+
+public record BatchSubCampaignPreviewDto(
+    int Count,
+    IReadOnlyList<string> SampleTitles,
+    IReadOnlyList<string> SampleEventDates);
+
+public record BatchSubCampaignCreateResponse(IReadOnlyList<GivingProgramDto> Programs);
 
 public record GivingProgramDto(
     Guid Id,
     Guid? ParentProgramId,
     string GivingType,
+    string? CustomTypeLabel,
     string Title,
     string PeriodLabel,
+    string? StartsOn,
+    string? EndsOn,
+    string? GoLiveAt,
+    string? EventDate,
+    string? LogOpensAt,
     string ScopeKind,
     Guid? ScopeNodeId,
     string Status,

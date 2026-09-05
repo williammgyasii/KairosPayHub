@@ -290,6 +290,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.GivingType).HasConversion<string>().IsRequired();
             e.Property(x => x.Title).IsRequired().HasMaxLength(200);
             e.Property(x => x.PeriodLabel).IsRequired().HasMaxLength(80);
+            e.Property(x => x.CustomTypeLabel).HasMaxLength(100);
             e.Property(x => x.ScopeKind).HasConversion<string>().IsRequired();
             e.Property(x => x.Status).HasConversion<string>().IsRequired();
             e.HasIndex(x => x.ChurchId);

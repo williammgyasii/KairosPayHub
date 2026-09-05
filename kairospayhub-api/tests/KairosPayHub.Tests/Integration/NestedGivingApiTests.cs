@@ -34,7 +34,7 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Pastor_creates_sub_period_and_logs_contribution_on_child_not_parent()
+    public async Task Pastor_creates_sub_period_and_logs_contribution_on_parent_and_child()
     {
         var pastor = PastorClient();
         await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Nested Church" });
@@ -114,15 +114,24 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(1, children.GetProperty("programs").GetArrayLength());
 
         var cellClient = ClientForAuthUser(cellLeader.AuthUserId!.Value, "bob@example.com", "Bob");
+        var fellowshipClient = ClientForAuthUser(fellowshipLeader.AuthUserId!.Value, "jane@example.com", "Jane");
 
-        var blockedOnParent = await cellClient.PostAsJsonAsync($"/api/giving/programs/{rootId}/contributions", new
+        var onParent = await cellClient.PostAsJsonAsync($"/api/giving/programs/{rootId}/contributions", new
         {
             memberId,
             amount = 50m,
             dateSent = "2026-01-15T00:00:00Z",
             attachmentKey = "giving/test/a.jpg",
         });
-        Assert.Equal(HttpStatusCode.BadRequest, blockedOnParent.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, onParent.StatusCode);
+        var parentContributionId = (await onParent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var approveParent = await fellowshipClient.PostAsync(
+            $"/api/giving/programs/{rootId}/contributions/{parentContributionId}/approve",
+            null);
+        Assert.Equal(HttpStatusCode.OK, approveParent.StatusCode);
+
+        var rootWithChild = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}");
+        Assert.True(rootWithChild.GetProperty("acceptsContributions").GetBoolean());
 
         var onChild = await cellClient.PostAsJsonAsync($"/api/giving/programs/{childId}/contributions", new
         {
@@ -133,7 +142,6 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
         });
         Assert.Equal(HttpStatusCode.OK, onChild.StatusCode);
 
-        var fellowshipClient = ClientForAuthUser(fellowshipLeader.AuthUserId!.Value, "jane@example.com", "Jane");
         var contributionId = (await onChild.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         var approve = await fellowshipClient.PostAsync(
             $"/api/giving/programs/{childId}/contributions/{contributionId}/approve",
@@ -141,7 +149,7 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
 
         var rootRollup = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/rollup");
-        Assert.Equal(100m, rootRollup.GetProperty("totalApprovedAmount").GetDecimal());
+        Assert.Equal(150m, rootRollup.GetProperty("totalApprovedAmount").GetDecimal());
         Assert.True(rootRollup.GetProperty("includesDescendants").GetBoolean());
 
         children = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/children");
@@ -332,7 +340,7 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Rollup_excludes_direct_parent_contributions_when_sub_givings_exist()
+    public async Task Rollup_includes_direct_parent_and_sub_giving_contributions()
     {
         var (pastor, rootId, memberId, fellowshipClient, cellClient) = await SeedNestedGivingAsync();
 
@@ -370,10 +378,38 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
             null);
 
         var rootRollup = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}/rollup");
-        Assert.Equal(100m, rootRollup.GetProperty("totalApprovedAmount").GetDecimal());
+        Assert.Equal(150m, rootRollup.GetProperty("totalApprovedAmount").GetDecimal());
 
         var rootProgram = await pastor.GetFromJsonAsync<JsonElement>($"/api/giving/programs/{rootId}");
-        Assert.Equal(100m, rootProgram.GetProperty("totalApprovedAmount").GetDecimal());
+        Assert.Equal(150m, rootProgram.GetProperty("totalApprovedAmount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Parent_contributions_after_sub_givings_exist_are_not_legacy()
+    {
+        var (pastor, rootId, memberId, fellowshipClient, cellClient) = await SeedNestedGivingAsync();
+
+        await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            parentProgramId = rootId,
+            title = "January 2026",
+            periodLabel = "January 2026",
+            scopeKind = "ChurchWide",
+        });
+
+        var onParent = await cellClient.PostAsJsonAsync($"/api/giving/programs/{rootId}/contributions", new
+        {
+            memberId,
+            amount = 40m,
+            dateSent = "2026-02-01T00:00:00Z",
+            attachmentKey = "giving/test/general-pool.jpg",
+        });
+        Assert.Equal(HttpStatusCode.OK, onParent.StatusCode);
+
+        var parentList = await pastor.GetFromJsonAsync<JsonElement>(
+            $"/api/giving/programs/{rootId}/contributions?page=1&pageSize=20");
+        var row = parentList.GetProperty("contributions")[0];
+        Assert.False(row.GetProperty("isLegacyParentContribution").GetBoolean());
     }
 
     [Fact]

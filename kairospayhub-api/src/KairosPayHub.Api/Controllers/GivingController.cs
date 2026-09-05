@@ -80,9 +80,43 @@ public class GivingController(
                 request.ScopeNodeId,
                 request.ScopeNodeIds,
                 request.ParentProgramId,
-                request.MoveParentContributions ?? false),
+                request.MoveParentContributions ?? false,
+                request.StartsOn,
+                request.EndsOn,
+                request.GoLiveAt,
+                request.CustomTypeLabel,
+                request.EventDate,
+                request.LogOpensAt),
             ct);
         return Ok(program);
+    }
+
+    [HttpPost("programs/{programId:guid}/sub-campaigns/preview")]
+    public async Task<IActionResult> PreviewBatchSubCampaigns(
+        Guid programId,
+        [FromBody] BatchSubCampaignRequest request,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var preview = await programs.PreviewBatchSubCampaignsAsync(actor, authUserId, programId, request, ct);
+        return Ok(preview);
+    }
+
+    [HttpPost("programs/{programId:guid}/sub-campaigns/batch")]
+    public async Task<IActionResult> CreateBatchSubCampaigns(
+        Guid programId,
+        [FromBody] BatchSubCampaignRequest request,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var created = await programs.CreateBatchSubCampaignsAsync(actor, authUserId, programId, request, ct);
+        return Ok(new BatchSubCampaignCreateResponse(created));
     }
 
     [HttpPost("programs/{programId:guid}/approve")]

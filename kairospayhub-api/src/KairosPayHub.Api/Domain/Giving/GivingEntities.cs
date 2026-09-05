@@ -6,6 +6,7 @@ public enum GivingType
     SundayService,
     SpecialProgram,
     FellowshipGiving,
+    Other,
 }
 
 public enum ProgramScopeKind
@@ -20,6 +21,7 @@ public enum ProgramStatus
 {
     Open,
     Closed,
+    Scheduled,
 }
 
 public enum ProgramApprovalStatus
@@ -53,8 +55,15 @@ public class GivingProgram
     public GivingProgram? ParentProgram { get; set; }
     public ICollection<GivingProgram> ChildPrograms { get; set; } = new List<GivingProgram>();
     public GivingType GivingType { get; set; }
+    public string? CustomTypeLabel { get; set; }
     public string Title { get; set; } = string.Empty;
     public string PeriodLabel { get; set; } = string.Empty;
+    public DateOnly? StartsOn { get; set; }
+    public DateOnly? EndsOn { get; set; }
+    public DateTimeOffset? GoLiveAt { get; set; }
+    public DateOnly? EventDate { get; set; }
+    public DateTimeOffset? LogOpensAt { get; set; }
+    public DateTimeOffset? LeadersNotifiedAt { get; set; }
     public ProgramScopeKind ScopeKind { get; set; }
     public Guid? ScopeNodeId { get; set; }
     public ProgramStatus Status { get; set; } = ProgramStatus.Open;

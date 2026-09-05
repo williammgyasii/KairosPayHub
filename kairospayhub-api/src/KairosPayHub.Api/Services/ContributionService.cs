@@ -105,13 +105,16 @@ public class ContributionService(
             throw new BadRequestException("Amount must be greater than zero");
 
         if (program.ApprovalStatus != ProgramApprovalStatus.Approved)
-            throw new BadRequestException("Contributions can only be logged on approved sub-givings");
+            throw new BadRequestException("Contributions can only be logged on approved programs");
+
+        if (program.Status == ProgramStatus.Scheduled)
+            throw new BadRequestException("This campaign is not live yet");
+
+        if (program.LogOpensAt is not null && program.LogOpensAt > DateTimeOffset.UtcNow)
+            throw new BadRequestException("Logging is not open for this sub-campaign yet");
 
         if (!await scope.CanEnterContributionAsync(actor, authUserId, program, member, ct))
             throw new ForbiddenException("You cannot log contributions for this member");
-
-        if (await db.GivingPrograms.AnyAsync(p => p.ParentProgramId == program.Id, ct))
-            throw new BadRequestException("Contributions must be logged on a sub-period, not on a parent giving");
 
         var churchCurrency = await db.StructureChurches.AsNoTracking()
             .Where(c => c.Id == churchId)
@@ -699,9 +702,6 @@ public class ContributionService(
 
         var programIds = await scope.CollectDescendantProgramIdsIncludingSelfAsync(churchId, programId, ct);
         var hasChildren = programIds.Count > 1;
-        if (hasChildren)
-            programIds = programIds.Where(id => id != programId).ToList();
-
         var includesDescendants = hasChildren;
 
         var approved = await db.Contributions.AsNoTracking()
@@ -848,6 +848,12 @@ public class ContributionService(
             .Distinct()
             .ToHashSetAsync(ct);
 
+        var firstChildCreatedAtByParent = await db.GivingPrograms.AsNoTracking()
+            .Where(p => p.ChurchId == churchId && p.ParentProgramId != null)
+            .GroupBy(p => p.ParentProgramId!.Value)
+            .Select(g => new { ParentId = g.Key, FirstChildAt = g.Min(p => p.CreatedAt) })
+            .ToDictionaryAsync(x => x.ParentId, x => x.FirstChildAt, ct);
+
         var memberIds = contributions.Select(c => c.MemberId).Distinct().ToList();
         var memberNames = await db.ChurchMembers.AsNoTracking()
             .Where(m => memberIds.Contains(m.Id))
@@ -890,13 +896,18 @@ public class ContributionService(
                 pendingApproverRole = approvingRole?.ToString();
             }
 
+            var isLegacyParent = program?.ParentProgramId is null
+                && parentIdsWithChildren.Contains(c.ProgramId)
+                && firstChildCreatedAtByParent.TryGetValue(c.ProgramId, out var firstChildAt)
+                && c.CreatedAt < firstChildAt;
+
             result.Add(new ContributionDto(
                 c.Id,
                 c.ProgramId,
                 program?.Title ?? "Giving",
                 program?.PeriodLabel ?? "",
                 program?.ParentProgramId is not null,
-                program?.ParentProgramId is null && parentIdsWithChildren.Contains(c.ProgramId),
+                isLegacyParent,
                 c.MemberId,
                 memberNames.GetValueOrDefault(c.MemberId) ?? "Member",
                 c.Amount,

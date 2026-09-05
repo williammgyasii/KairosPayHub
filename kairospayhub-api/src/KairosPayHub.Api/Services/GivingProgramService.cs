@@ -16,7 +16,14 @@ public record CreateGivingProgramInput(
     Guid? ScopeNodeId = null,
     IReadOnlyList<Guid>? ScopeNodeIds = null,
     Guid? ParentProgramId = null,
-    bool MoveParentContributions = false);
+    bool MoveParentContributions = false,
+    DateOnly? StartsOn = null,
+    DateOnly? EndsOn = null,
+    DateTimeOffset? GoLiveAt = null,
+    string? CustomTypeLabel = null,
+    DateOnly? EventDate = null,
+    DateTimeOffset? LogOpensAt = null,
+    bool SuppressOpenNotification = false);
 
 public class GivingProgramService(KairosDbContext db, GivingScopeService scope, NotificationService notifications)
 {
@@ -26,6 +33,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
+        await ActivateDueProgramsAsync(churchId, ct);
 
         var programs = await db.GivingPrograms.AsNoTracking()
             .Where(p => p.ChurchId == churchId && p.ParentProgramId == null)
@@ -72,6 +80,8 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
+        await ActivateDueProgramsAsync(churchId, ct);
+
         _ = await db.GivingPrograms.AsNoTracking()
             .SingleOrDefaultAsync(p => p.Id == parentProgramId && p.ChurchId == churchId, ct)
             ?? throw new ForbiddenException("Program not found");
@@ -111,6 +121,8 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
+        await ActivateDueProgramsAsync(churchId, ct);
+
         var program = await db.GivingPrograms.AsNoTracking()
             .SingleOrDefaultAsync(p => p.Id == programId && p.ChurchId == churchId, ct)
             ?? throw new ForbiddenException("Program not found");
@@ -131,6 +143,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
+        await ActivateDueProgramsAsync(churchId, ct);
         if (scope.CanManageChurch(actor))
             return await GetPastorDashboardAsync(churchId, ct);
 
@@ -504,12 +517,22 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
     {
         var churchId = RequireStructureChurch(actor);
         var title = input.Title.Trim();
-        var periodLabel = input.PeriodLabel.Trim();
+        var periodLabel = string.IsNullOrWhiteSpace(input.PeriodLabel)
+            ? input.EventDate?.ToString("yyyy-MM-dd")
+              ?? CampaignScheduling.DerivePeriodLabel(input.StartsOn, input.EndsOn, null)
+            : input.PeriodLabel.Trim();
 
         if (string.IsNullOrWhiteSpace(title))
             throw new BadRequestException("Title is required");
-        if (string.IsNullOrWhiteSpace(periodLabel))
-            throw new BadRequestException("Period label is required");
+
+        if (input.StartsOn is not null && input.EndsOn is not null && input.EndsOn < input.StartsOn)
+            throw new BadRequestException("End date must be on or after start date");
+
+        if (input.GivingType.Equals("Other", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(input.CustomTypeLabel))
+        {
+            throw new BadRequestException("Custom type label is required when giving type is Other");
+        }
 
         GivingProgram? parent = null;
         GivingType givingType;
@@ -589,22 +612,37 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
             sortOrder += 1;
         }
 
+        var now = DateTimeOffset.UtcNow;
+        var goLiveAt = input.GoLiveAt;
+        var initialStatus = ProgramStatus.Open;
+        if (input.ParentProgramId is null && goLiveAt is not null && goLiveAt > now)
+            initialStatus = ProgramStatus.Scheduled;
+
         var program = new GivingProgram
         {
             ChurchId = churchId,
             ParentProgramId = input.ParentProgramId,
             GivingType = givingType,
+            CustomTypeLabel = string.IsNullOrWhiteSpace(input.CustomTypeLabel)
+                ? null
+                : input.CustomTypeLabel.Trim(),
             Title = title,
             PeriodLabel = periodLabel,
+            StartsOn = input.StartsOn ?? input.EventDate,
+            EndsOn = input.EndsOn ?? input.EventDate,
+            GoLiveAt = input.ParentProgramId is null ? goLiveAt : null,
+            EventDate = input.EventDate,
+            LogOpensAt = input.LogOpensAt,
             ScopeKind = scopeKind,
             ScopeNodeId = input.ScopeNodeId,
-            Status = ProgramStatus.Open,
+            Status = initialStatus,
             ApprovalStatus = scope.CanManageChurch(actor)
                 ? ProgramApprovalStatus.Approved
                 : ProgramApprovalStatus.PendingPastorApproval,
             CreatedByRole = actor.StructureRole,
             CreatedByAuthUserId = createdByAuthUserId,
             SortOrder = sortOrder,
+            CreatedAt = now,
         };
 
         db.GivingPrograms.Add(program);
@@ -637,13 +675,219 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         {
             await notifications.NotifySubGivingPendingAsync(program, ct);
         }
-        else if (program.ApprovalStatus == ProgramApprovalStatus.Approved)
+        else if (program.ApprovalStatus == ProgramApprovalStatus.Approved
+            && !input.SuppressOpenNotification
+            && initialStatus == ProgramStatus.Open)
         {
             await notifications.NotifyGivingCampaignOpenedAsync(program, createdByAuthUserId, ct);
+            program.LeadersNotifiedAt = now;
+            await db.SaveChangesAsync(ct);
         }
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
         return await MapProgramToDtoAsync(actor, createdByAuthUserId, churchId, program, parentIdsWithChildren, ct);
+    }
+
+    public async Task<BatchSubCampaignPreviewDto> PreviewBatchSubCampaignsAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid parentProgramId,
+        BatchSubCampaignRequest request,
+        CancellationToken ct = default)
+    {
+        var parent = await RequireParentForBatchAsync(actor, authUserId, parentProgramId, request, ct);
+        var dates = BuildBatchEventDates(parent, request).ToList();
+        var samples = dates.Take(5).ToList();
+        return new BatchSubCampaignPreviewDto(
+            dates.Count,
+            samples.Select(d => CampaignScheduling.BuildSubCampaignTitle(d, request.TitlePrefix)).ToList(),
+            samples.Select(d => d.ToString("yyyy-MM-dd")).ToList());
+    }
+
+    public async Task<IReadOnlyList<GivingProgramDto>> CreateBatchSubCampaignsAsync(
+        Actor actor,
+        Guid createdByAuthUserId,
+        Guid parentProgramId,
+        BatchSubCampaignRequest request,
+        CancellationToken ct = default)
+    {
+        var parent = await RequireParentForBatchAsync(actor, createdByAuthUserId, parentProgramId, request, ct);
+        var dates = BuildBatchEventDates(parent, request).ToList();
+        if (dates.Count == 0)
+            throw new BadRequestException("No sub-campaign dates in the selected range");
+
+        var scopeKind = string.IsNullOrWhiteSpace(request.ScopeKind)
+            ? parent.ScopeKind
+            : ParseScopeKind(request.ScopeKind);
+        var scopeNodeId = request.ScopeNodeId ?? parent.ScopeNodeId;
+        var scopeNodeIds = request.ScopeNodeIds;
+
+        if (scopeKind is ProgramScopeKind.Fellowship or ProgramScopeKind.PFCC && scopeNodeId is null)
+            throw new BadRequestException("ScopeNodeId is required for scoped sub-campaigns");
+
+        var sortOrder = await db.GivingPrograms
+            .Where(p => p.ParentProgramId == parent.Id)
+            .Select(p => (int?)p.SortOrder)
+            .MaxAsync(ct) ?? -1;
+
+        var now = DateTimeOffset.UtcNow;
+        var created = new List<GivingProgram>();
+
+        foreach (var eventDate in dates)
+        {
+            sortOrder += 1;
+            var title = CampaignScheduling.BuildSubCampaignTitle(eventDate, request.TitlePrefix);
+            var program = new GivingProgram
+            {
+                ChurchId = parent.ChurchId,
+                ParentProgramId = parent.Id,
+                GivingType = parent.GivingType,
+                CustomTypeLabel = parent.CustomTypeLabel,
+                Title = title,
+                PeriodLabel = eventDate.ToString("yyyy-MM-dd"),
+                StartsOn = eventDate,
+                EndsOn = eventDate,
+                EventDate = eventDate,
+                LogOpensAt = CampaignScheduling.ComputeLogOpensAt(eventDate, request.LogOpensOffsetDays),
+                ScopeKind = scopeKind,
+                ScopeNodeId = scopeNodeId,
+                Status = ProgramStatus.Open,
+                ApprovalStatus = scope.CanManageChurch(actor)
+                    ? ProgramApprovalStatus.Approved
+                    : ProgramApprovalStatus.PendingPastorApproval,
+                CreatedByRole = actor.StructureRole,
+                CreatedByAuthUserId = createdByAuthUserId,
+                SortOrder = sortOrder,
+                CreatedAt = now,
+            };
+            db.GivingPrograms.Add(program);
+            created.Add(program);
+
+            if (scopeKind == ProgramScopeKind.FellowshipGroup && scopeNodeIds is not null)
+            {
+                foreach (var nodeId in scopeNodeIds.Distinct())
+                {
+                    db.GivingProgramScopeNodes.Add(new GivingProgramScopeNode
+                    {
+                        ProgramId = program.Id,
+                        StructureNodeId = nodeId,
+                    });
+                }
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        if (created.Any(p => p.ApprovalStatus == ProgramApprovalStatus.PendingPastorApproval))
+        {
+            foreach (var program in created.Where(p => p.ApprovalStatus == ProgramApprovalStatus.PendingPastorApproval))
+                await notifications.NotifySubGivingPendingAsync(program, ct);
+        }
+
+        var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(parent.ChurchId, ct);
+        var dtos = new List<GivingProgramDto>();
+        foreach (var program in created)
+        {
+            dtos.Add(await MapProgramToDtoAsync(
+                actor,
+                createdByAuthUserId,
+                parent.ChurchId,
+                program,
+                parentIdsWithChildren,
+                ct));
+        }
+
+        return dtos;
+    }
+
+    private async Task<GivingProgram> RequireParentForBatchAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid parentProgramId,
+        BatchSubCampaignRequest request,
+        CancellationToken ct)
+    {
+        if (!request.Frequency.Equals("Weekly", StringComparison.OrdinalIgnoreCase))
+            throw new BadRequestException("Only Weekly frequency is supported");
+
+        if (request.DayOfWeek is < 0 or > 6)
+            throw new BadRequestException("DayOfWeek must be 0 (Sunday) through 6 (Saturday)");
+
+        if (request.RangeEnd < request.RangeStart)
+            throw new BadRequestException("Range end must be on or after range start");
+
+        var churchId = RequireStructureChurch(actor);
+        var parent = await db.GivingPrograms.AsNoTracking()
+            .SingleOrDefaultAsync(p => p.Id == parentProgramId && p.ChurchId == churchId, ct)
+            ?? throw new BadRequestException("Parent program not found");
+
+        if (parent.ParentProgramId is not null)
+            throw new BadRequestException("Sub-campaigns can only be added to a main campaign");
+
+        if (!scope.CanManageChurch(actor) && actor.StructureRole != ChurchRole.PFCCManager)
+            throw new ForbiddenException("Only pastors and PFCC managers can create sub-campaigns");
+
+        if (!scope.CanManageChurch(actor)
+            && !await scope.CanAccessProgramByIdAsync(churchId, parentProgramId, actor, authUserId, ct))
+        {
+            throw new ForbiddenException("Program not found");
+        }
+
+        return parent;
+    }
+
+    private static IEnumerable<DateOnly> BuildBatchEventDates(
+        GivingProgram parent,
+        BatchSubCampaignRequest request)
+    {
+        var rangeStart = request.RangeStart;
+        var rangeEnd = request.RangeEnd;
+
+        if (parent.StartsOn is not null && rangeStart < parent.StartsOn)
+            rangeStart = parent.StartsOn.Value;
+        if (parent.EndsOn is not null && rangeEnd > parent.EndsOn)
+            rangeEnd = parent.EndsOn.Value;
+
+        var dates = CampaignScheduling
+            .EnumerateWeeklyOccurrences((DayOfWeek)request.DayOfWeek, rangeStart, rangeEnd)
+            .ToList();
+
+        if (dates.Count > CampaignScheduling.MaxBatchSubCampaigns)
+            throw new BadRequestException(
+                $"Cannot create more than {CampaignScheduling.MaxBatchSubCampaigns} sub-campaigns at once");
+
+        return dates;
+    }
+
+    private async Task ActivateDueProgramsAsync(Guid churchId, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var due = await db.GivingPrograms
+            .Where(p => p.ChurchId == churchId
+                && p.Status == ProgramStatus.Scheduled
+                && p.GoLiveAt != null
+                && p.GoLiveAt <= now
+                && p.ApprovalStatus == ProgramApprovalStatus.Approved)
+            .ToListAsync(ct);
+
+        if (due.Count == 0)
+            return;
+
+        foreach (var program in due)
+            program.Status = ProgramStatus.Open;
+
+        await db.SaveChangesAsync(ct);
+
+        foreach (var program in due)
+        {
+            if (program.LeadersNotifiedAt is not null)
+                continue;
+
+            await notifications.NotifyGivingCampaignOpenedAsync(program, program.CreatedByAuthUserId, ct);
+            program.LeadersNotifiedAt = now;
+        }
+
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task<GivingProgramDto> ApproveSubGivingAsync(
@@ -1068,7 +1312,8 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
             var descendantIds = CollectDescendantIds(program.Id, childrenByParent);
             if (hasChildren)
             {
-                totals[program.Id] = descendantIds.Sum(id => approvedByProgram.GetValueOrDefault(id));
+                totals[program.Id] = approvedByProgram.GetValueOrDefault(program.Id)
+                    + descendantIds.Sum(id => approvedByProgram.GetValueOrDefault(id));
             }
             else
             {
@@ -1088,12 +1333,19 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
         DirectContributionStats? directStats)
     {
         var hasChildren = parentIdsWithChildren.Contains(program.Id);
+        var now = DateTimeOffset.UtcNow;
         return new GivingProgramDto(
             program.Id,
             program.ParentProgramId,
             program.GivingType.ToString(),
+            program.CustomTypeLabel,
             program.Title,
             program.PeriodLabel,
+            program.StartsOn?.ToString("yyyy-MM-dd"),
+            program.EndsOn?.ToString("yyyy-MM-dd"),
+            program.GoLiveAt?.ToString("o"),
+            program.EventDate?.ToString("yyyy-MM-dd"),
+            program.LogOpensAt?.ToString("o"),
             program.ScopeKind.ToString(),
             program.ScopeNodeId,
             program.Status.ToString(),
@@ -1104,7 +1356,7 @@ public class GivingProgramService(KairosDbContext db, GivingScopeService scope, 
             program.CreatedAt,
             totalApprovedAmount,
             hasChildren,
-            AcceptsContributions: !hasChildren && program.ApprovalStatus == ProgramApprovalStatus.Approved,
+            CampaignScheduling.AcceptsContributionsNow(program, now),
             directStats?.Count ?? 0,
             directStats?.Total ?? 0m);
     }
