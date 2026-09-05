@@ -82,7 +82,7 @@ public class AuthTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access);
 
-        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { churchName = "Grace Assembly" });
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Grace Assembly" });
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
 
         var body = await onboard.Content.ReadFromJsonAsync<JsonElement>();
@@ -173,7 +173,7 @@ public class AuthTests : IAsyncLifetime
         var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
         Assert.False(me.GetProperty("onboarded").GetBoolean());
 
-        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { organizationName = "Grace" });
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", organizationName = "Grace" });
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
 
         me = await client.GetFromJsonAsync<JsonElement>("/api/me");
@@ -257,7 +257,7 @@ public class AuthTests : IAsyncLifetime
         var access = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access);
-        await client.PostAsJsonAsync("/api/onboarding", new { organizationName = "Org" });
+        await client.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", organizationName = "Org" });
         return client;
     }
 

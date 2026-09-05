@@ -969,8 +969,19 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Property<int?>("ApproximateMemberCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DefaultCurrency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("GHS");
 
                     b.Property<string>("Location")
                         .HasColumnType("text");

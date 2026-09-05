@@ -14,11 +14,15 @@ import { EventsCalendarGrid } from '@/components/events/events-calendar-grid'
 import { EventsDaySheet } from '@/components/events/events-day-sheet'
 import { defaultEventScopeNodeId, eventsForDay } from '@/lib/calendar-events-ui'
 import { formatApiError } from '@/lib/structure-tree'
+import { useAppDispatch } from '@/store/hooks'
+import { invalidateNotificationTags } from '@/store/notificationsApi'
+import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
 export function EventsPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const api = useApi()
+  const dispatch = useAppDispatch()
   const scopeUnitName = me.onboarded
     ? me.scopeUnitName ?? me.rollCallScopes?.[0]?.scopeUnitName ?? 'your scope'
     : 'your scope'
@@ -26,6 +30,7 @@ export function EventsPage() {
   const [month, setMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [startWithAddForm, setStartWithAddForm] = useState(false)
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -66,18 +71,34 @@ export function EventsPage() {
   const canCreate = me.onboarded
   const createScopeNodeId = defaultEventScopeNodeId(me)
 
-  async function handleCreate(input: { title: string; description: string }) {
-    if (!selectedDate) return
+  function openDaySheet(date: Date, withAddForm = false) {
+    setSelectedDate(date)
+    setStartWithAddForm(withAddForm)
+    setSheetOpen(true)
+  }
+
+  async function handleCreate(input: {
+    title: string
+    description: string
+    notifyLeadersUp: boolean
+    notifyLeadersDown: boolean
+  }) {
+    const eventDate = selectedDate ?? new Date()
     setBusy(true)
     setError(null)
     try {
       await createCalendarEvent(api, {
         title: input.title,
         description: input.description || null,
-        eventDate: format(selectedDate, 'yyyy-MM-dd'),
+        eventDate: format(eventDate, 'yyyy-MM-dd'),
         scopeNodeId: canManageChurch(me.role) ? null : createScopeNodeId,
+        notifyLeadersUp: input.notifyLeadersUp,
+        notifyLeadersDown: input.notifyLeadersDown,
       })
       await loadFeed()
+      if (input.notifyLeadersUp || input.notifyLeadersDown) {
+        dispatch(invalidateNotificationTags())
+      }
     } catch (err) {
       setError(formatApiError(err))
     } finally {
@@ -100,12 +121,24 @@ export function EventsPage() {
   }
 
   return (
-    <div className="-mx-4 -my-5 flex h-[calc(100dvh-3.5rem)] flex-col gap-2 overflow-hidden px-4 sm:-mx-6 sm:-my-6 sm:gap-3 sm:px-6">
-      <div className="shrink-0">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Events</h1>
-        <p className="text-xs text-muted-foreground sm:text-sm">
-          Birthdays, meetings, and reminders for {scopeUnitName}. Click a day for details.
-        </p>
+    <div className="-mx-4 -my-5 flex h-[calc(100dvh-3.5rem)] flex-col gap-1.5 overflow-hidden px-4 sm:-mx-6 sm:-my-6 sm:gap-2 sm:px-6">
+      <div className="flex shrink-0 items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Events</h1>
+          <p className="text-[11px] text-muted-foreground sm:text-xs">
+            Birthdays, meetings, and reminders for {scopeUnitName}.
+          </p>
+        </div>
+        {canCreate ? (
+          <Button
+            type="button"
+            size="sm"
+            className="shrink-0"
+            onClick={() => openDaySheet(selectedDate ?? new Date(), true)}
+          >
+            New event
+          </Button>
+        ) : null}
       </div>
 
       {error && (
@@ -123,10 +156,7 @@ export function EventsPage() {
             onMonthChange={setMonth}
             events={events}
             selectedDate={selectedDate}
-            onSelectDate={(date) => {
-              setSelectedDate(date)
-              setSheetOpen(true)
-            }}
+            onSelectDate={(date) => openDaySheet(date)}
           />
         </div>
       )}
@@ -136,8 +166,10 @@ export function EventsPage() {
         onOpenChange={setSheetOpen}
         date={selectedDate}
         events={dayEvents}
+        me={me}
         canCreate={canCreate}
         createBusy={busy}
+        startWithAddForm={startWithAddForm}
         onCreate={handleCreate}
         onDelete={handleDelete}
       />

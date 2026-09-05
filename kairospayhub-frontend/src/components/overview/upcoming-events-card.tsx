@@ -99,6 +99,8 @@ export function UpcomingEventsCard() {
             <div
               className={cn(
                 'flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1',
+                'md:grid md:gap-3 md:overflow-visible md:pb-0',
+                'md:[grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))]',
                 '[scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5',
                 '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border',
               )}
@@ -115,6 +117,7 @@ export function UpcomingEventsCard() {
                     style={{ animationDelay: `${index * 70}ms` }}
                     className={cn(
                       'group animate-slide-in-right flex w-[17rem] shrink-0 snap-start overflow-hidden rounded-xl border border-border/60 border-l-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:w-[18.5rem]',
+                      'md:w-full md:shrink',
                       kindAccent(event.kind),
                     )}
                   >

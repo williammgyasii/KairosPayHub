@@ -10,6 +10,14 @@ import { cn } from '@/lib/utils'
 
 type NotificationsBellProps = Record<string, never>
 
+function notificationKindBadge(kind: Notification['kind']): string | null {
+  if (kind.startsWith('Calendar')) return 'Event'
+  if (kind.startsWith('Attendance')) return 'Attendance'
+  if (kind.startsWith('Contribution')) return 'Giving'
+  if (kind.startsWith('SubGiving') || kind.startsWith('Giving')) return 'Giving'
+  return null
+}
+
 function notificationLink(notification: Notification): string {
   if (notification.linkPath) {
     return notification.linkPath.startsWith('/')
@@ -95,7 +103,14 @@ export function NotificationsBell(_props: NotificationsBellProps) {
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                      <div className="min-w-0 flex-1">
+                        {notificationKindBadge(notification.kind) ? (
+                          <span className="mb-1 inline-flex rounded-full border border-violet-200/80 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-900">
+                            {notificationKindBadge(notification.kind)}
+                          </span>
+                        ) : null}
+                        <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                      </div>
                       {!notification.readAt ? (
                         <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
                       ) : null}

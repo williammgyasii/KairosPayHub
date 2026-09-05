@@ -41,7 +41,9 @@ public class CalendarController(CurrentActor current, CalendarEventService calen
                 request.Title,
                 request.Description,
                 request.EventDate,
-                request.ScopeNodeId),
+                request.ScopeNodeId,
+                request.NotifyLeadersUp,
+                request.NotifyLeadersDown),
             ct);
         return Ok(created);
     }
@@ -62,4 +64,6 @@ public sealed record CreateCalendarEventRequest(
     string Title,
     string? Description,
     DateOnly EventDate,
-    Guid? ScopeNodeId);
+    Guid? ScopeNodeId,
+    bool NotifyLeadersUp = false,
+    bool NotifyLeadersDown = false);

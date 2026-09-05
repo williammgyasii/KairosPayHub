@@ -19,7 +19,7 @@ public class ChurchAdministratorApiTests(PostgresFixture fx) : IAsyncLifetime
     {
         var pastorSub = Guid.NewGuid();
         var pastor = AuthedClient(pastorSub, "pastor@grace.org", "Pastor Joe");
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Grace Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Grace Church" });
 
         var createResp = await pastor.PostAsJsonAsync("/api/settings/administrators", new
         {
@@ -53,7 +53,7 @@ public class ChurchAdministratorApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Duplicate_admin_email_is_rejected()
     {
         var pastor = AuthedClient(Guid.NewGuid(), "pastor2@grace.org", "Pastor Two");
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Grace Two" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Grace Two" });
 
         var body = new
         {
@@ -74,7 +74,7 @@ public class ChurchAdministratorApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Suggest_email_returns_available_variant()
     {
         var pastor = AuthedClient(Guid.NewGuid(), "john@example.com", "John Pastor");
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Example Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Example Church" });
 
         var resp = await pastor.PostAsJsonAsync("/api/settings/administrators/suggest-email", new
         {

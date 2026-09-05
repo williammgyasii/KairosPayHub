@@ -34,12 +34,14 @@ export function StructureEvolveWizard({
   busy,
   submit,
   onClose,
+  initialInsertAt,
 }: {
   tree: StructureTree
   mode: StructureEvolveMode
   busy: boolean
   submit: (action: () => Promise<void>) => Promise<void>
   onClose: () => void
+  initialInsertAt?: number
 }) {
   const api = useApi()
   const layers = getLayers(tree)
@@ -47,7 +49,7 @@ export function StructureEvolveWizard({
   const isAppendBeforeMember = mode === 'appendBeforeMember'
   const deepest = layers[layers.length - 1]
 
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(initialInsertAt !== undefined && mode === 'insertAt' ? 1 : 0)
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [structureName, setStructureName] = useState(tree.template?.name ?? 'Main structure')
   const [renameLayers, setRenameLayers] = useState<StructureLayerInput[]>(
@@ -56,7 +58,9 @@ export function StructureEvolveWizard({
       displayName: layer.displayName,
     })),
   )
-  const [insertAt, setInsertAt] = useState(mode === 'appendTop' ? 0 : Math.max(1, layers.length - 1))
+  const [insertAt, setInsertAt] = useState(
+    initialInsertAt ?? (mode === 'appendTop' ? 0 : Math.max(1, layers.length - 1)),
+  )
   const [newLayer, setNewLayer] = useState<StructureLayerInput>(() => ({
     standardType: mode === 'appendBeforeMember' ? 'Cell' : 'Group',
     displayName: mode === 'appendBeforeMember' ? 'Member unit' : 'Zone',

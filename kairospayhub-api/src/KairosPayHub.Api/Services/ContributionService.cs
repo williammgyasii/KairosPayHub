@@ -113,12 +113,17 @@ public class ContributionService(
         if (await db.GivingPrograms.AnyAsync(p => p.ParentProgramId == program.Id, ct))
             throw new BadRequestException("Contributions must be logged on a sub-period, not on a parent giving");
 
+        var churchCurrency = await db.StructureChurches.AsNoTracking()
+            .Where(c => c.Id == churchId)
+            .Select(c => c.DefaultCurrency)
+            .FirstAsync(ct);
+
         var contribution = new Contribution
         {
             ProgramId = program.Id,
             MemberId = member.Id,
             Amount = input.Amount,
-            Currency = string.IsNullOrWhiteSpace(input.Currency) ? "GHS" : input.Currency.Trim(),
+            Currency = string.IsNullOrWhiteSpace(input.Currency) ? churchCurrency : input.Currency.Trim(),
             DateSent = input.DateSent,
             AttachmentKey = input.AttachmentKey.Trim(),
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),

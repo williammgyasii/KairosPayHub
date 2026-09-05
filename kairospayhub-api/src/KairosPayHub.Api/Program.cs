@@ -24,7 +24,12 @@ builder.Services
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
 var connectionString = DbConnectionString.Normalize(
     builder.Configuration.GetConnectionString("Default")

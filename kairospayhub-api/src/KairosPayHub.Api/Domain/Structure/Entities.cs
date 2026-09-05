@@ -9,6 +9,8 @@ public class Church
     public string? PrimaryPastorName { get; set; }
     public int? ApproximateMemberCount { get; set; }
     public string? LogoUrl { get; set; }
+    public string? CountryCode { get; set; }
+    public string DefaultCurrency { get; set; } = "GHS";
     public DateTimeOffset CreatedAt { get; set; }
 
     public ICollection<Pfcc> Pfccs { get; set; } = new List<Pfcc>();

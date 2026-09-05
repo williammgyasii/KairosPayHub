@@ -1,6 +1,57 @@
 import { canManageChurch, isCellLeader, isScopedLeader, type Me } from '@/api/auth'
 import type { CalendarEvent, CalendarEventKind } from '@/api/events'
 
+export type CalendarEventAlertOption = {
+  notifyLeadersUp: boolean
+  notifyLeadersDown: boolean
+  upLabel: string | null
+  downLabel: string | null
+}
+
+export function calendarEventAlertOptions(me: Me): CalendarEventAlertOption {
+  if (!me.onboarded) {
+    return { notifyLeadersUp: false, notifyLeadersDown: false, upLabel: null, downLabel: null }
+  }
+
+  if (isCellLeader(me.role)) {
+    return {
+      notifyLeadersUp: false,
+      notifyLeadersDown: false,
+      upLabel: 'Alert fellowship leader and above',
+      downLabel: null,
+    }
+  }
+
+  if (me.role === 'FellowshipLeader') {
+    return {
+      notifyLeadersUp: false,
+      notifyLeadersDown: false,
+      upLabel: null,
+      downLabel: 'Alert cell leaders in your fellowship',
+    }
+  }
+
+  if (me.role === 'PFCCManager') {
+    return {
+      notifyLeadersUp: false,
+      notifyLeadersDown: false,
+      upLabel: 'Alert pastor and church leadership',
+      downLabel: 'Alert fellowship and cell leaders',
+    }
+  }
+
+  if (canManageChurch(me.role)) {
+    return {
+      notifyLeadersUp: false,
+      notifyLeadersDown: false,
+      upLabel: null,
+      downLabel: 'Notify all leaders in the church',
+    }
+  }
+
+  return { notifyLeadersUp: false, notifyLeadersDown: false, upLabel: null, downLabel: null }
+}
+
 export function canAccessEvents(me: Me): boolean {
   if (!me.onboarded) return false
   return canManageChurch(me.role) || isScopedLeader(me.role) || isCellLeader(me.role)

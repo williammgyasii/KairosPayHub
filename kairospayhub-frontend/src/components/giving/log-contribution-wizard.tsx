@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { CheckCircle2, ImageIcon, Upload, User, Users, X } from 'lucide-react'
 import type { ApiClient } from '@/api/core'
 import type { RemittanceMedium } from '@/api/giving'
-import { createContribution, uploadGivingAttachment } from '@/api/giving'
+import { createContribution, getChurchDefaultCurrency, uploadGivingAttachment } from '@/api/giving'
 import type { ChurchRole } from '@/api/auth'
 import type { StructureTree } from '@/api/structure'
 import { GivingMemberPicker } from '@/components/giving/giving-member-picker'
@@ -241,7 +241,7 @@ export function LogContributionWizard({
           await createContribution(api, programId, {
             memberId: line.memberId,
             amount: Number(line.amount),
-            currency: 'GHS',
+            currency: getChurchDefaultCurrency(),
             dateSent: isoDate,
             attachmentKey: attachment.attachmentKey,
             notes: notes.trim() || null,
@@ -258,7 +258,7 @@ export function LogContributionWizard({
         await createContribution(api, programId, {
           memberId,
           amount: Number(amount),
-          currency: 'GHS',
+          currency: getChurchDefaultCurrency(),
           dateSent: isoDate,
           attachmentKey: attachment.attachmentKey,
           notes: notes.trim() || null,

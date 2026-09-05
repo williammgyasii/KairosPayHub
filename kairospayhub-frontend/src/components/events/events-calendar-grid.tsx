@@ -55,26 +55,26 @@ export function EventsCalendarGrid({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/60 bg-background">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 px-3 py-2 sm:px-4">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-2.5 py-1.5 sm:px-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold tracking-tight sm:text-lg">{format(month, 'MMMM yyyy')}</h2>
+          <h2 className="text-sm font-semibold tracking-tight sm:text-base">{format(month, 'MMMM yyyy')}</h2>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <Button type="button" variant="outline" size="icon" onClick={() => onMonthChange(addMonths(month, -1))}>
-            <ChevronLeft className="size-4" />
+        <div className="flex shrink-0 items-center gap-1">
+          <Button type="button" variant="outline" size="icon" className="size-7" onClick={() => onMonthChange(addMonths(month, -1))}>
+            <ChevronLeft className="size-3.5" />
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => onMonthChange(new Date())}>
+          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => onMonthChange(new Date())}>
             Today
           </Button>
-          <Button type="button" variant="outline" size="icon" onClick={() => onMonthChange(addMonths(month, 1))}>
-            <ChevronRight className="size-4" />
+          <Button type="button" variant="outline" size="icon" className="size-7" onClick={() => onMonthChange(addMonths(month, 1))}>
+            <ChevronRight className="size-3.5" />
           </Button>
         </div>
       </div>
 
-      <div className="grid shrink-0 grid-cols-7 border-b border-border/60 bg-muted/20 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+      <div className="grid shrink-0 grid-cols-7 border-b border-border/60 bg-muted/20 text-center text-[9px] font-medium uppercase tracking-wide text-muted-foreground sm:text-[10px]">
         {WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="px-1 py-1.5 sm:px-2 sm:py-2">
+          <div key={label} className="px-0.5 py-1 sm:px-1 sm:py-1.5">
             {label}
           </div>
         ))}
@@ -95,7 +95,7 @@ export function EventsCalendarGrid({
               type="button"
               onClick={() => onSelectDate(day)}
               className={cn(
-                'flex h-full min-h-0 flex-col p-1.5 text-left transition-colors sm:p-2',
+                'flex h-full min-h-0 flex-col p-1 text-left transition-colors sm:p-1.5',
                 !today && 'border-b border-r border-border/40 hover:bg-muted/20',
                 !inMonth && !today && 'bg-muted/10 text-muted-foreground',
                 today &&
@@ -110,7 +110,7 @@ export function EventsCalendarGrid({
             >
               <span
                 className={cn(
-                  'mb-1 inline-flex size-6 shrink-0 items-center justify-center text-xs font-medium sm:mb-1.5 sm:size-7 sm:text-sm',
+                  'mb-0.5 inline-flex size-5 shrink-0 items-center justify-center text-[11px] font-medium sm:mb-1 sm:size-6 sm:text-xs',
                   today && 'font-semibold text-white',
                 )}
               >
@@ -148,7 +148,7 @@ export function EventsCalendarGrid({
         })}
       </div>
 
-      <div className="flex shrink-0 flex-wrap gap-3 border-t border-border/60 px-3 py-1.5 text-[10px] text-muted-foreground sm:gap-4 sm:px-4 sm:py-2 sm:text-xs">
+      <div className="flex shrink-0 flex-wrap gap-2 border-t border-border/60 px-2.5 py-1 text-[9px] text-muted-foreground sm:gap-3 sm:px-3 sm:py-1.5 sm:text-[10px]">
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2 rounded-full bg-rose-500/70" />
           {eventKindLabel('Birthday')}

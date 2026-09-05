@@ -35,7 +35,7 @@ public class GivingProgramApiTests(PostgresFixture fx) : IAsyncLifetime
 
     private static async Task OnboardAsync(HttpClient client, string churchName = "Grace Assembly")
     {
-        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { churchName });
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", OnboardingTestHelper.Payload(churchName));
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
     }
 

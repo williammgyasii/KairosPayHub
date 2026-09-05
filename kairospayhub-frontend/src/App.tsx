@@ -117,6 +117,7 @@ export default function App() {
             </PastorRoute>
           }
         />
+        <Route path="account" element={<SettingsAccountPage />} />
         <Route
           path="settings"
           element={
@@ -127,7 +128,7 @@ export default function App() {
         >
           <Route index element={<SettingsBrandingPage />} />
           <Route path="branding" element={<Navigate to="/settings" replace />} />
-          <Route path="account" element={<SettingsAccountPage />} />
+          <Route path="account" element={<Navigate to="/account" replace />} />
           <Route path="administrators" element={<SettingsAdministratorsPage />} />
         </Route>
       </Route>

@@ -347,6 +347,8 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         {
             e.ToTable("church_tenants");
             e.Property(x => x.Name).IsRequired();
+            e.Property(x => x.CountryCode).HasMaxLength(2);
+            e.Property(x => x.DefaultCurrency).IsRequired().HasMaxLength(3).HasDefaultValue("GHS");
         });
 
         b.Entity<Domain.Structure.Pfcc>(e =>

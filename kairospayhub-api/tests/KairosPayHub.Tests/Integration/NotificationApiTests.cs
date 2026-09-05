@@ -36,7 +36,7 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pfcc_manager_sub_giving_pending_notifies_pastor_approve_notifies_manager()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Notify Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Notify Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -138,7 +138,7 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Contribution_pending_notifies_fellowship_leader_not_pastor_approve_notifies_enterer()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Contrib Notify Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Contrib Notify Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -257,7 +257,7 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Mark_read_and_read_all_update_unread_count()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Read Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Read Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -345,7 +345,7 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_creates_church_wide_campaign_notifies_scoped_leaders()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Campaign Notify Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Campaign Notify Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {

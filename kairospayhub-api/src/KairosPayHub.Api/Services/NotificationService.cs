@@ -397,13 +397,21 @@ public class NotificationService(
         string? description,
         DateOnly eventDate,
         Guid createdByAuthUserId,
+        ChurchRole? createdByRole,
         Guid calendarEventId,
+        bool notifyLeadersUp,
+        bool notifyLeadersDown,
         CancellationToken ct = default)
     {
-        var recipients = await CalendarScopeRecipientAuthUserIdsAsync(
+        if (!notifyLeadersUp && !notifyLeadersDown)
+            return;
+
+        var recipients = await CalendarEventAlertRecipientAuthUserIdsAsync(
             churchId,
             scopeNodeId,
             createdByAuthUserId,
+            notifyLeadersUp,
+            notifyLeadersDown,
             ct);
 
         if (recipients.Count == 0)
@@ -416,20 +424,147 @@ public class NotificationService(
                 .Select(n => n.Name)
                 .FirstOrDefaultAsync(ct) ?? "Your scope";
 
-        var body = string.IsNullOrWhiteSpace(description)
-            ? $"{scopeLabel} · {eventDate:dddd, d MMMM yyyy}. Open Events to view your calendar."
-            : $"{scopeLabel} · {eventDate:dddd, d MMMM yyyy}. {description.Trim()}";
+        var creator = await GivingProgramCreatorResolver.ResolveAsync(
+            db,
+            churchId,
+            createdByAuthUserId,
+            createdByRole,
+            ct);
+
+        var creatorLabel = FormatCreatorLabel(creator, createdByRole);
+        var notificationTitle = BuildCalendarEventNotificationTitle(createdByRole, scopeLabel);
+        var body = BuildCalendarEventNotificationBody(
+            creatorLabel,
+            createdByRole,
+            scopeLabel,
+            title,
+            eventDate,
+            description);
 
         await CreateManyAsync(
             churchId,
             recipients,
             NotificationKind.CalendarEventReminder,
-            title,
+            notificationTitle,
             body,
             LinkPath: "events",
             programId: null,
             relatedEntityId: calendarEventId,
             ct);
+    }
+
+    private static string BuildCalendarEventNotificationTitle(ChurchRole? role, string scopeLabel)
+    {
+        var eventType = role switch
+        {
+            ChurchRole.CellLeader => "cell event",
+            ChurchRole.FellowshipLeader => "fellowship event",
+            ChurchRole.PFCCManager => "PFCC event",
+            ChurchRole.Pastor or ChurchRole.ChurchAdmin => "church event",
+            _ => "calendar event",
+        };
+
+        return scopeLabel is "Church-wide"
+            ? $"New {eventType}"
+            : $"New {eventType} · {scopeLabel}";
+    }
+
+    private static string BuildCalendarEventNotificationBody(
+        string? creatorLabel,
+        ChurchRole? role,
+        string scopeLabel,
+        string eventTitle,
+        DateOnly eventDate,
+        string? description)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(creatorLabel))
+        {
+            parts.Add($"{creatorLabel} created a new event.");
+        }
+        else
+        {
+            var sourceParts = new List<string>();
+            if (scopeLabel is not "Church-wide")
+                sourceParts.Add(scopeLabel);
+            if (role is ChurchRole sourceRole && sourceRole is not (ChurchRole.Pastor or ChurchRole.ChurchAdmin))
+                sourceParts.Add(FormatRole(sourceRole));
+
+            parts.Add(sourceParts.Count > 0
+                ? $"{string.Join(" · ", sourceParts)} created a new event."
+                : "A new church-wide event was created.");
+        }
+
+        parts.Add($"\"{eventTitle.Trim()}\" · {eventDate:dddd, d MMMM yyyy}.");
+
+        if (!string.IsNullOrWhiteSpace(description))
+            parts.Add(description.Trim());
+
+        return string.Join(" ", parts);
+    }
+
+    private async Task<List<Guid>> CalendarEventAlertRecipientAuthUserIdsAsync(
+        Guid churchId,
+        Guid? scopeNodeId,
+        Guid? excludeAuthUserId,
+        bool notifyUp,
+        bool notifyDown,
+        CancellationToken ct)
+    {
+        var recipients = new HashSet<Guid>();
+
+        if (notifyUp)
+            recipients.UnionWith(await PastorAuthUserIdsAsync(churchId, ct));
+
+        if (scopeNodeId is null)
+        {
+            if (notifyDown)
+            {
+                var leaders = await db.RoleAssignments.AsNoTracking()
+                    .Where(r =>
+                        r.ChurchId == churchId
+                        && r.Role != ChurchRole.Member
+                        && r.Role != ChurchRole.Pastor)
+                    .Select(r => r.AuthUserId)
+                    .ToListAsync(ct);
+                foreach (var leaderId in leaders)
+                    recipients.Add(leaderId);
+            }
+        }
+        else
+        {
+            var assignments = await db.RoleAssignments.AsNoTracking()
+                .Where(r =>
+                    r.ChurchId == churchId
+                    && r.ScopeNodeId != null
+                    && r.Role != ChurchRole.Member)
+                .ToListAsync(ct);
+
+            foreach (var assignment in assignments)
+            {
+                var viewerRoot = assignment.ScopeNodeId!.Value;
+                if (viewerRoot == scopeNodeId.Value)
+                    continue;
+
+                if (notifyUp
+                    && await scope.IsNodeInSubtreeAsync(churchId, viewerRoot, scopeNodeId.Value, ct))
+                {
+                    recipients.Add(assignment.AuthUserId);
+                }
+
+                if (notifyDown
+                    && await scope.IsNodeInSubtreeAsync(churchId, scopeNodeId.Value, viewerRoot, ct))
+                {
+                    recipients.Add(assignment.AuthUserId);
+                }
+            }
+        }
+
+        if (excludeAuthUserId is Guid excluded)
+            recipients.Remove(excluded);
+
+        return recipients.ToList();
     }
 
     public async Task NotifyCalendarBirthdayReminderAsync(

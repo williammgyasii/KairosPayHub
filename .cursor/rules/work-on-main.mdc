@@ -1,0 +1,5 @@
+# Work on main only
+
+- Keep the local checkout on `main` unless the user explicitly asks for a branch.
+- Do not create feature branches, `develop`, or worktrees for routine work.
+- Push to `origin/main`; production releases use `v*` tags.

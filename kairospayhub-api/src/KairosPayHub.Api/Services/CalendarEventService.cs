@@ -23,7 +23,9 @@ public record CreateCalendarEventInput(
     string Title,
     string? Description,
     DateOnly EventDate,
-    Guid? ScopeNodeId);
+    Guid? ScopeNodeId,
+    bool NotifyLeadersUp = false,
+    bool NotifyLeadersDown = false);
 
 public class CalendarEventService(KairosDbContext db, GivingScopeService givingScope, NotificationService notifications)
 {
@@ -109,7 +111,10 @@ public class CalendarEventService(KairosDbContext db, GivingScopeService givingS
             entity.Description,
             entity.EventDate,
             authUserId,
+            actor.StructureRole,
             entity.Id,
+            input.NotifyLeadersUp,
+            input.NotifyLeadersDown,
             ct);
 
         return await MapCustomEventAsync(entity, actor, authUserId, ct);

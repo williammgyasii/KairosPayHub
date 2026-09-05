@@ -53,7 +53,7 @@ public class ApiTests : IAsyncLifetime
         var client = AuthedClient(sub, "pastor@example.com", "Pastor Joe");
 
         var onboard = await client.PostAsJsonAsync(
-            "/api/onboarding", new { churchName = "Grace Church" });
+            "/api/onboarding", new { countryCode = "GH", churchName = "Grace Church" });
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
 
         var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
@@ -82,7 +82,7 @@ public class ApiTests : IAsyncLifetime
     public async Task Pastor_onboards_and_lists_giving_programs_empty()
     {
         var client = AuthedClient(Guid.NewGuid().ToString(), "p2@example.com", "Pastor Two");
-        await client.PostAsJsonAsync("/api/onboarding", new { churchName = "Org Two" });
+        await client.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Org Two" });
 
         var list = await client.GetFromJsonAsync<JsonElement>("/api/giving/programs");
         Assert.Equal(0, list.GetProperty("programs").GetArrayLength());

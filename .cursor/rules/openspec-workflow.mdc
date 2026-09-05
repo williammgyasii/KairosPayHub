@@ -1,0 +1,27 @@
+---
+description: OpenSpec spec-driven workflow — write specs before building
+alwaysApply: true
+---
+
+# OpenSpec workflow
+
+This project uses [OpenSpec](https://openspec.dev) for spec-driven development.
+
+## Before building a feature
+
+1. **Propose first** — Run `/opsx-propose "<change-name>"` or ask the agent to create a change under `openspec/changes/<name>/`.
+2. **Review artifacts** — Read `proposal.md`, `specs/**/spec.md`, `design.md`, and `tasks.md` before writing code.
+3. **Apply in chunks** — Run `/opsx-apply` (or ask to apply the change) and complete tasks in order; mark `- [x]` in `tasks.md` as you go.
+4. **Archive when done** — Run `/opsx-archive` to merge specs into `openspec/specs/` and archive the change.
+
+## Rules
+
+- Do **not** skip specs for user-facing behavior changes.
+- Keep specs testable (WHEN/THEN scenarios).
+- Implementation details belong in `design.md`, not spec files.
+- One change per feature; small, reviewable task chunks.
+- After apply, restart dev servers per `restart-dev-servers.mdc`.
+
+## Active changes
+
+Check `openspec/changes/` for in-progress work before starting overlapping features.

@@ -7,7 +7,6 @@ import {
   DashboardSetupPreview,
   PastorDashboardHome,
 } from '@/components/overview/dashboard-home'
-import { CellLeaderOverviewDashboard } from '@/components/overview/cell-leader-overview-dashboard'
 import { LeaderOverviewDashboard } from '@/components/overview/leader-overview-dashboard'
 import { StructureSetupCallout } from '@/components/overview/structure-setup-callout'
 import { dashboardWelcomeSubtitle } from '@/lib/dashboard-setup-actions'
@@ -32,7 +31,9 @@ import {
 } from '@/components/structure/member-wizard-steps'
 import { RosterEmptyState, RosterView } from '@/components/structure/roster-view'
 import { RosterUnitView } from '@/components/structure/roster-unit-view'
-import { StructureDefinitionCard } from '@/components/structure/structure-definition-card'
+import { StructureActionsMenu } from '@/components/structure/structure-actions-menu'
+import { StructureCanvas } from '@/components/structure/structure-canvas'
+import { StructureLayerEditModal } from '@/components/structure/structure-layer-edit-modal'
 import {
   StructureEvolveWizard,
   type StructureEvolveMode,
@@ -41,8 +42,8 @@ import { StructureTemplateWizard } from '@/components/structure/structure-templa
 import { useStructureTree } from '@/components/structure/structure-setup'
 import { hasTemplate } from '@/lib/structure-dashboard'
 import { getLayers } from '@/lib/structure-tree'
-import { StructureChainFromLabels } from '@/components/structure/structure-chain'
 import { hasDesignedStructure } from '@/lib/structure-table-rows'
+import type { StructureLayerInput } from '@/api/structure'
 import { useApi } from '@/api/core'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -130,24 +131,23 @@ export function DashboardPage() {
       ? dashboardWelcomeSubtitle(tree)
       : 'Define your structure chain, populate Roster, then register members in Membership.'
 
-  const leaderUsesHeader = leaderDashboardRole || !churchManager || !showDashboard
+  const showPageHeader =
+    leaderDashboardRole || (churchManager && !showDashboard)
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {leaderUsesHeader ? (
+      {showPageHeader ? (
         <DashboardPageHeader
           breadcrumbs={[{ label: 'Dashboard' }]}
-          title={leaderDashboardRole ? scopeTitle : (me.churchName ?? 'Dashboard')}
+          title={leaderDashboardRole ? scopeTitle : 'Dashboard'}
           description={
             cellLeader
-              ? 'Your cell at a glance — members, givings, and attendance.'
+              ? 'Your cell — members, givings, and attendance.'
               : scopedLeader
                 ? me.role === 'FellowshipLeader'
-                  ? 'Live metrics for your cells, members, and giving approvals.'
-                  : 'Live metrics and giving totals for your PFCC scope.'
-                : churchManager
-                  ? pastorSubtitle
-                  : 'Your dashboard and giving activity.'
+                  ? 'Cells, members, and giving in your fellowship.'
+                  : 'Metrics and giving for your PFCC scope.'
+                : pastorSubtitle
           }
         />
       ) : null}
@@ -156,7 +156,7 @@ export function DashboardPage() {
         <StructureSetupCallout tree={tree} churchName={me.churchName} />
       ) : null}
 
-      {scopedLeader && showDashboard && scopedTree ? (
+      {leaderDashboardRole && showDashboard && scopedTree ? (
         dashboardLoading ? (
           <Spinner label="Loading your dashboard…" />
         ) : dashboardError ? (
@@ -167,14 +167,6 @@ export function DashboardPage() {
             dashboard={leaderDashboard}
             role={me.role}
           />
-        ) : null
-      ) : cellLeader && showDashboard && scopedTree ? (
-        dashboardLoading ? (
-          <Spinner label="Loading your dashboard…" />
-        ) : dashboardError ? (
-          <p className="text-sm text-destructive">{dashboardError}</p>
-        ) : leaderDashboard ? (
-          <CellLeaderOverviewDashboard tree={scopedTree} dashboard={leaderDashboard} />
         ) : null
       ) : churchManager && showDashboard && scopedTree ? (
         <PastorDashboardHome
@@ -193,10 +185,13 @@ export function DashboardPage() {
 
 export function StructurePage() {
   const api = useApi()
+  const { me } = useOutletContext<DashboardOutletContext>()
   const { tree, error, busy, loading, submit, load } = useStructureTree()
-  const [editing, setEditing] = useState(false)
+  const [layerEditOpen, setLayerEditOpen] = useState(false)
+  const [editLayerIndex, setEditLayerIndex] = useState<number | null>(null)
   const [evolveMode, setEvolveMode] = useState<StructureEvolveMode | null>(null)
-  const [pickAddLayer, setPickAddLayer] = useState(false)
+  const [evolveInsertAt, setEvolveInsertAt] = useState(0)
+  const churchManager = canManageChurch(me.role)
 
   useEffect(() => {
     void load()
@@ -214,8 +209,88 @@ export function StructurePage() {
 
   const templated = hasTemplate(tree)
   const hasRoster = hasDesignedStructure(tree)
+  const layers = getLayers(tree)
 
-  if (!templated || (editing && !hasRoster)) {
+  function layerInputs(): StructureLayerInput[] {
+    return layers.map((l) => ({
+      standardType: l.standardType,
+      displayName: l.displayName,
+    }))
+  }
+
+  function resolveInsertEvolveMode(insertAt: number): StructureEvolveMode {
+    if (insertAt === 0) return 'appendTop'
+    if (insertAt >= layers.length) return 'appendBeforeMember'
+    return 'insertAt'
+  }
+
+  function handleInsertAt(insertAt: number) {
+    if (!churchManager) return
+    if (hasRoster) {
+      setEvolveInsertAt(insertAt)
+      setEvolveMode(resolveInsertEvolveMode(insertAt))
+      return
+    }
+    void submit(async () => {
+      const template = tree!.template!
+      const next = layerInputs()
+      next.splice(insertAt, 0, { standardType: 'Fellowship', displayName: 'New layer' })
+      await api.put('/api/structure/template', {
+        name: template.name,
+        layers: next,
+      })
+    })
+  }
+
+  function handleRemoveAt(layerIndex: number) {
+    if (!churchManager || hasRoster) return
+    if (layers.length <= 1 || layerIndex === layers.length - 1) return
+    if (!window.confirm(`Remove the "${layers[layerIndex]?.displayName}" layer?`)) return
+    void submit(async () => {
+      const template = tree!.template!
+      const next = layerInputs().filter((_, i) => i !== layerIndex)
+      await api.put('/api/structure/template', {
+        name: template.name,
+        layers: next,
+      })
+    })
+  }
+
+  function handleEditLayer(layerIndex: number | null) {
+    if (!churchManager) return
+    setEditLayerIndex(layerIndex)
+    setLayerEditOpen(true)
+  }
+
+  async function handleSaveLayerEdit(payload: {
+    structureName: string
+    layer: StructureLayerInput | null
+  }) {
+    await submit(async () => {
+      if (hasRoster) {
+        const nextLayers = layerInputs().map((layer, index) =>
+          editLayerIndex === index && payload.layer ? payload.layer : layer,
+        )
+        await api.post('/api/structure/template/evolve', {
+          operation: 'rename',
+          name: payload.structureName,
+          layers: nextLayers,
+          dryRun: false,
+        })
+        return
+      }
+
+      const nextLayers = layerInputs().map((layer, index) =>
+        editLayerIndex === index && payload.layer ? payload.layer : layer,
+      )
+      await api.put('/api/structure/template', {
+        name: payload.structureName,
+        layers: nextLayers,
+      })
+    })
+  }
+
+  if (!templated) {
     return (
       <div className="space-y-5">
         <DashboardPageHeader
@@ -228,22 +303,9 @@ export function StructurePage() {
         />
         <StructureTemplateWizard
           churchName={tree.churchName}
-          initialName={tree.template?.name}
-          initialLayers={
-            tree.template
-              ? getLayers(tree).map((l) => ({
-                  standardType: l.standardType,
-                  displayName: l.displayName,
-                }))
-              : undefined
-          }
-          submitLabel={templated ? 'Save changes' : 'Save structure definition'}
-          onCancel={templated ? () => setEditing(false) : undefined}
+          submitLabel="Save structure definition"
           busy={busy}
-          submit={async (action) => {
-            await submit(action)
-            setEditing(false)
-          }}
+          submit={submit}
         />
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
@@ -258,27 +320,59 @@ export function StructurePage() {
           { label: 'Structure' },
         ]}
         title="Structure"
-        description={`Your org layer chain for ${tree.churchName}. Populate instances in Roster.`}
+        description={`How ${tree.churchName} is organized — layer names only, not individual units.`}
+        actions={
+          churchManager ? (
+            <StructureActionsMenu
+              hasRoster={hasRoster}
+              busy={busy}
+              onRename={() => setEvolveMode('rename')}
+              onDelete={() => {
+                if (
+                  !window.confirm(
+                    'Delete this structure definition? You can create a new one afterward. Roster must be empty.',
+                  )
+                ) {
+                  return
+                }
+                void submit(async () => {
+                  await api.delete('/api/structure/template')
+                })
+              }}
+            />
+          ) : undefined
+        }
       />
 
-      <StructureDefinitionCard
+      <StructureCanvas
         tree={tree}
+        editable={churchManager}
+        allowRemove={churchManager && !hasRoster}
         busy={busy}
-        onEdit={() => setEditing(true)}
-        onRename={() => setEvolveMode('rename')}
-        onAddLayer={() => setPickAddLayer(true)}
-        onDelete={() => {
-          if (
-            !window.confirm(
-              'Delete this structure definition? You can create a new one afterward. Roster must be empty.',
-            )
-          ) {
-            return
-          }
-          void submit(async () => {
-            await api.delete('/api/structure/template')
-          })
+        onInsertAt={handleInsertAt}
+        onRemoveAt={handleRemoveAt}
+        onEditLayer={handleEditLayer}
+      />
+
+      <StructureLayerEditModal
+        open={layerEditOpen}
+        onClose={() => {
+          setLayerEditOpen(false)
+          setEditLayerIndex(null)
         }}
+        structureName={tree.template?.name ?? 'Main structure'}
+        layer={
+          editLayerIndex !== null
+            ? {
+                standardType: layers[editLayerIndex]!.standardType,
+                displayName: layers[editLayerIndex]!.displayName,
+              }
+            : null
+        }
+        layerIndex={editLayerIndex}
+        isCellLayer={editLayerIndex === layers.length - 1}
+        busy={busy}
+        onSave={handleSaveLayerEdit}
       />
 
       {evolveMode && (
@@ -287,82 +381,15 @@ export function StructurePage() {
           mode={evolveMode}
           busy={busy}
           submit={submit}
-          onClose={() => setEvolveMode(null)}
-        />
-      )}
-
-      {pickAddLayer && (
-        <ModalPickAddLayer
-          layers={getLayers(tree)}
-          onClose={() => setPickAddLayer(false)}
-          onAppendTop={() => {
-            setPickAddLayer(false)
-            setEvolveMode('appendTop')
-          }}
-          onInsert={() => {
-            setPickAddLayer(false)
-            setEvolveMode('insertAt')
-          }}
-          onBeforeMembers={() => {
-            setPickAddLayer(false)
-            setEvolveMode('appendBeforeMember')
+          initialInsertAt={evolveInsertAt}
+          onClose={() => {
+            setEvolveMode(null)
+            setEvolveInsertAt(0)
           }}
         />
       )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
-  )
-}
-
-function ModalPickAddLayer({
-  layers,
-  onClose,
-  onAppendTop,
-  onInsert,
-  onBeforeMembers,
-}: {
-  layers: ReturnType<typeof getLayers>
-  onClose: () => void
-  onAppendTop: () => void
-  onInsert: () => void
-  onBeforeMembers: () => void
-}) {
-  const deepest = layers[layers.length - 1]
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px] animate-in fade-in duration-300">
-      <div className="w-full max-w-md space-y-4 rounded-xl border border-border/60 bg-background p-6 shadow-lg animate-fade-up">
-        <div>
-          <h2 className="text-base font-semibold">Add org layer</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Choose where the new layer belongs.</p>
-          <StructureChainFromLabels labels={layers.map((l) => l.displayName)} includeChurch includeMember className="mt-3" />
-        </div>
-        <div className="space-y-2">
-          <Button className="w-full justify-start" variant="outline" onClick={onAppendTop}>
-            <Plus className="size-4" />
-            Add on top (before {layers[0]?.displayName ?? 'first layer'})
-          </Button>
-          <Button
-            className="w-full justify-start"
-            variant="outline"
-            onClick={onInsert}
-            disabled={layers.length < 2}
-          >
-            <Plus className="size-4" />
-            Insert between org layers
-          </Button>
-          <Button className="w-full justify-start" variant="outline" onClick={onBeforeMembers}>
-            <Plus className="size-4" />
-            Before members (after {deepest?.displayName ?? 'deepest layer'})
-          </Button>
-        </div>
-        <div className="flex justify-end">
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }

@@ -259,7 +259,7 @@ export function AppSidebar({ me, className, expanded = false }: AppSidebarProps)
     >
       <div
         className={cn(
-          'flex shrink-0 border-b',
+          'flex shrink-0 min-w-0 overflow-hidden border-b',
           collapsed ? 'h-[72px] items-center justify-center px-0' : 'px-4 py-4',
         )}
       >
@@ -277,7 +277,11 @@ export function AppSidebar({ me, className, expanded = false }: AppSidebarProps)
             <TooltipContent side="right">{churchLabel}</TooltipContent>
           </Tooltip>
         ) : (
-          <ChurchBrand churchName={me.churchName} logoUrl={me.churchLogoUrl} />
+          <ChurchBrand
+            churchName={me.churchName}
+            logoUrl={me.churchLogoUrl}
+            className="w-full min-w-0"
+          />
         )}
       </div>
 

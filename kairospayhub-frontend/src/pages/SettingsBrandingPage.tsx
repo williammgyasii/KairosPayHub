@@ -1,10 +1,15 @@
 import { useOutletContext } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
-import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { getAccessToken } from '@/auth/client'
 import { apiBaseUrl } from '@/lib/api-base'
+import {
+  SettingsField,
+  SettingsFieldGrid,
+  SettingsPanel,
+  SettingsSection,
+} from '@/components/settings/settings-section'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -48,35 +53,49 @@ export function SettingsBrandingPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <DashboardPageHeader
-        breadcrumbs={[
-          { label: 'Dashboard', to: '/' },
-          { label: 'Settings', to: '/settings' },
-          { label: 'Branding' },
-        ]}
-        title="Church branding"
-        description="Upload a square logo (JPEG, PNG, or WebP, max 2 MB)."
-      />
+    <div className="space-y-8">
+      <SettingsSection
+        title="Church identity"
+        description="Your logo appears in the sidebar, dashboard, and across the workspace."
+      >
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] lg:items-start">
+          <SettingsPanel className="flex flex-col items-center justify-center gap-3 text-center">
+            <ChurchBrand churchName={me.churchName} logoUrl={logoUrl} />
+            <p className="text-xs text-muted-foreground">Current preview</p>
+          </SettingsPanel>
 
-      <ChurchBrand churchName={me.churchName} logoUrl={logoUrl} />
+          <div className="space-y-4">
+            <SettingsFieldGrid columns={2}>
+              <SettingsField label="Church name" value={me.churchName ?? '—'} />
+              <SettingsField
+                label="Default currency"
+                value={me.defaultCurrency ?? '—'}
+              />
+            </SettingsFieldGrid>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {message && <p className="text-sm text-primary">{message}</p>}
+            <div className="space-y-2">
+              <Label htmlFor="logo">Upload logo</Label>
+              <Input
+                id="logo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={busy}
+                className="max-w-md"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void onUpload(file)
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Square image · JPEG, PNG, or WebP · Max 2 MB
+              </p>
+            </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="logo">Church logo</Label>
-        <Input
-          id="logo"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          disabled={busy}
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) void onUpload(file)
-          }}
-        />
-      </div>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            {message ? <p className="text-sm text-primary">{message}</p> : null}
+          </div>
+        </div>
+      </SettingsSection>
     </div>
   )
 }

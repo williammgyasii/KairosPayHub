@@ -1,8 +1,7 @@
-using KairosPayHub.Api.Hubs;
+using System.Security.Claims;
 using KairosPayHub.Api.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using System.Security.Claims;
 
 namespace KairosPayHub.Api.Hubs;
 
@@ -18,7 +17,9 @@ public class NotificationHub : Hub<INotificationClient>
 
     public override async Task OnConnectedAsync()
     {
-        if (Guid.TryParse(Context.User?.FindFirst("sub")?.Value, out var authUserId))
+        var sub = Context.User?.FindFirst("sub")?.Value
+            ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (Guid.TryParse(sub, out var authUserId))
             await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(authUserId));
 
         await base.OnConnectedAsync();

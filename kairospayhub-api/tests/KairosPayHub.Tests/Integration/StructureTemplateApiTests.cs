@@ -35,7 +35,7 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
 
     private static async Task OnboardAsync(HttpClient client, string churchName = "Grace Assembly")
     {
-        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { churchName });
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", OnboardingTestHelper.Payload(churchName));
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
     }
 
@@ -1054,7 +1054,7 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Onboarding_creates_church_tenant_and_pastor_role()
     {
         var client = PastorClient();
-        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { churchName = "Grace Assembly" });
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Grace Assembly" });
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
 
         var body = await onboard.Content.ReadFromJsonAsync<JsonElement>();

@@ -4,21 +4,21 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import { CheckCircle2, Clock3, Coins, Network, Users } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, Clock3, Coins, Gift, Network, Users } from 'lucide-react'
 import type { GivingDashboard } from '@/api/giving'
 import { formatAmount } from '@/api/giving'
 import type { ChurchRole } from '@/api/auth'
 import type { StructureTree } from '@/api/structure'
+import { DistributionPieChart } from '@/components/overview/distribution-pie-chart'
 import {
   cellBreakdownRows,
   dashboardQuickStats,
+  dashboardQuickStatsForCellLeader,
   dashboardQuickStatsForFellowshipLeader,
   fellowshipBreakdown,
   membersByCellChart,
@@ -27,7 +27,60 @@ import {
   structureLayerChartDataForFellowshipLeader,
 } from '@/lib/structure-dashboard'
 import { givingTypeLabel } from '@/lib/giving-ui'
+import { DashboardCalendarPanel } from '@/components/overview/dashboard-calendar-panel'
+import { Button } from '@/components/ui/button'
+import { initials } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+
+function ScopedMembersSnapshot({ tree }: { tree: StructureTree }) {
+  const members = tree.members.slice(0, 8)
+
+  return (
+    <section className="min-w-0 overflow-hidden rounded-xl border border-border/60 bg-background">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Users className="size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold">Your members</h2>
+            <p className="text-xs text-muted-foreground">{tree.members.length} on roster</p>
+          </div>
+        </div>
+        <Link
+          to="/roster/membership"
+          className="shrink-0 text-xs font-medium text-primary hover:underline"
+        >
+          View all
+        </Link>
+      </div>
+      <ul className="max-h-80 divide-y divide-border/40 overflow-y-auto">
+        {members.length === 0 ? (
+          <li className="px-4 py-6 text-center text-sm text-muted-foreground">
+            No members in your scope yet.
+          </li>
+        ) : (
+          members.map((member) => (
+            <li key={member.id} className="min-w-0">
+              <Link
+                to="/roster/membership"
+                className="flex min-w-0 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/30"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                  {initials(member.name)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{member.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {member.phone ?? member.email ?? 'No contact on file'}
+                  </p>
+                </div>
+              </Link>
+            </li>
+          ))
+        )}
+      </ul>
+    </section>
+  )
+}
 
 function ChartCard({
   title,
@@ -63,6 +116,9 @@ export function LeaderOverviewDashboard({
   role: ChurchRole | 'Leader'
 }) {
   const isFellowshipLeader = role === 'FellowshipLeader'
+  const isCellLeader = role === 'CellLeader'
+  const isPfccManager = role === 'PFCCManager'
+  const showCalendarSidebar = isFellowshipLeader || isCellLeader || isPfccManager
   const unitName = dashboard.scopeUnitName ?? 'Your unit'
   const layerData = isFellowshipLeader
     ? structureLayerChartDataForFellowshipLeader(tree)
@@ -72,11 +128,31 @@ export function LeaderOverviewDashboard({
     : membersByFellowshipChart(tree)
   const quickStats = isFellowshipLeader
     ? dashboardQuickStatsForFellowshipLeader(tree)
-    : dashboardQuickStats(tree)
+    : isCellLeader
+      ? dashboardQuickStatsForCellLeader(tree)
+      : dashboardQuickStats(tree)
   const fellowshipRows = fellowshipBreakdown(tree)
   const cellRows = cellBreakdownRows(tree)
 
-  const kpis = isFellowshipLeader
+  const kpis = isCellLeader
+    ? [
+        {
+          label: 'Members',
+          value: dashboard.memberCount ?? 0,
+          icon: Users,
+        },
+        {
+          label: 'Open campaigns',
+          value: dashboard.openCampaignCount ?? 0,
+          icon: Gift,
+        },
+        {
+          label: 'Approved giving',
+          value: formatAmount(dashboard.scopedApprovedTotal ?? 0),
+          icon: CheckCircle2,
+        },
+      ]
+    : isFellowshipLeader
     ? [
         {
           label: 'Cells',
@@ -130,11 +206,18 @@ export function LeaderOverviewDashboard({
       ]
 
   return (
-    <div className="space-y-6">
+    <div
+      className={cn(
+        'grid gap-5',
+        showCalendarSidebar &&
+          'lg:grid-cols-[minmax(0,1fr)_17.5rem] xl:grid-cols-[minmax(0,1fr)_20rem]',
+      )}
+    >
+      <div className="min-w-0 space-y-6">
       <section
         className={cn(
           'grid grid-cols-2 gap-4',
-          isFellowshipLeader ? 'lg:grid-cols-4' : 'lg:grid-cols-5',
+          isCellLeader ? 'lg:grid-cols-3' : isFellowshipLeader ? 'lg:grid-cols-4' : 'lg:grid-cols-5',
         )}
       >
         {kpis.map((metric) => {
@@ -161,6 +244,42 @@ export function LeaderOverviewDashboard({
         })}
       </section>
 
+      {isCellLeader ? (
+        <section className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-border/60 bg-background p-5">
+            <div className="flex items-start gap-3">
+              <ClipboardCheck className="mt-0.5 size-4 text-primary" />
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold tracking-tight">Attendance</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Mark your cell present or absent for each meeting, then submit for approval.
+                </p>
+                <Button asChild size="sm" className="mt-4">
+                  <Link to="/attendance/submissions">Submit roll call</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-background p-5">
+            <div className="flex items-start gap-3">
+              <Gift className="mt-0.5 size-4 text-primary" />
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold tracking-tight">Givings</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Log member contributions with receipts for open campaigns in your cell.
+                </p>
+                <Button asChild size="sm" variant="outline" className="mt-4">
+                  <Link to="/givings">Open givings</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {isCellLeader ? (
+        <ScopedMembersSnapshot tree={tree} />
+      ) : (
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard
           title={isFellowshipLeader ? 'Your roster' : 'Structure in your scope'}
@@ -198,34 +317,11 @@ export function LeaderOverviewDashboard({
               No members in your scope yet.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={distributionData}
-                  dataKey="members"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={52}
-                  outerRadius={88}
-                  paddingAngle={2}
-                >
-                  {distributionData.map((entry) => (
-                    <Cell key={entry.fullName} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value, _name, props) => [
-                    value,
-                    (props.payload as { fullName: string }).fullName,
-                  ]}
-                  contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <DistributionPieChart data={distributionData} innerRadius={52} outerRadius={88} />
           )}
         </ChartCard>
       </div>
+      )}
 
       <section className="rounded-xl border border-border/60 bg-background p-5">
         <div className="flex items-center gap-2">
@@ -239,8 +335,9 @@ export function LeaderOverviewDashboard({
         </div>
         {dashboard.campaigns.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            No approved giving in your scope yet. When cell leaders log contributions and they are
-            approved, totals appear here.
+            {isCellLeader
+              ? 'No approved giving from your cell yet. Log contributions on an open campaign and they will appear here once approved.'
+              : 'No approved giving in your scope yet. When cell leaders log contributions and they are approved, totals appear here.'}
           </p>
         ) : (
           <ul className="mt-4 divide-y divide-border/60">
@@ -317,7 +414,7 @@ export function LeaderOverviewDashboard({
             </table>
           </div>
         </section>
-      ) : (
+      ) : isCellLeader ? null : (
         <section className="overflow-hidden rounded-xl border border-border/60 bg-background">
           <div className="border-b border-border/60 px-5 py-3">
             <h2 className="text-sm font-semibold tracking-tight">Fellowship breakdown</h2>
@@ -353,6 +450,13 @@ export function LeaderOverviewDashboard({
           </div>
         </section>
       )}
+      </div>
+
+      {showCalendarSidebar ? (
+        <aside className="lg:sticky lg:top-20 lg:self-start">
+          <DashboardCalendarPanel scopeLabel={unitName} />
+        </aside>
+      ) : null}
     </div>
   )
 }

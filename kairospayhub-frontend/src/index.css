@@ -157,3 +157,26 @@
     animation: soft-pulse 2.5s ease-in-out infinite;
   }
 }
+
+/* React Flow needs an explicit-sized parent; min-height alone collapses the canvas */
+.structure-flow-container .structure-flow {
+  width: 100%;
+  height: 100%;
+}
+
+.structure-flow .react-flow__edge-path {
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+
+.structure-flow .react-flow__arrowhead polyline {
+  stroke: var(--primary);
+  fill: var(--primary);
+}
+
+.structure-flow .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}

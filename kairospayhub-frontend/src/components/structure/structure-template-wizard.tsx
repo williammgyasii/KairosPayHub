@@ -17,6 +17,7 @@ interface StructureTemplateWizardProps {
   churchName?: string | null
   initialName?: string
   initialLayers?: StructureLayerInput[]
+  initialSelectedLayerIndex?: number | null
   submitLabel?: string
   onCancel?: () => void
   onBack?: () => void
@@ -29,6 +30,7 @@ export function StructureTemplateWizard({
   churchName,
   initialName,
   initialLayers,
+  initialSelectedLayerIndex = null,
   submitLabel = 'Save structure definition',
   onCancel,
   onBack,
@@ -45,7 +47,9 @@ export function StructureTemplateWizard({
   const [layers, setLayers] = useState<StructureLayerInput[]>(
     initialLayers ?? TEMPLATE_PRESETS[0].layers,
   )
-  const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(null)
+  const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(
+    initialSelectedLayerIndex,
+  )
   const [quickPresetsOpen, setQuickPresetsOpen] = useState(!embedded)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)

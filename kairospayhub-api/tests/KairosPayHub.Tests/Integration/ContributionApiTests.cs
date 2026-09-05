@@ -38,7 +38,7 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Cell_leader_logs_contribution_fellowship_leader_approves_pastor_sees_rollup()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Giving Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Giving Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -158,7 +158,7 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Fellowship_leader_cannot_approve_outside_scope()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Scope Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Scope Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -256,7 +256,7 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_cannot_approve_cell_leader_contribution()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Pastor Scope Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Pastor Scope Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -338,7 +338,7 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pfcc_manager_logs_contribution_pastor_approves()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "PFCC Giving Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "PFCC Giving Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -459,7 +459,7 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Authenticated_leader_can_upload_giving_attachment()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Upload Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Upload Church" });
 
         using var form = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent([0xFF, 0xD8, 0xFF, 0xD9]);
@@ -553,7 +553,7 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_lists_overall_contributions_with_campaign_filter_and_sort()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Overall Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Overall Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -653,7 +653,7 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_lists_member_giving_totals_with_campaign_filter_and_ranking()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Rank Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Rank Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {

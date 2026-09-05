@@ -22,7 +22,7 @@ public class StructureApiTests(PostgresFixture fx) : IAsyncLifetime
         client.DefaultRequestHeaders.Add("X-Test-Email", "pastor@example.com");
         client.DefaultRequestHeaders.Add("X-Test-Name", "Pastor");
 
-        await client.PostAsJsonAsync("/api/onboarding", new { churchName = "Flat Church" });
+        await client.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Flat Church" });
         await client.PutAsJsonAsync("/api/structure/template", new
         {
             layers = new[]

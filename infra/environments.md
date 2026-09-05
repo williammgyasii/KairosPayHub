@@ -32,6 +32,18 @@ Single **gateway Worker** on the app hostname proxies:
 | `kairospayhub-frontend/` | Vite SPA → Cloudflare Pages |
 | `scripts/provision-cloudflare-environments.sh` | One-time / manual full provision + deploy |
 
+## Observability
+
+Gateway Workers (`kairospayhub-api-dev`, `kairospayhub-api`) have **Workers Observability** enabled in `cloudflare/api/wrangler.jsonc`:
+
+- **Invocation logs** — every request through the gateway (route, status, duration)
+- **Traces** — distributed traces for Worker + container routing
+- **Container stdout** — ASP.NET Core console logs (`Information` default) appear in the same log stream
+
+View in Cloudflare Dashboard → **Workers & Pages** → select the worker → **Observability** (Logs / Traces tabs). Filter by `$metadata.service` or search for `/api/`, `/health`, etc.
+
+After changing `observability` in wrangler, redeploy the gateway (`wrangler deploy --env development|production`) or push to `main` / tag for CI.
+
 ## Release flow
 
 ```text

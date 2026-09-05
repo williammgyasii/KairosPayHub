@@ -21,7 +21,8 @@ except ImportError:
 ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT / ".env"
 
-DEFAULT_CHURCH_NAME = "Canada Church"
+DEFAULT_CHURCH_NAME = "Canada Int Ministries"
+DEFAULT_EMAIL_DOMAIN = "canadaint.demo"
 DEFAULT_TOTAL_MEMBERS = 72
 TITANS_CELL_MIN = 14
 TITANS_CELL_NAME = "Titans Cell"
@@ -57,13 +58,26 @@ OCCUPATIONS = [0, 1, 2, 3, 4]
 RESPONSIVENESS_LEVELS = [1, 2, 3, 4, 5]
 
 
-def load_connection_string() -> str:
+def load_connection_string(production: bool = False) -> str:
     if not ENV_PATH.exists():
         raise SystemExit(f"Missing {ENV_PATH}")
+    keys = (
+        ["NEON_PROD_CONNECTION_STRING", "ConnectionStrings__Default"]
+        if production
+        else ["ConnectionStrings__Default", "NEON_PROD_CONNECTION_STRING"]
+    )
+    values: dict[str, str] = {}
     for line in ENV_PATH.read_text().splitlines():
-        if line.startswith("ConnectionStrings__Default="):
-            return line.split("=", 1)[1].strip()
-    raise SystemExit("ConnectionStrings__Default not found in .env")
+        for key in keys:
+            if line.startswith(f"{key}="):
+                values[key] = line.split("=", 1)[1].strip()
+    for key in keys:
+        if values.get(key):
+            return values[key]
+    raise SystemExit(
+        "No Postgres connection string found. Set ConnectionStrings__Default (dev) "
+        "or NEON_PROD_CONNECTION_STRING (prod) in .env"
+    )
 
 
 def pg_connect_url(raw: str) -> str:
@@ -79,9 +93,30 @@ def find_church(cur, church_name: str) -> tuple[str, str]:
         (church_name,),
     )
     row = cur.fetchone()
-    if not row:
-        raise SystemExit(f"Church not found: {church_name}")
-    return str(row[0]), row[1]
+    if row:
+        return str(row[0]), row[1]
+
+    cur.execute(
+        """
+        SELECT "Id", "Name"
+        FROM church_tenants
+        WHERE lower("Name") LIKE lower(%s)
+        ORDER BY "CreatedAt" DESC
+        LIMIT 1
+        """,
+        (f"%{church_name}%",),
+    )
+    row = cur.fetchone()
+    if row:
+        return str(row[0]), row[1]
+
+    cur.execute(
+        'SELECT "Name" FROM church_tenants ORDER BY "CreatedAt" DESC LIMIT 10'
+    )
+    recent = [r[0] for r in cur.fetchall()]
+    raise SystemExit(
+        f"Church not found: {church_name}. Recent churches: {', '.join(recent) or '(none)'}"
+    )
 
 
 def list_cells(cur, church_id: str) -> list[tuple[str, str, int]]:
@@ -125,7 +160,7 @@ def unique_names(count: int, reserved: set[str]) -> list[str]:
     return names
 
 
-def member_profile(idx: int, name: str, occupation: int, responsiveness: int) -> dict:
+def member_profile(idx: int, name: str, occupation: int, responsiveness: int, email_domain: str) -> dict:
     year = random.randint(1975, 2006)
     month = random.randint(1, 12)
     day = random.randint(1, 28)
@@ -133,7 +168,7 @@ def member_profile(idx: int, name: str, occupation: int, responsiveness: int) ->
     area = random.choice(["416", "647", "437", "905", "613", "403", "587", "780"])
     return {
         "name": name,
-        "email": f"{slug}.{idx:03d}@canada-church.demo",
+        "email": f"{slug}.{idx:03d}@{email_domain}",
         "phone": f"+1{area}{random.randint(2000000, 9999999)}",
         "age": 2026 - year,
         "date_of_birth": date(year, month, day),
@@ -291,11 +326,21 @@ def build_cell_targets(
     if not cells:
         raise SystemExit("No cell nodes found — set up structure first.")
 
-    titans = next(((cid, name, count) for cid, name, count in cells if name == TITANS_CELL_NAME), None)
+    titans = next(((cid, name, count) for cid, name, count in cells if "titan" in name.lower()), None)
     if titans is None:
-        raise SystemExit(f'Cell "{TITANS_CELL_NAME}" not found — create it in Structure first.')
+        # Even distribution when no Titans cell exists.
+        existing_total = sum(count for _, _, count in cells)
+        needed = max(0, total_target - existing_total)
+        if needed == 0:
+            return {}
+        per_cell = needed // len(cells)
+        extra = needed % len(cells)
+        return {
+            cell_id: per_cell + (1 if index < extra else 0)
+            for index, (cell_id, _, _) in enumerate(cells)
+        }
 
-    titans_id, _, titans_existing = titans
+    titans_id, titans_name, titans_existing = titans
     titans_needed = max(0, titans_min - titans_existing)
 
     other_cells = [(cid, name, count) for cid, name, count in cells if cid != titans_id]
@@ -320,6 +365,7 @@ def seed_members(
     cells: list[tuple[str, str, int]],
     total_target: int,
     titans_min: int,
+    email_domain: str,
     now: datetime,
 ) -> tuple[int, dict[str, int]]:
     targets = build_cell_targets(cells, total_target, titans_min)
@@ -342,7 +388,7 @@ def seed_members(
     for cell_id, count in targets.items():
         for _ in range(count):
             name = next(name_iter)
-            profile = member_profile(created + 1, name, occupations[created], responsiveness[created])
+            profile = member_profile(created + 1, name, occupations[created], responsiveness[created], email_domain)
             insert_member(cur, church_id, cell_id, profile, now)
             created += 1
 
@@ -358,17 +404,19 @@ def seed_members(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed demo members for Canada Church.")
-    parser.add_argument("--connection", help="Postgres URI (defaults to .env ConnectionStrings__Default)")
+    parser = argparse.ArgumentParser(description="Seed demo members and leaders for a church.")
+    parser.add_argument("--connection", help="Postgres URI (overrides .env)")
+    parser.add_argument("--production", action="store_true", help="Use NEON_PROD_CONNECTION_STRING from .env")
     parser.add_argument("--church-name", default=DEFAULT_CHURCH_NAME)
+    parser.add_argument("--email-domain", default=DEFAULT_EMAIL_DOMAIN)
     parser.add_argument("--total", type=int, default=DEFAULT_TOTAL_MEMBERS, help="Target total members across all cells")
-    parser.add_argument("--titans-min", type=int, default=TITANS_CELL_MIN, help=f"Minimum members in {TITANS_CELL_NAME}")
+    parser.add_argument("--titans-min", type=int, default=TITANS_CELL_MIN, help="Minimum members in Titans cell (if present)")
     parser.add_argument("--force", action="store_true", help="Top up to target even when church already has members")
     parser.add_argument("--seed", type=int, default=9032026)
     args = parser.parse_args()
 
     random.seed(args.seed)
-    conn_str = pg_connect_url(args.connection or load_connection_string())
+    conn_str = pg_connect_url(args.connection or load_connection_string(args.production))
     now = datetime.now(timezone.utc)
 
     with psycopg.connect(conn_str) as conn:
@@ -383,11 +431,14 @@ def main() -> None:
                 print(f"    - {name}: {count} members")
 
             if existing >= args.total and not args.force:
-                titans_count = next((count for _, name, count in cells if name == TITANS_CELL_NAME), 0)
+                titans_count = next((count for _, name, count in cells if "titan" in name.lower()), 0)
                 if titans_count >= args.titans_min:
                     print(f"Already has {existing} members (target {args.total}). Use --force to top up.")
+                    leaders = assign_leaders(cur, church_id)
+                    conn.commit()
+                    print(f"Re-assigned leaders: {leaders}")
                     return
-                print(f"Topping up {TITANS_CELL_NAME} only ({titans_count} -> {args.titans_min})")
+                print(f"Topping up Titans cell ({titans_count} -> {args.titans_min})")
 
             created, final_counts = seed_members(
                 cur,
@@ -395,6 +446,7 @@ def main() -> None:
                 cells,
                 args.total if args.force else max(args.total, existing + 1),
                 args.titans_min,
+                args.email_domain,
                 now,
             )
             leaders = assign_leaders(cur, church_id)
@@ -404,7 +456,7 @@ def main() -> None:
             print(f"\nSeeded {created} new members ({total} total)")
             print("Cell counts:")
             for name, count in sorted(final_counts.items()):
-                marker = "  <-- demo cell" if name == TITANS_CELL_NAME else ""
+                marker = "  <-- demo cell" if "titan" in name.lower() else ""
                 print(f"  - {name}: {count}{marker}")
             print(
                 f"Leaders: {leaders['fellowship']} fellowship, {leaders['cell']} cell, {leaders['pfcc']} PFCC"

@@ -1,0 +1,27 @@
+schema: spec-driven
+
+context: |
+  KairosPayHub — church management SaaS (giving, attendance, structure/roster).
+  Stack: .NET API (PostgreSQL/Neon), React + Vite frontend, Cloudflare Workers/Pages.
+  Church tenant table: church_tenants (Domain.Structure.Church).
+  Default giving currency today is hard-coded GHS; moving to country-based locale.
+  Conventions: TDD for API integration tests, small reviewable diffs, collaborative workflow (spec → review → implement).
+  Dev: API localhost:5192, frontend 127.0.0.1:5173.
+
+rules:
+  proposal:
+    - Keep proposals under one page; list capabilities explicitly
+  specs:
+    - Use SHALL/MUST; every requirement needs a #### Scenario block
+  tasks:
+    - Break into reviewable chunks (API, frontend, tests separately)
+    - Mark checkboxes only when behavior is fully done
+
+operations:
+  apply:
+    guidance:
+      - Follow tasks.md order; pause after each chunk for user review when requested
+      - Run integration tests before marking verify tasks complete
+  archive:
+    guidance:
+      - Confirm all tasks checked before archiving

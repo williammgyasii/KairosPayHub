@@ -15,8 +15,8 @@ export function ChurchBrand({ churchName, logoUrl, collapsed, className }: Churc
   return (
     <div
       className={cn(
-        'flex items-center',
-        collapsed ? 'justify-center' : 'gap-3',
+        'flex min-w-0 items-center',
+        collapsed ? 'justify-center' : 'w-full gap-3',
         className,
       )}
     >
@@ -33,8 +33,8 @@ export function ChurchBrand({ churchName, logoUrl, collapsed, className }: Churc
       </Avatar>
 
       {!collapsed && (
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-bold leading-tight tracking-tight">{label}</p>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <p className="truncate text-base font-bold leading-tight tracking-tight">{label}</p>
           <p className="truncate text-xs text-muted-foreground">Church workspace</p>
         </div>
       )}

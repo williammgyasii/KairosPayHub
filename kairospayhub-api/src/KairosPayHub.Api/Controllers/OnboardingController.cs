@@ -2,6 +2,7 @@ using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
 using KairosPayHub.Api.Domain.Structure;
+using KairosPayHub.Api.Services;
 using KairosPayHub.Api.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,13 @@ namespace KairosPayHub.Api.Controllers;
 public class OnboardingController(CurrentActor current, KairosDbContext db) : ControllerBase
 {
     /// <summary>
+    /// Supported countries for church onboarding (ISO code, display name, default currency).
+    /// </summary>
+    [HttpGet("countries")]
+    public IActionResult ListCountries() =>
+        Ok(ChurchLocale.ListSupported().Select(c => new { code = c.Code, name = c.Name, currency = c.Currency }));
+
+    /// <summary>
     /// First-login provisioning for a pastor: creates the church tenant, pastor
     /// role assignment, and legacy org row (for existing record flows).
     /// Idempotent — if the caller is already onboarded, returns existing membership.
@@ -24,9 +32,11 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
     public async Task<IActionResult> Onboard([FromBody] OnboardRequest request, CancellationToken ct)
     {
         string churchName;
+        SupportedCountry locale;
         try
         {
             churchName = ResolveChurchName(request);
+            locale = ChurchLocale.ResolveOrThrow(request.CountryCode);
         }
         catch (ArgumentException ex)
         {
@@ -54,13 +64,16 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         var legacyUser = await FindLegacyUserAsync(current.Sub, email, ct);
 
         if (legacyUser is not null)
-            return Ok(await RelinkLegacyUserAsync(legacyUser, authUserId, request, ct));
+            return Ok(await RelinkLegacyUserAsync(legacyUser, authUserId, request, locale, ct));
 
-        return Ok(await CreateFreshTenantAsync(authUserId, request, ct));
+        return Ok(await CreateFreshTenantAsync(authUserId, request, locale, ct));
     }
 
-    private static void ApplyChurchProfile(Domain.Structure.Church church, OnboardRequest request)
+    private static void ApplyChurchProfile(Domain.Structure.Church church, OnboardRequest request, SupportedCountry locale)
     {
+        church.CountryCode = locale.Code;
+        church.DefaultCurrency = locale.Currency;
+
         var location = request.Location?.Trim();
         if (!string.IsNullOrWhiteSpace(location))
             church.Location = location;
@@ -99,6 +112,7 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         User legacyUser,
         Guid authUserId,
         OnboardRequest request,
+        SupportedCountry locale,
         CancellationToken ct)
     {
         var churchName = ResolveChurchName(request);
@@ -136,7 +150,7 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
             if (church is not null)
             {
                 church.Name = churchName;
-                ApplyChurchProfile(church, request);
+                ApplyChurchProfile(church, request, locale);
             }
 
             var org = await db.Organizations.FindAsync([legacyUser.OrganizationId], ct);
@@ -167,7 +181,7 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         }
 
         var newChurch = new Domain.Structure.Church { Name = churchName };
-        ApplyChurchProfile(newChurch, request);
+        ApplyChurchProfile(newChurch, request, locale);
         var pastorAssignment = new RoleAssignment
         {
             ChurchId = newChurch.Id,
@@ -188,11 +202,11 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
         };
     }
 
-    private async Task<object> CreateFreshTenantAsync(Guid authUserId, OnboardRequest request, CancellationToken ct)
+    private async Task<object> CreateFreshTenantAsync(Guid authUserId, OnboardRequest request, SupportedCountry locale, CancellationToken ct)
     {
         var churchName = ResolveChurchName(request);
         var church = new Domain.Structure.Church { Name = churchName };
-        ApplyChurchProfile(church, request);
+        ApplyChurchProfile(church, request, locale);
         var org = new Organization { Name = churchName };
         var assignment = new RoleAssignment
         {

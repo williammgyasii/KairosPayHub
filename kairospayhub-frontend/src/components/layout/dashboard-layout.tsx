@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import type { Me } from '@/api/auth'
 import { AppSidebar, MobileSidebarOverlay } from '@/components/layout/app-sidebar'
 import { DashboardTopbar } from '@/components/layout/dashboard-topbar'
+import { NotificationsRealtime } from '@/components/layout/notifications-realtime'
 import { SidebarProvider, useSidebar } from '@/components/layout/sidebar-context'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
@@ -31,6 +32,7 @@ function DashboardLayoutInner({ me, reloadMe }: DashboardLayoutProps) {
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-[var(--sidebar-width)] transition-[padding] duration-200">
         <SidebarWidthSync />
+        <NotificationsRealtime />
         <DashboardTopbar me={me} />
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6">
           <Outlet context={{ me, reloadMe } satisfies DashboardOutletContext} />

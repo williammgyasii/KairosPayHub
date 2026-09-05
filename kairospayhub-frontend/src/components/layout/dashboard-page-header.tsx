@@ -68,7 +68,7 @@ export function DashboardPageHeader({
         <div className="min-w-0 max-w-3xl space-y-2">
           <h1
             className={cn(
-              'font-semibold tracking-tight text-foreground',
+              'min-w-0 font-semibold tracking-tight text-foreground',
               onBack && 'flex items-center gap-1',
               titleSize === 'hero'
                 ? 'text-3xl sm:text-4xl lg:text-[2.75rem] lg:leading-tight'
@@ -87,7 +87,7 @@ export function DashboardPageHeader({
                 <ChevronLeft className="size-5" />
               </Button>
             )}
-            <span className="min-w-0 truncate">{title}</span>
+            <span className="block truncate">{title}</span>
           </h1>
           {description && (
             <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>

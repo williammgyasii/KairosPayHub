@@ -467,8 +467,21 @@ export async function fetchGivingAttachmentBlobUrl(attachmentKey: string): Promi
   return URL.createObjectURL(blob)
 }
 
-export function formatAmount(amount: number, currency = 'GHS') {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
+let churchDefaultCurrency = 'GHS'
+
+export function setChurchDefaultCurrency(currency: string) {
+  churchDefaultCurrency = currency || 'GHS'
+}
+
+export function getChurchDefaultCurrency() {
+  return churchDefaultCurrency
+}
+
+export function formatAmount(amount: number, currency?: string) {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currency ?? churchDefaultCurrency,
+  }).format(amount)
 }
 
 export function formatContributionStatus(status: string) {

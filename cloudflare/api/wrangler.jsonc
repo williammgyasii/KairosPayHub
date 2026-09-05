@@ -4,6 +4,19 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-03",
   "account_id": "e23518956f08ff35812d9ab001a39880",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "persist": true
+    }
+  },
   "env": {
     "development": {
       "name": "kairospayhub-api-dev",

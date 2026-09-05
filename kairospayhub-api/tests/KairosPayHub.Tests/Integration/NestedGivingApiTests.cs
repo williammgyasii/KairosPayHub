@@ -37,7 +37,7 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_creates_sub_period_and_logs_contribution_on_child_not_parent()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Nested Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Nested Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -152,7 +152,7 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Fellowship_leader_logs_with_attachment_auto_approves_and_shows_on_children_list()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Auto Approve Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Auto Approve Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -252,7 +252,7 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Child_scope_wider_than_parent_is_rejected()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Scope Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Scope Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -420,7 +420,7 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
         HttpClient CellClient)> SeedNestedGivingAsync()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Legacy Parent Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Legacy Parent Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -495,7 +495,7 @@ public class NestedGivingApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Dashboard_aggregates_open_campaigns()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Dash Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Dash Church" });
 
         await pastor.PostAsJsonAsync("/api/giving/programs", new
         {

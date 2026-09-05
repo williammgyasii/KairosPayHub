@@ -34,6 +34,8 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
         string? location = null;
         string? pastorName = null;
         int? memberCount = null;
+        string? countryCode = null;
+        string? defaultCurrency = null;
         if (churchId is not null)
         {
             var church = await db.StructureChurches.AsNoTracking()
@@ -45,6 +47,8 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
                     c.Location,
                     c.PrimaryPastorName,
                     c.ApproximateMemberCount,
+                    c.CountryCode,
+                    c.DefaultCurrency,
                 })
                 .FirstOrDefaultAsync(ct);
             churchName = church?.Name;
@@ -52,6 +56,8 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
             location = church?.Location;
             pastorName = church?.PrimaryPastorName;
             memberCount = church?.ApproximateMemberCount;
+            countryCode = church?.CountryCode;
+            defaultCurrency = church?.DefaultCurrency;
         }
 
         if (actor.StructureRole == Domain.Structure.ChurchRole.Pastor
@@ -68,6 +74,8 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
                 location,
                 pastorName,
                 memberCount,
+                countryCode,
+                defaultCurrency,
                 onboardingStep = "structure",
                 role = actor.StructureRole?.ToString() ?? actor.Role.ToString(),
             });
@@ -119,6 +127,8 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
             churchId,
             churchName,
             churchLogoUrl,
+            countryCode,
+            defaultCurrency,
             organizationId = actor.OrganizationId,
             role,
             scopeNodeId,

@@ -28,7 +28,7 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_creates_weekly_sunday_meeting_type_with_auto_generated_occurrences()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Attendance Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Attendance Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -123,7 +123,7 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_creates_meeting_type_open_now_for_demo_opens_today_occurrence()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Demo Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Demo Church" });
 
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
@@ -211,7 +211,7 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_updates_meeting_type_title_and_submission_window()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Update Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Update Church" });
 
         var createResp = await pastor.PostAsJsonAsync("/api/attendance/meeting-types", new
         {
@@ -250,7 +250,7 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Pastor_deletes_meeting_type_and_associated_occurrences()
     {
         var pastor = PastorClient();
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Delete Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Delete Church" });
 
         var createResp = await pastor.PostAsJsonAsync("/api/attendance/meeting-types", new
         {

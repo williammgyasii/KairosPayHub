@@ -7,7 +7,8 @@ public record OnboardRequest(
     string? ChurchName,
     string? Location = null,
     string? PastorName = null,
-    int? MemberCount = null);
+    int? MemberCount = null,
+    string? CountryCode = null);
 
 public record CreateChurchRequest(string Name);
 

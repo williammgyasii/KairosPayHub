@@ -215,7 +215,7 @@ internal sealed record AttendanceApprovalSeed(
         pastor.DefaultRequestHeaders.Add("X-Test-Email", "pastor@example.com");
         pastor.DefaultRequestHeaders.Add("X-Test-Name", "Pastor");
 
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Approval Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Approval Church" });
 
         if (includePfcc)
         {

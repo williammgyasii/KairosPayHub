@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ChevronRight,
   Church,
+  Globe,
   MapPin,
   UserRound,
   Users,
@@ -34,6 +35,12 @@ interface OnboardingWizardProps {
 }
 
 const STEPS = ['Welcome', 'Church details', 'Structure'] as const
+
+type SupportedCountry = {
+  code: string
+  name: string
+  currency: string
+}
 
 const stepMotion = {
   initial: { opacity: 0, y: 16 },
@@ -81,6 +88,9 @@ export function OnboardingWizard({ me, onComplete }: OnboardingWizardProps) {
   const [memberCount, setMemberCount] = useState(
     me.memberCount != null ? String(me.memberCount) : '',
   )
+  const [countryCode, setCountryCode] = useState(me.countryCode ?? 'GH')
+  const [countries, setCountries] = useState<SupportedCountry[]>([])
+  const [countriesLoading, setCountriesLoading] = useState(true)
   const [churchCreated, setChurchCreated] = useState(Boolean(me.churchId))
   const [busy, setBusy] = useState(false)
   const [finishing, setFinishing] = useState(false)
@@ -90,6 +100,26 @@ export function OnboardingWizard({ me, onComplete }: OnboardingWizardProps) {
   const firstName = displayName(me, email).split(' ')[0] || 'Pastor'
   const progress = ((step + 1) / STEPS.length) * 100
   const shellWidth = step === 2 ? '2xl' : 'xl'
+  const selectedCountry = countries.find((c) => c.code === countryCode)
+
+  useEffect(() => {
+    let cancelled = false
+    setCountriesLoading(true)
+    void api
+      .get<SupportedCountry[]>('/api/onboarding/countries')
+      .then((list) => {
+        if (!cancelled) setCountries(list)
+      })
+      .catch(() => {
+        if (!cancelled) setCountries([])
+      })
+      .finally(() => {
+        if (!cancelled) setCountriesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [api])
 
   async function createChurch(e: FormEvent) {
     e.preventDefault()
@@ -101,6 +131,7 @@ export function OnboardingWizard({ me, onComplete }: OnboardingWizardProps) {
         churchName: churchName.trim(),
         location: location.trim(),
         pastorName: pastorName.trim(),
+        countryCode,
         memberCount: Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : undefined,
       })
       setChurchCreated(true)
@@ -271,6 +302,36 @@ export function OnboardingWizard({ me, onComplete }: OnboardingWizardProps) {
                         required
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="country" className="text-xs">
+                      Country
+                    </Label>
+                    <div className="relative">
+                      <FieldIcon>
+                        <Globe className="size-3.5" />
+                      </FieldIcon>
+                      <select
+                        id="country"
+                        className="flex h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        value={countryCode}
+                        onChange={(e) => setCountryCode(e.target.value)}
+                        required
+                        disabled={countriesLoading}
+                      >
+                        {countries.map((country) => (
+                          <option key={country.code} value={country.code}>
+                            {country.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {selectedCountry ? (
+                      <p className="text-xs text-muted-foreground">
+                        Default currency: {selectedCountry.currency}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="space-y-1.5">

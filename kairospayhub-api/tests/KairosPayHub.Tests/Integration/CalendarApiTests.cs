@@ -55,6 +55,7 @@ public class CalendarApiTests(PostgresFixture fx) : IAsyncLifetime
             description = "Bring a friend",
             eventDate = eventDate.ToString("yyyy-MM-dd"),
             scopeNodeId = seed.CellNodeId,
+            notifyLeadersUp = true,
         });
         Assert.Equal(HttpStatusCode.OK, createResp.StatusCode);
 
@@ -64,7 +65,32 @@ public class CalendarApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Contains(
             fellowshipNotifications.GetProperty("notifications").EnumerateArray(),
             item => item.GetProperty("kind").GetString() == "CalendarEventReminder"
-                && item.GetProperty("linkPath").GetString() == "events");
+                && item.GetProperty("linkPath").GetString() == "events"
+                && item.GetProperty("title").GetString()!.Contains("cell event", StringComparison.OrdinalIgnoreCase)
+                && item.GetProperty("body").GetString()!.Contains("created a new event", StringComparison.OrdinalIgnoreCase)
+                && item.GetProperty("body").GetString()!.Contains("Cell prayer night", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Creating_calendar_event_without_alert_flags_does_not_notify()
+    {
+        var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: false);
+        var eventDate = new DateOnly(2026, 8, 25);
+
+        var before = await seed.FellowshipClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        var beforeUnread = before.GetProperty("unreadCount").GetInt32();
+
+        var createResp = await seed.CellClient.PostAsJsonAsync("/api/calendar/events", new
+        {
+            title = "Quiet cell meetup",
+            description = (string?)null,
+            eventDate = eventDate.ToString("yyyy-MM-dd"),
+            scopeNodeId = seed.CellNodeId,
+        });
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode);
+
+        var after = await seed.FellowshipClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(beforeUnread, after.GetProperty("unreadCount").GetInt32());
     }
 
     [Fact]

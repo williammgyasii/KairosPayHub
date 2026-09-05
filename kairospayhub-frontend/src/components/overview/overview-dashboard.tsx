@@ -3,8 +3,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -13,6 +11,7 @@ import {
 import { Church, Layers, Network, TrendingUp, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { StructureTree } from '@/api/structure'
+import { DistributionPieChart } from '@/components/overview/distribution-pie-chart'
 import {
   dashboardMetrics,
   dashboardQuickStats,
@@ -156,35 +155,7 @@ export function OverviewDashboard({ tree }: { tree: StructureTree }) {
               Add members to see distribution.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="members"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={52}
-                  outerRadius={88}
-                  paddingAngle={2}
-                >
-                  {pieData.map((entry) => (
-                    <Cell key={entry.fullName} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value, _name, props) => [
-                    value,
-                    (props.payload as { fullName: string }).fullName,
-                  ]}
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: '1px solid oklch(0.91 0.01 255)',
-                    fontSize: 12,
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <DistributionPieChart data={pieData} innerRadius={52} outerRadius={88} />
           )}
         </ChartCard>
       </div>

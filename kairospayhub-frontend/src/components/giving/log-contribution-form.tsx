@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ImageIcon, Upload } from 'lucide-react'
 import type { ApiClient } from '@/api/core'
 import { buildMembersQuery } from '@/api/structure'
-import { createContribution, uploadGivingAttachment } from '@/api/giving'
+import { createContribution, getChurchDefaultCurrency, uploadGivingAttachment } from '@/api/giving'
 import { SearchPicker } from '@/components/structure/search-picker'
 import { WizardField } from '@/components/structure/wizard-shell'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -79,7 +79,7 @@ export function LogContributionForm({
       await createContribution(api, programId, {
         memberId,
         amount: Number(amount),
-        currency: 'GHS',
+        currency: getChurchDefaultCurrency(),
         dateSent: `${dateSent}T12:00:00.000Z`,
         attachmentKey: attachment.attachmentKey,
         notes: notes.trim() || null,

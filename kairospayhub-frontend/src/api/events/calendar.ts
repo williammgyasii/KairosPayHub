@@ -22,6 +22,8 @@ export type CreateCalendarEventInput = {
   description?: string | null
   eventDate: string
   scopeNodeId?: string | null
+  notifyLeadersUp?: boolean
+  notifyLeadersDown?: boolean
 }
 
 export function getCalendarFeed(api: ApiClient, from: string, to: string) {

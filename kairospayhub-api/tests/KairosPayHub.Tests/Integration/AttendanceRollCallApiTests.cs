@@ -125,7 +125,7 @@ internal sealed record AttendanceTestSeed(
         pastor.DefaultRequestHeaders.Add("X-Test-Email", "pastor@example.com");
         pastor.DefaultRequestHeaders.Add("X-Test-Name", "Pastor");
 
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Roll Call Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Roll Call Church" });
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
             layers = new[]
@@ -233,7 +233,7 @@ internal sealed record AttendanceNestedCellGroupSeed(
         pastor.DefaultRequestHeaders.Add("X-Test-Email", "pastor@example.com");
         pastor.DefaultRequestHeaders.Add("X-Test-Name", "Pastor");
 
-        await pastor.PostAsJsonAsync("/api/onboarding", new { churchName = "Nested Cell Church" });
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Nested Cell Church" });
         await pastor.PutAsJsonAsync("/api/structure/template", new
         {
             layers = new[]

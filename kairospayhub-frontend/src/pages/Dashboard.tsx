@@ -1,6 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useGetMeQuery } from '@/store/meApi'
-import { isNotOnboarded } from '@/api/auth'
+import { churchCurrency, isNotOnboarded } from '@/api/auth'
+import { setChurchDefaultCurrency } from '@/api/giving'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Spinner } from '@/components/ui/spinner'
@@ -8,6 +9,10 @@ import { formatRtkQueryError } from '@/store/baseQuery'
 
 export function DashboardRoot() {
   const { data: me, error, isLoading, refetch } = useGetMeQuery()
+
+  useEffect(() => {
+    if (me) setChurchDefaultCurrency(churchCurrency(me))
+  }, [me])
 
   const reloadMe = useCallback(async () => {
     await refetch()

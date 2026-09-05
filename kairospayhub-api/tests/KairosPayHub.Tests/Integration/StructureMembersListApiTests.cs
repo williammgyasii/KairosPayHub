@@ -137,7 +137,7 @@ public class StructureMembersListApiTests(PostgresFixture fx) : IAsyncLifetime
 
     private static async Task OnboardAsync(HttpClient client, string churchName = "List Church")
     {
-        var onboard = await client.PostAsJsonAsync("/api/onboarding", new { churchName });
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", OnboardingTestHelper.Payload(churchName));
         Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
     }
 

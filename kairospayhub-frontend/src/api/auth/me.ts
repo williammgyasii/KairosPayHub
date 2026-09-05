@@ -20,6 +20,8 @@ export type MeNotOnboarded = {
   location?: string | null
   pastorName?: string | null
   memberCount?: number | null
+  countryCode?: string | null
+  defaultCurrency?: string | null
   onboardingStep?: 'structure' | null
   role?: string | null
 }
@@ -32,6 +34,8 @@ export type Me =
       churchId: string | null
       churchName: string | null
       churchLogoUrl: string | null
+      countryCode?: string | null
+      defaultCurrency?: string | null
       organizationId: string
       role: ChurchRole | 'Leader'
       scopeNodeId?: string | null
@@ -106,6 +110,10 @@ export function canApproveAttendance(role: string): boolean {
 
 export function displayName(me: Me, sessionEmail?: string | null): string {
   return me.name ?? me.email ?? sessionEmail ?? ''
+}
+
+export function churchCurrency(me: Me | null | undefined): string {
+  return me?.defaultCurrency ?? 'GHS'
 }
 
 const ROLE_BADGE_LABELS: Record<string, string> = {
