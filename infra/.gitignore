@@ -1,7 +1,8 @@
 # Local Terraform working dir + provider binaries
 .terraform/
+terraform/.terraform/
 
-# State is stored remotely (S3); never commit local state
+# State is stored remotely when configured; never commit local state
 *.tfstate
 *.tfstate.*
 
@@ -9,6 +10,7 @@
 tfplan
 *.tfplan
 
-# Crash logs
-crash.log
-crash.*.log
+# Local overrides (never commit)
+*.tfvars
+*.tfvars.json
+!example.tfvars

@@ -47,14 +47,18 @@ After changing `observability` in wrangler, redeploy the gateway (`wrangler depl
 ## Release flow
 
 ```text
-merge → main → CI passes → deploy-development.yml → Dev Pages + API
-git tag v1.2.3 → deploy-production.yml → Prod Pages + API
+merge → main → CI passes → deploy-development.yml → https://dev.app.kairospayhub.com
+git tag v1.2.3 → deploy-production.yml → https://app.kairospayhub.com
 ```
 
-| Target | Trigger | Mechanism |
-|--------|---------|-----------|
-| **Dev** | Push to `main` after CI green | `.github/workflows/deploy-development.yml` |
-| **Prod** | Git tag `v*` | `.github/workflows/deploy-production.yml` |
+| Target | Trigger | Mechanism | GitHub Environment |
+|--------|---------|-----------|--------------------|
+| **Dev** | Push to `main` after CI green | `.github/workflows/deploy-development.yml` | `development` → https://dev.app.kairospayhub.com |
+| **Prod** | Git tag `v*` | `.github/workflows/deploy-production.yml` | `production` → https://app.kairospayhub.com |
+
+GitHub **Deployments** / **Environments** should link to those app URLs (not only Wrangler Worker names).
+
+Account infra (R2, zone metadata): see [`terraform/`](./terraform/) and `.github/workflows/terraform-plan.yml`.
 
 ### GitHub secrets
 
