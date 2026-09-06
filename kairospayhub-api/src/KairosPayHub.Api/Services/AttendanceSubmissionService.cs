@@ -20,11 +20,19 @@ public record AttendanceScopeSubmissionDto(
     Guid Id,
     Guid ScopeNodeId,
     string ScopeUnitName,
+    string? ParentUnitName,
+    string? ParentLayerName,
+    string? LayerName,
     string LockStatus,
     string ApprovalStatus,
     DateTimeOffset? SubmittedAt,
     string? EnteredByRole,
-    string? PendingApproverRole);
+    string? PendingApproverRole,
+    int MembersPresent,
+    int MembersAbsent,
+    int GuestsPresent,
+    int FirstTimersPresent,
+    int TotalPresent);
 
 public record AttendanceApproveResult(
     bool Ok,
@@ -44,6 +52,15 @@ public record AttendanceApprovalQueueItemDto(
     int PresentCount,
     int AbsentCount,
     int MemberCount);
+
+public record AttendanceMySubmissionDto(
+    Guid OccurrenceId,
+    Guid ScopeNodeId,
+    string ScopeUnitName,
+    string MeetingTypeTitle,
+    DateOnly MeetingDate,
+    string ApprovalStatus,
+    DateTimeOffset? SubmittedAt);
 
 public record AttendanceOccurrenceDetailDto(
     Guid Id,
@@ -72,6 +89,7 @@ public record AttendancePresentPersonDto(
     string PersonKind,
     Guid ScopeNodeId,
     string CellName,
+    string? ParentUnitName,
     string? Phone,
     bool WasFirstTimer,
     string? InvitedByMemberName);
@@ -130,24 +148,74 @@ public class AttendanceSubmissionService(
         foreach (var scopeId in visibleScopeIds)
             await rollCallExtras.EnsureInviteeEntryStubsAsync(occurrenceId, scopeId, churchId, ct);
 
-        var scopeNames = await db.StructureNodes.AsNoTracking()
+        var scopeNodes = await db.StructureNodes.AsNoTracking()
             .Where(n => visibleScopeIds.Contains(n.Id))
-            .ToDictionaryAsync(n => n.Id, n => n.Name, ct);
+            .Select(n => new
+            {
+                n.Id,
+                n.Name,
+                n.ParentNodeId,
+                LayerName = n.Layer != null ? n.Layer.DisplayName : null,
+            })
+            .ToListAsync(ct);
+        var scopeNames = scopeNodes.ToDictionary(n => n.Id, n => n.Name);
+        var scopeLayerNames = scopeNodes.ToDictionary(n => n.Id, n => n.LayerName);
+        var parentIds = scopeNodes
+            .Where(n => n.ParentNodeId is not null)
+            .Select(n => n.ParentNodeId!.Value)
+            .Distinct()
+            .ToList();
+        var parentNodes = parentIds.Count == 0
+            ? []
+            : await db.StructureNodes.AsNoTracking()
+                .Where(n => parentIds.Contains(n.Id))
+                .Select(n => new
+                {
+                    n.Id,
+                    n.Name,
+                    LayerName = n.Layer != null ? n.Layer.DisplayName : null,
+                })
+                .ToListAsync(ct);
+        var parentNames = parentNodes.ToDictionary(n => n.Id, n => n.Name);
+        var parentLayerNames = parentNodes.ToDictionary(n => n.Id, n => n.LayerName);
 
         var submissions = new List<AttendanceScopeSubmissionDto>();
         foreach (var scopeId in visibleScopeIds)
         {
             var s = occurrence.ScopeSubmissions.FirstOrDefault(row => row.ScopeNodeId == scopeId);
             if (s is null) continue;
+            var parentId = scopeNodes.FirstOrDefault(n => n.Id == scopeId)?.ParentNodeId;
+
+            var scopeEntries = await EntriesInScopeAsync(churchId, occurrenceId, scopeId, ct);
+            var membersPresent = scopeEntries.Count(e => e.Status == AttendanceEntryStatus.Present);
+            var membersAbsent = scopeEntries.Count(e => e.Status == AttendanceEntryStatus.Absent);
+            var scopeInvitees = await rollCallExtras.ListInviteeEntriesForScopeAsync(
+                occurrenceId,
+                scopeId,
+                ct);
+            var presentInvitees = scopeInvitees
+                .Where(i => i.Status == AttendanceEntryStatus.Present.ToString())
+                .ToList();
+            var guestsPresent = presentInvitees.Count;
+            var firstTimersPresent = presentInvitees.Count(i => i.WasFirstTimer);
+
             submissions.Add(new AttendanceScopeSubmissionDto(
                 s.Id,
                 s.ScopeNodeId,
                 scopeNames.GetValueOrDefault(s.ScopeNodeId, "Cell"),
+                parentId is Guid pid ? parentNames.GetValueOrDefault(pid) : null,
+                parentId is Guid parentKey ? parentLayerNames.GetValueOrDefault(parentKey) : null,
+                scopeLayerNames.GetValueOrDefault(s.ScopeNodeId),
                 EffectiveLockStatus(s, occurrence),
                 s.ApprovalStatus.ToString(),
                 s.SubmittedAt,
                 s.EnteredByRole?.ToString(),
-                await PendingApproverRoleAsync(churchId, s.ApprovalStatus, s.EnteredByRole, ct)));
+                await PendingApproverRoleAsync(churchId, s.ApprovalStatus, s.EnteredByRole, ct),
+                membersPresent,
+                membersAbsent,
+                guestsPresent,
+                firstTimersPresent,
+                membersPresent + guestsPresent));
         }
 
         var entries = await BuildVisibleEntryDtosAsync(
@@ -297,9 +365,21 @@ public class AttendanceSubmissionService(
                 displaySubmissions.Add(submission);
         }
 
-        var cellNames = await db.StructureNodes.AsNoTracking()
+        var scopeNodes = await db.StructureNodes.AsNoTracking()
             .Where(n => n.ChurchId == churchId && visibleScopeIds.Contains(n.Id))
-            .ToDictionaryAsync(n => n.Id, n => n.Name, ct);
+            .Select(n => new { n.Id, n.Name, n.ParentNodeId })
+            .ToListAsync(ct);
+        var cellNames = scopeNodes.ToDictionary(n => n.Id, n => n.Name);
+        var parentIds = scopeNodes
+            .Where(n => n.ParentNodeId is not null)
+            .Select(n => n.ParentNodeId!.Value)
+            .Distinct()
+            .ToList();
+        var parentNames = parentIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await db.StructureNodes.AsNoTracking()
+                .Where(n => parentIds.Contains(n.Id))
+                .ToDictionaryAsync(n => n.Id, n => n.Name, ct);
 
         var presentPeople = new List<AttendancePresentPersonDto>();
         var membersPresent = 0;
@@ -310,6 +390,8 @@ public class AttendanceSubmissionService(
         foreach (var submission in displaySubmissions)
         {
             var cellName = cellNames.GetValueOrDefault(submission.ScopeNodeId) ?? "Cell";
+            var parentId = scopeNodes.FirstOrDefault(n => n.Id == submission.ScopeNodeId)?.ParentNodeId;
+            var parentUnitName = parentId is Guid pid ? parentNames.GetValueOrDefault(pid) : null;
             var entries = await EntriesInScopeAsync(churchId, occurrenceId, submission.ScopeNodeId, ct);
             foreach (var entry in entries)
             {
@@ -321,6 +403,7 @@ public class AttendanceSubmissionService(
                         "Member",
                         submission.ScopeNodeId,
                         cellName,
+                        parentUnitName,
                         entry.Member.Phone,
                         false,
                         null));
@@ -349,6 +432,7 @@ public class AttendanceSubmissionService(
                     invitee.WasFirstTimer ? "FirstTimer" : "Invitee",
                     submission.ScopeNodeId,
                     cellName,
+                    parentUnitName,
                     invitee.InviteePhone,
                     invitee.WasFirstTimer,
                     invitee.InvitedByMemberName));
@@ -409,6 +493,7 @@ public class AttendanceSubmissionService(
                 row.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
                 || (row.Phone?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
                 || row.CellName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || (row.ParentUnitName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
                 || (row.InvitedByMemberName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
@@ -424,6 +509,7 @@ public class AttendanceSubmissionService(
         Func<AttendancePresentPersonDto, object?> keySelector = sortBy.ToLowerInvariant() switch
         {
             "cell" or "cellname" => row => row.CellName,
+            "parent" or "parentunit" or "parentunitname" => row => row.ParentUnitName ?? string.Empty,
             "phone" => row => row.Phone ?? string.Empty,
             "type" or "personkind" => row => row.PersonKind,
             "invitedby" or "invitedbymembername" => row => row.InvitedByMemberName ?? string.Empty,
@@ -569,7 +655,7 @@ public class AttendanceSubmissionService(
             .ThenInclude(o => o.MeetingType)
             .Where(s => s.Occurrence!.ChurchId == churchId);
 
-        query = await scope.ApplyAwaitingMyApprovalFilterAsync(query, churchId, actor, ct);
+        query = await scope.ApplyAwaitingMyApprovalFilterAsync(query, churchId, actor, authUserId, ct);
         var candidates = await query
             .OrderByDescending(s => s.SubmittedAt)
             .ThenByDescending(s => s.Id)
@@ -632,6 +718,52 @@ public class AttendanceSubmissionService(
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyList<AttendanceMySubmissionDto>> ListMySubmissionsAsync(
+        Actor actor,
+        Guid authUserId,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+
+        var ledNodeIds = await db.RoleAssignments.AsNoTracking()
+            .Where(r => r.ChurchId == churchId && r.AuthUserId == authUserId && r.ScopeNodeId != null)
+            .Select(r => r.ScopeNodeId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (ledNodeIds.Count == 0)
+            return [];
+
+        var rows = await db.AttendanceScopeSubmissions.AsNoTracking()
+            .Include(s => s.Occurrence!)
+            .ThenInclude(o => o.MeetingType)
+            .Where(s =>
+                s.Occurrence!.ChurchId == churchId
+                && ledNodeIds.Contains(s.ScopeNodeId)
+                && s.ApprovalStatus != AttendanceScopeApprovalStatus.Draft)
+            .OrderByDescending(s => s.SubmittedAt ?? s.Occurrence!.MeetingDate.ToDateTime(TimeOnly.MinValue))
+            .ThenByDescending(s => s.Id)
+            .Take(40)
+            .ToListAsync(ct);
+
+        if (rows.Count == 0)
+            return [];
+
+        var scopeIds = rows.Select(s => s.ScopeNodeId).Distinct().ToList();
+        var names = await db.StructureNodes.AsNoTracking()
+            .Where(n => n.ChurchId == churchId && scopeIds.Contains(n.Id))
+            .ToDictionaryAsync(n => n.Id, n => n.Name, ct);
+
+        return rows.Select(s => new AttendanceMySubmissionDto(
+            s.OccurrenceId,
+            s.ScopeNodeId,
+            names.GetValueOrDefault(s.ScopeNodeId) ?? "Unit",
+            s.Occurrence!.MeetingType?.Title ?? string.Empty,
+            s.Occurrence.MeetingDate,
+            s.ApprovalStatus.ToString(),
+            s.SubmittedAt)).ToList();
     }
 
     public async Task<AttendanceApproveResult> ApproveAsync(

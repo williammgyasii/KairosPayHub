@@ -255,7 +255,7 @@ export function LeaderOverviewDashboard({
                   Mark your cell present or absent for each meeting, then submit for approval.
                 </p>
                 <Button asChild size="sm" className="mt-4">
-                  <Link to="/attendance/submissions">Submit roll call</Link>
+                  <Link to="/attendance/submissions">Mark attendance</Link>
                 </Button>
               </div>
             </div>

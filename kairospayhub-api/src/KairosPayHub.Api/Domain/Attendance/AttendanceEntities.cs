@@ -52,11 +52,17 @@ public class AttendanceMeetingType
     public DayOfWeek DayOfWeek { get; set; } = DayOfWeek.Sunday;
     public ProgramScopeKind ScopeKind { get; set; } = ProgramScopeKind.ChurchWide;
     public Guid? ScopeNodeId { get; set; }
+    /// <summary>Structure template layer where roll-call sheets are created (pastor-chosen).</summary>
+    public Guid? SubmissionLayerId { get; set; }
+    public StructureLayer? SubmissionLayer { get; set; }
     public int OpensDayOffset { get; set; }
+    /// <summary>Wall-clock time in the church timezone (column name retained for migration compatibility).</summary>
     public TimeOnly OpensTimeUtc { get; set; }
     public int DeadlineDayOffset { get; set; } = 1;
+    /// <summary>Wall-clock time in the church timezone (column name retained for migration compatibility).</summary>
     public TimeOnly DeadlineTimeUtc { get; set; }
     public int AutoGenerateWeeksAhead { get; set; } = 8;
+    public bool IsAlwaysOpen { get; set; }
     public bool IsActive { get; set; } = true;
     public Guid CreatedByAuthUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

@@ -75,12 +75,15 @@ describe('isSidebarNavItemActive', () => {
       isSidebarNavItemActive('/attendance/approvals', { to: 'attendance/approvals', end: true }),
     ).toBe(true)
     expect(
-      isSidebarNavItemActive('/attendance/overview', { to: 'attendance/overview', end: true }),
+      isSidebarNavItemActive('/attendance/overview', { to: 'attendance/overview' }),
+    ).toBe(true)
+    expect(
+      isSidebarNavItemActive('/attendance/overview/abc', { to: 'attendance/overview' }),
     ).toBe(true)
     expect(isSidebarNavItemActive('/attendance/submissions', { to: 'attendance', end: true })).toBe(
       false,
     )
-    expect(isSidebarNavItemActive('/attendance/approvals', { to: 'attendance/overview', end: true })).toBe(
+    expect(isSidebarNavItemActive('/attendance/approvals', { to: 'attendance/overview' })).toBe(
       false,
     )
   })

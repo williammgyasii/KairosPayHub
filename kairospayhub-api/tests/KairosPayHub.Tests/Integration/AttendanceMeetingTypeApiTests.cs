@@ -179,7 +179,7 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
             scopeKind = "ChurchWide",
             opensDayOffset = 0,
             opensTimeUtc = "00:00:00",
-            deadlineDayOffset = 2,
+            deadlineDayOffset = 1,
             deadlineTimeUtc = "23:59:00",
             autoGenerateWeeksAhead = 8,
             openNowForDemo = true,
@@ -204,7 +204,10 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, detailResp.StatusCode);
         var detail = await detailResp.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(detail.GetProperty("scopeSubmissions").GetArrayLength() >= 1);
-        Assert.Equal("Cell A", detail.GetProperty("scopeSubmissions")[0].GetProperty("scopeUnitName").GetString());
+        var unitNames = detail.GetProperty("scopeSubmissions").EnumerateArray()
+            .Select(s => s.GetProperty("scopeUnitName").GetString())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("Cell A", unitNames);
     }
 
     [Fact]
@@ -244,6 +247,126 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal("Main Sunday Service", updated.GetProperty("title").GetString());
         Assert.Equal("15:00:00", updated.GetProperty("opensTimeUtc").GetString());
         Assert.Equal("01:00:00", updated.GetProperty("deadlineTimeUtc").GetString());
+    }
+
+    [Fact]
+    public async Task Always_open_meeting_allows_cell_leader_submit_before_scheduled_open()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Always Open Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipResp = await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = (Guid?)null,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Fellowship",
+                email = "jane.always@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
+        });
+        var fellowshipId = (await fellowshipResp.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellResp = await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob Cell",
+                email = "bob.always@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        });
+        var cellId = (await cellResp.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("node").GetProperty("id").GetGuid();
+
+        await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Member Kay",
+            parentNodeId = cellId,
+            email = "kay.always@example.com",
+        });
+
+        var createResp = await pastor.PostAsJsonAsync("/api/attendance/meeting-types", new
+        {
+            title = "Cell meeting",
+            recurrenceKind = "Weekly",
+            dayOfWeek = "Saturday",
+            scopeKind = "ChurchWide",
+            isAlwaysOpen = true,
+            opensDayOffset = 0,
+            opensTimeUtc = "21:00:00",
+            deadlineDayOffset = 1,
+            deadlineTimeUtc = "12:00:00",
+        });
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode);
+        var created = await createResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(created.GetProperty("isAlwaysOpen").GetBoolean());
+        var meetingTypeId = created.GetProperty("id").GetGuid();
+
+        var occurrences = await pastor.GetFromJsonAsync<JsonElement>(
+            $"/api/attendance/meeting-types/{meetingTypeId}/occurrences");
+        Assert.True(occurrences.GetArrayLength() >= 1);
+        var occurrenceId = occurrences[0].GetProperty("id").GetGuid();
+
+        await using (var db = fx.CreateContext())
+        {
+            // Force a "closed" window on the occurrence — always-open must still allow edit.
+            var occurrence = await db.AttendanceOccurrences.SingleAsync(o => o.Id == occurrenceId);
+            occurrence.SubmissionOpensAt = DateTimeOffset.UtcNow.AddDays(2);
+            occurrence.SubmissionDeadlineAt = DateTimeOffset.UtcNow.AddDays(3);
+            occurrence.Status = AttendanceOccurrenceStatus.Scheduled;
+
+            var submission = await db.AttendanceScopeSubmissions
+                .SingleAsync(s => s.OccurrenceId == occurrenceId && s.ScopeNodeId == cellId);
+            submission.LockStatus = AttendanceScopeLockStatus.Editable;
+            await db.SaveChangesAsync();
+
+            var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "bob.always@example.com");
+            Assert.NotNull(cellLeader.AuthUserId);
+
+            var cellClient = _factory.CreateClient();
+            cellClient.DefaultRequestHeaders.Add("X-Test-Sub", cellLeader.AuthUserId!.Value.ToString());
+            cellClient.DefaultRequestHeaders.Add("X-Test-Email", "bob.always@example.com");
+            cellClient.DefaultRequestHeaders.Add("X-Test-Name", "Bob Cell");
+
+            var detail = await cellClient.GetFromJsonAsync<JsonElement>(
+                $"/api/attendance/occurrences/{occurrenceId}");
+            var memberIds = detail.GetProperty("entries")
+                .EnumerateArray()
+                .Select(e => e.GetProperty("memberId").GetGuid())
+                .ToList();
+
+            var putResp = await cellClient.PutAsJsonAsync(
+                $"/api/attendance/occurrences/{occurrenceId}/scopes/{cellId}/entries",
+                new
+                {
+                    entries = memberIds.Select(id => new { memberId = id, status = "Present" }).ToArray(),
+                });
+            Assert.Equal(HttpStatusCode.OK, putResp.StatusCode);
+        }
     }
 
     [Fact]

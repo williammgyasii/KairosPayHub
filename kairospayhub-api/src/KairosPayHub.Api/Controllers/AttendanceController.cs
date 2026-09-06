@@ -45,10 +45,12 @@ public class AttendanceController(
                 request.ScopeNodeId,
                 request.ScopeNodeIds,
                 request.OpensDayOffset,
-                request.OpensTimeUtc ?? "14:00:00",
+                request.OpensTimeUtc ?? "21:00:00",
                 request.DeadlineDayOffset,
-                request.DeadlineTimeUtc ?? "00:00:00",
+                request.DeadlineTimeUtc ?? "12:00:00",
                 request.AutoGenerateWeeksAhead,
+                request.SubmissionLayerId,
+                request.IsAlwaysOpen,
                 request.OpenNowForDemo),
             ct);
         return Ok(created);
@@ -67,9 +69,11 @@ public class AttendanceController(
             new UpdateAttendanceMeetingTypeInput(
                 request.Title ?? string.Empty,
                 request.OpensDayOffset,
-                request.OpensTimeUtc ?? "14:00:00",
+                request.OpensTimeUtc ?? "21:00:00",
                 request.DeadlineDayOffset,
-                request.DeadlineTimeUtc ?? "00:00:00"),
+                request.DeadlineTimeUtc ?? "12:00:00",
+                request.SubmissionLayerId,
+                request.IsAlwaysOpen),
             ct);
         return Ok(updated);
     }
@@ -272,6 +276,17 @@ public class AttendanceController(
         return Ok(queue);
     }
 
+    [HttpGet("my-submissions")]
+    public async Task<IActionResult> ListMySubmissions(CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var rows = await submissions.ListMySubmissionsAsync(actor, authUserId, ct);
+        return Ok(rows);
+    }
+
     [HttpPost("occurrences/{occurrenceId:guid}/scopes/{scopeNodeId:guid}/approve")]
     public async Task<IActionResult> Approve(
         Guid occurrenceId,
@@ -327,6 +342,8 @@ public sealed record CreateAttendanceMeetingTypeRequest(
     int DeadlineDayOffset = 1,
     string? DeadlineTimeUtc = null,
     int AutoGenerateWeeksAhead = 8,
+    Guid? SubmissionLayerId = null,
+    bool IsAlwaysOpen = false,
     bool OpenNowForDemo = false);
 
 public sealed record UpdateAttendanceMeetingTypeRequest(
@@ -334,7 +351,9 @@ public sealed record UpdateAttendanceMeetingTypeRequest(
     int OpensDayOffset = 0,
     string? OpensTimeUtc = null,
     int DeadlineDayOffset = 1,
-    string? DeadlineTimeUtc = null);
+    string? DeadlineTimeUtc = null,
+    Guid? SubmissionLayerId = null,
+    bool IsAlwaysOpen = false);
 
 public sealed class PutAttendanceEntriesRequest
 {

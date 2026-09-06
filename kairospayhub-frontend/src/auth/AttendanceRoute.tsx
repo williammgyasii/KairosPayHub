@@ -8,7 +8,8 @@ export function AttendanceApproverRoute({ children }: { children: ReactNode }) {
   if (canApproveAttendance(me.role)) {
     return <>{children}</>
   }
-  return <Navigate to="/attendance/submissions" replace />
+  // Pastors/admins use Metrics, not Approvals.
+  return <Navigate to="/attendance/overview" replace />
 }
 
 export function AttendanceOverviewRoute({ children }: { children: ReactNode }) {

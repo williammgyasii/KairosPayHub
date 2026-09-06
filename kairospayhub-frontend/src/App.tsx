@@ -100,6 +100,14 @@ export default function App() {
           }
         />
         <Route
+          path="attendance/overview/:meetingTypeId"
+          element={
+            <AttendanceOverviewRoute>
+              <AttendanceOverviewPage />
+            </AttendanceOverviewRoute>
+          }
+        />
+        <Route
           path="attendance/approvals"
           element={
             <AttendanceApproverRoute>

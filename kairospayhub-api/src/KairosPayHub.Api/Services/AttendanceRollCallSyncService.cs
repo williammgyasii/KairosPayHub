@@ -20,12 +20,12 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
             ?? throw new BadRequestException("Occurrence not found");
 
         var meetingType = occurrence.MeetingType!;
-        var scopeCellNodeIds = await ResolveRollCallCellNodeIdsAsync(meetingType, ct);
-        if (scopeCellNodeIds.Count == 0)
+        var scopeUnitNodeIds = await ResolveRollCallUnitNodeIdsAsync(meetingType, ct);
+        if (scopeUnitNodeIds.Count == 0)
             return;
 
         var assignments = await db.RoleAssignments.AsNoTracking()
-            .Where(r => r.ChurchId == meetingType.ChurchId && r.Role == ChurchRole.CellLeader)
+            .Where(r => r.ChurchId == meetingType.ChurchId && r.ScopeNodeId != null)
             .ToListAsync(ct);
 
         var members = await db.ChurchMembers.AsNoTracking()
@@ -37,30 +37,30 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
         var entriesByMember = occurrence.Entries.ToDictionary(e => e.MemberId);
         var changed = false;
 
-        foreach (var cellNodeId in scopeCellNodeIds)
+        foreach (var unitNodeId in scopeUnitNodeIds)
         {
-            var subtreeIds = (await scope.CollectSubtreeNodeIdsAsync(meetingType.ChurchId, cellNodeId, ct))
+            var subtreeIds = (await scope.CollectSubtreeNodeIdsAsync(meetingType.ChurchId, unitNodeId, ct))
                 .ToHashSet();
             var memberIds = members
                 .Where(m => subtreeIds.Contains(m.ParentNodeId))
                 .Select(m => m.Id)
                 .ToList();
 
-            if (!submissionsByScope.TryGetValue(cellNodeId, out var submission))
+            if (!submissionsByScope.TryGetValue(unitNodeId, out var submission))
             {
                 submission = new AttendanceScopeSubmission
                 {
                     OccurrenceId = occurrence.Id,
-                    ScopeNodeId = cellNodeId,
+                    ScopeNodeId = unitNodeId,
                     LockStatus = ResolveInitialLockStatus(occurrence.SubmissionOpensAt),
                 };
                 db.AttendanceScopeSubmissions.Add(submission);
-                submissionsByScope[cellNodeId] = submission;
+                submissionsByScope[unitNodeId] = submission;
                 changed = true;
             }
 
             var leaderAuthUserId = assignments
-                .FirstOrDefault(a => a.ScopeNodeId == cellNodeId)
+                .FirstOrDefault(a => a.ScopeNodeId == unitNodeId)
                 ?.AuthUserId;
 
             if (submission.AssignedLeaderAuthUserId != leaderAuthUserId)
@@ -73,9 +73,9 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
             {
                 if (entriesByMember.TryGetValue(memberId, out var existing))
                 {
-                    if (existing.MemberScopeNodeId != cellNodeId)
+                    if (existing.MemberScopeNodeId != unitNodeId)
                     {
-                        existing.MemberScopeNodeId = cellNodeId;
+                        existing.MemberScopeNodeId = unitNodeId;
                         changed = true;
                     }
 
@@ -86,7 +86,7 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
                 {
                     OccurrenceId = occurrence.Id,
                     MemberId = memberId,
-                    MemberScopeNodeId = cellNodeId,
+                    MemberScopeNodeId = unitNodeId,
                 };
                 db.AttendanceEntries.Add(entry);
                 entriesByMember[memberId] = entry;
@@ -98,27 +98,27 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
             await db.SaveChangesAsync(ct);
     }
 
-    public async Task<HashSet<Guid>> ResolveRollCallCellNodeIdsAsync(
+    public Task<HashSet<Guid>> ResolveRollCallCellNodeIdsAsync(
+        AttendanceMeetingType meetingType,
+        CancellationToken ct = default) =>
+        ResolveRollCallUnitNodeIdsAsync(meetingType, ct);
+
+    public async Task<HashSet<Guid>> ResolveRollCallUnitNodeIdsAsync(
         AttendanceMeetingType meetingType,
         CancellationToken ct = default)
     {
-        var cellLayerIds = await (
-            from layer in db.StructureLayers.AsNoTracking()
-            join template in db.StructureTemplates.AsNoTracking() on layer.TemplateId equals template.Id
-            where template.ChurchId == meetingType.ChurchId && layer.StandardType == StructureLayerType.Cell
-            orderby layer.SortOrder
-            select layer.Id).ToListAsync(ct);
+        var submissionLayerId = meetingType.SubmissionLayerId
+            ?? await ResolveDefaultSubmissionLayerIdAsync(meetingType.ChurchId, ct);
 
-        if (cellLayerIds.Count == 0)
+        if (submissionLayerId is null)
             return [];
 
-        var primaryCellLayerId = cellLayerIds[0];
-        var cellNodes = await db.StructureNodes.AsNoTracking()
-            .Where(n => n.ChurchId == meetingType.ChurchId && cellLayerIds.Contains(n.LayerId))
+        var unitNodes = await db.StructureNodes.AsNoTracking()
+            .Where(n => n.ChurchId == meetingType.ChurchId && n.LayerId == submissionLayerId.Value)
             .Select(n => new { n.Id, n.LayerId, n.ParentNodeId })
             .ToListAsync(ct);
 
-        var parentNodeIds = cellNodes
+        var parentNodeIds = unitNodes
             .Select(n => n.ParentNodeId)
             .Where(id => id is not null)
             .Select(id => id!.Value)
@@ -131,29 +131,31 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
                 .Where(n => parentNodeIds.Contains(n.Id))
                 .ToDictionaryAsync(n => n.Id, n => n.LayerId, ct);
 
-        var rollCallCellIds = cellNodes
+        // Prefer "top" nodes of this layer (exclude nested same-layer children).
+        var rollCallUnitIds = unitNodes
             .Where(n =>
-                n.LayerId == primaryCellLayerId
-                && (n.ParentNodeId is null
-                    || !parentLayerByNodeId.TryGetValue(n.ParentNodeId.Value, out var parentLayerId)
-                    || parentLayerId != primaryCellLayerId))
+                n.ParentNodeId is null
+                || !parentLayerByNodeId.TryGetValue(n.ParentNodeId.Value, out var parentLayerId)
+                || parentLayerId != submissionLayerId.Value)
             .Select(n => n.Id)
             .ToHashSet();
 
-        var assignedCellScopeIds = await db.RoleAssignments.AsNoTracking()
+        var assignedScopeIds = await db.RoleAssignments.AsNoTracking()
             .Where(r =>
                 r.ChurchId == meetingType.ChurchId
-                && r.Role == ChurchRole.CellLeader
                 && r.ScopeNodeId != null)
             .Select(r => r.ScopeNodeId!.Value)
             .Distinct()
             .ToListAsync(ct);
 
-        foreach (var assignedScopeId in assignedCellScopeIds)
-            rollCallCellIds.Add(assignedScopeId);
+        foreach (var assignedScopeId in assignedScopeIds)
+        {
+            if (unitNodes.Any(n => n.Id == assignedScopeId))
+                rollCallUnitIds.Add(assignedScopeId);
+        }
 
         if (meetingType.ScopeKind == ProgramScopeKind.ChurchWide)
-            return rollCallCellIds;
+            return rollCallUnitIds;
 
         if (meetingType.ScopeKind == ProgramScopeKind.FellowshipGroup)
         {
@@ -162,7 +164,7 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
             {
                 foreach (var id in await scope.CollectSubtreeNodeIdsAsync(meetingType.ChurchId, root, ct))
                 {
-                    if (rollCallCellIds.Contains(id))
+                    if (rollCallUnitIds.Contains(id))
                         scoped.Add(id);
                 }
             }
@@ -177,7 +179,26 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
             meetingType.ChurchId,
             meetingType.ScopeNodeId.Value,
             ct);
-        return subtree.Where(rollCallCellIds.Contains).ToHashSet();
+        return subtree.Where(rollCallUnitIds.Contains).ToHashSet();
+    }
+
+    async Task<Guid?> ResolveDefaultSubmissionLayerIdAsync(Guid churchId, CancellationToken ct)
+    {
+        var layers = await (
+            from layer in db.StructureLayers.AsNoTracking()
+            join template in db.StructureTemplates.AsNoTracking() on layer.TemplateId equals template.Id
+            where template.ChurchId == churchId
+            orderby layer.SortOrder
+            select new { layer.Id, layer.StandardType, layer.SortOrder }).ToListAsync(ct);
+
+        if (layers.Count == 0)
+            return null;
+
+        var cell = layers.FirstOrDefault(l => l.StandardType == StructureLayerType.Cell);
+        if (cell is not null)
+            return cell.Id;
+
+        return layers[^1].Id;
     }
 
     private static AttendanceScopeLockStatus ResolveInitialLockStatus(DateTimeOffset opensAt) =>

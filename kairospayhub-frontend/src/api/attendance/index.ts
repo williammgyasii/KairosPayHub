@@ -7,11 +7,14 @@ export type AttendanceMeetingType = {
   dayOfWeek: string
   scopeKind: string
   scopeNodeId: string | null
+  submissionLayerId?: string | null
+  submissionLayerName?: string | null
   opensDayOffset: number
   opensTimeUtc: string
   deadlineDayOffset: number
   deadlineTimeUtc: string
   autoGenerateWeeksAhead: number
+  isAlwaysOpen: boolean
   isActive: boolean
   createdAt: string
 }
@@ -22,11 +25,13 @@ export type CreateAttendanceMeetingTypeInput = {
   dayOfWeek?: string
   scopeKind?: string
   scopeNodeId?: string | null
+  submissionLayerId?: string | null
   opensDayOffset?: number
   opensTimeUtc?: string
   deadlineDayOffset?: number
   deadlineTimeUtc?: string
   autoGenerateWeeksAhead?: number
+  isAlwaysOpen?: boolean
   openNowForDemo?: boolean
 }
 
@@ -36,6 +41,8 @@ export type UpdateAttendanceMeetingTypeInput = {
   opensTimeUtc?: string
   deadlineDayOffset?: number
   deadlineTimeUtc?: string
+  submissionLayerId?: string | null
+  isAlwaysOpen?: boolean
 }
 
 export function listMeetingTypes(api: ApiClient) {
@@ -79,11 +86,19 @@ export type AttendanceScopeSubmission = {
   id: string
   scopeNodeId: string
   scopeUnitName: string
+  parentUnitName?: string | null
+  parentLayerName?: string | null
+  layerName?: string | null
   lockStatus: string
   approvalStatus: string
   submittedAt: string | null
   enteredByRole?: string | null
   pendingApproverRole?: string | null
+  membersPresent?: number
+  membersAbsent?: number
+  guestsPresent?: number
+  firstTimersPresent?: number
+  totalPresent?: number
 }
 
 export type AttendanceOccurrenceDetail = {
@@ -180,6 +195,7 @@ export type AttendancePresentPerson = {
   personKind: string
   scopeNodeId: string
   cellName: string
+  parentUnitName?: string | null
   phone: string | null
   wasFirstTimer: boolean
   invitedByMemberName: string | null
@@ -188,7 +204,7 @@ export type AttendancePresentPerson = {
 export type AttendanceOccurrenceRollupQuery = {
   page?: number
   pageSize?: number
-  sortBy?: 'name' | 'cell' | 'phone' | 'type' | 'invitedBy'
+  sortBy?: 'name' | 'cell' | 'parent' | 'phone' | 'type' | 'invitedBy'
   sortDir?: 'asc' | 'desc'
   search?: string
   personKind?: 'Member' | 'Invitee' | 'FirstTimer' | ''
@@ -298,6 +314,20 @@ export type AttendanceApprovalQueueItem = {
   presentCount: number
   absentCount: number
   memberCount: number
+}
+
+export type AttendanceMySubmission = {
+  occurrenceId: string
+  scopeNodeId: string
+  scopeUnitName: string
+  meetingTypeTitle: string
+  meetingDate: string
+  approvalStatus: string
+  submittedAt: string | null
+}
+
+export function listMyAttendanceSubmissions(api: ApiClient) {
+  return api.get<AttendanceMySubmission[]>('/api/attendance/my-submissions')
 }
 
 export function listAttendanceApprovalQueue(api: ApiClient) {

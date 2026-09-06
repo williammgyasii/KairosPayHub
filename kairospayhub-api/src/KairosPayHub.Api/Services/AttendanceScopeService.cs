@@ -31,8 +31,7 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
         ResolveAttendancePendingApproverRoleAsync(churchId, enteredByRole, ct);
 
     /// <summary>
-    /// Primary pending approver label for a cell-submitted roll call. PFCC managers may also
-    /// approve in parallel; this is not an escalation chain.
+    /// Label hint for pending approval UI. One-hop parent leaders approve.
     /// </summary>
     public Task<ChurchRole?> ResolveAttendancePendingApproverRoleAsync(
         Guid churchId,
@@ -44,6 +43,7 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
         return Task.FromResult<ChurchRole?>(enteredByRole switch
         {
             null or ChurchRole.CellLeader => ChurchRole.FellowshipLeader,
+            ChurchRole.FellowshipLeader => ChurchRole.PFCCManager,
             _ => null,
         });
     }
@@ -63,34 +63,20 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
         if (submission.ApprovalStatus != AttendanceScopeApprovalStatus.PendingApproval)
             return false;
 
-        if (CanManageChurch(actor))
+        var parentNodeId = await db.StructureNodes.AsNoTracking()
+            .Where(n => n.Id == scopeNodeId && n.ChurchId == actor.StructureChurchId)
+            .Select(n => n.ParentNodeId)
+            .FirstOrDefaultAsync(ct);
+
+        if (parentNodeId is not Guid parentId)
             return false;
 
-        if (submission.EnteredByRole is not (null or ChurchRole.CellLeader))
-            return false;
-
-        if (actor.StructureRole == ChurchRole.FellowshipLeader)
-        {
-            return await MemberWithinRoleAssignmentsAsync(
-                actor.StructureChurchId,
-                authUserId,
-                ChurchRole.FellowshipLeader,
-                scopeNodeId,
+        return await db.RoleAssignments.AsNoTracking()
+            .AnyAsync(
+                r => r.ChurchId == actor.StructureChurchId
+                    && r.AuthUserId == authUserId
+                    && r.ScopeNodeId == parentId,
                 ct);
-        }
-
-        if (actor.StructureRole == ChurchRole.PFCCManager
-            && await ChurchHasPfccManagersAsync(actor.StructureChurchId, ct))
-        {
-            return await MemberWithinRoleAssignmentsAsync(
-                actor.StructureChurchId,
-                authUserId,
-                ChurchRole.PFCCManager,
-                scopeNodeId,
-                ct);
-        }
-
-        return false;
     }
 
     public Task<bool> IncludeSubmissionInOverviewRollupAsync(
@@ -123,11 +109,18 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
             return false;
         }
 
+        var isAlwaysOpen = occurrence.MeetingType?.IsAlwaysOpen
+            ?? await db.AttendanceMeetingTypes.AsNoTracking()
+                .Where(t => t.Id == occurrence.MeetingTypeId)
+                .Select(t => t.IsAlwaysOpen)
+                .FirstOrDefaultAsync(ct);
+
         var now = DateTimeOffset.UtcNow;
         return submission.LockStatus switch
         {
             AttendanceScopeLockStatus.Editable =>
-                now >= occurrence.SubmissionOpensAt && now < occurrence.SubmissionDeadlineAt,
+                isAlwaysOpen
+                || (now >= occurrence.SubmissionOpensAt && now < occurrence.SubmissionDeadlineAt),
             AttendanceScopeLockStatus.Reopened =>
                 submission.GraceDeadlineAt is not null && now < submission.GraceDeadlineAt.Value,
             _ => false,
@@ -138,21 +131,21 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
         IQueryable<AttendanceScopeSubmission> query,
         Guid churchId,
         Actor actor,
+        Guid authUserId,
         CancellationToken ct = default)
     {
-        if (actor.StructureRole is not ChurchRole role)
-            return query.Where(_ => false);
-
+        await Task.CompletedTask;
         query = query.Where(s => s.ApprovalStatus == AttendanceScopeApprovalStatus.PendingApproval);
 
-        return role switch
-        {
-            ChurchRole.FellowshipLeader => query.Where(s =>
-                s.EnteredByRole == null || s.EnteredByRole == ChurchRole.CellLeader),
-            ChurchRole.PFCCManager => query.Where(s =>
-                s.EnteredByRole == null || s.EnteredByRole == ChurchRole.CellLeader),
-            _ => query.Where(_ => false),
-        };
+        var myLedNodeIds = db.RoleAssignments.AsNoTracking()
+            .Where(r => r.ChurchId == churchId && r.AuthUserId == authUserId && r.ScopeNodeId != null)
+            .Select(r => r.ScopeNodeId!.Value);
+
+        return query.Where(s =>
+            db.StructureNodes.Any(n =>
+                n.Id == s.ScopeNodeId
+                && n.ParentNodeId != null
+                && myLedNodeIds.Contains(n.ParentNodeId.Value)));
     }
 
     public async Task<bool> CanLeadScopeSubmissionAsync(
@@ -164,57 +157,12 @@ public class AttendanceScopeService(KairosDbContext db, GivingScopeService givin
         if (submission.AssignedLeaderAuthUserId == authUserId)
             return true;
 
-        var assignments = await db.RoleAssignments.AsNoTracking()
-            .Where(r =>
-                r.ChurchId == actor.StructureChurchId
-                && r.AuthUserId == authUserId
-                && r.Role == ChurchRole.CellLeader
-                && r.ScopeNodeId != null)
-            .Select(r => r.ScopeNodeId!.Value)
-            .ToListAsync(ct);
-
-        foreach (var scopeNodeId in assignments)
-        {
-            if (scopeNodeId == submission.ScopeNodeId)
-                return true;
-
-            if (await givingScope.IsNodeInSubtreeAsync(
-                    actor.StructureChurchId,
-                    scopeNodeId,
-                    submission.ScopeNodeId,
-                    ct))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private async Task<bool> MemberWithinRoleAssignmentsAsync(
-        Guid churchId,
-        Guid authUserId,
-        ChurchRole role,
-        Guid memberParentNodeId,
-        CancellationToken ct)
-    {
-        var assignments = await db.RoleAssignments.AsNoTracking()
-            .Where(r => r.ChurchId == churchId && r.AuthUserId == authUserId && r.Role == role)
-            .Select(r => r.ScopeNodeId)
-            .ToListAsync(ct);
-
-        foreach (var scopeNodeId in assignments.Where(id => id is not null))
-        {
-            if (await givingScope.IsNodeInSubtreeAsync(
-                    churchId,
-                    scopeNodeId!.Value,
-                    memberParentNodeId,
-                    ct))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        // Exact unit only — parent leaders approve; they do not edit child sheets.
+        return await db.RoleAssignments.AsNoTracking()
+            .AnyAsync(
+                r => r.ChurchId == actor.StructureChurchId
+                    && r.AuthUserId == authUserId
+                    && r.ScopeNodeId == submission.ScopeNodeId,
+                ct);
     }
 }

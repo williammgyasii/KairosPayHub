@@ -11,7 +11,6 @@ function formatServiceDate(meetingDate: string) {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
-        year: 'numeric',
       })
 }
 
@@ -41,43 +40,68 @@ export function AttendanceApprovalQueue({
   }
 
   return (
-    <div className="divide-y rounded-md border">
-      {items.map((item) => {
-        const rowKey = `${item.occurrenceId}:${item.scopeNodeId}`
-        const busy = busyKey === rowKey
-        return (
-          <div
-            key={rowKey}
-            className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="space-y-1">
-              <p className="font-medium">{item.cellName}</p>
-              <p className="text-sm text-muted-foreground">
-                {item.meetingTypeTitle} · {formatServiceDate(item.meetingDate)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {item.presentCount} present · {item.absentCount} absent · {item.memberCount} members
-                {item.submittedByName ? ` · submitted by ${item.submittedByName}` : ''}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={() => onView(item)}
-              >
-                <Eye className="size-4" />
-                View
-              </Button>
-              <Button size="sm" disabled={busy} onClick={() => void onApprove(item)}>
-                <Check className="size-4" />
-                {busy ? 'Approving…' : 'Approve'}
-              </Button>
-            </div>
-          </div>
-        )
-      })}
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-[640px] text-sm">
+        <thead>
+          <tr className="border-b bg-muted/30 text-left text-xs text-muted-foreground">
+            <th className="px-3 py-2 font-medium">Unit</th>
+            <th className="px-3 py-2 font-medium">Meeting</th>
+            <th className="px-3 py-2 font-medium">Date</th>
+            <th className="px-3 py-2 font-medium">Counts</th>
+            <th className="px-3 py-2 font-medium text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {items.map((item) => {
+            const rowKey = `${item.occurrenceId}:${item.scopeNodeId}`
+            const busy = busyKey === rowKey
+            return (
+              <tr key={rowKey} className="align-middle">
+                <td className="px-3 py-2.5">
+                  <p className="font-medium">{item.cellName}</p>
+                  {item.submittedByName ? (
+                    <p className="text-xs text-muted-foreground">by {item.submittedByName}</p>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2.5 text-muted-foreground">{item.meetingTypeTitle}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">
+                  {formatServiceDate(item.meetingDate)}
+                </td>
+                <td className="px-3 py-2.5 text-muted-foreground">
+                  {item.presentCount} present · {item.absentCount} absent
+                </td>
+                <td className="px-3 py-2.5">
+                  <div className="flex justify-end gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-md px-2"
+                      disabled={busy}
+                      onClick={() => onView(item)}
+                    >
+                      <Eye className="size-3.5" />
+                      View
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 rounded-md px-2.5"
+                      disabled={busy}
+                      loading={busy}
+                      loadingLabel="…"
+                      onClick={() => void onApprove(item)}
+                    >
+                      <Check className="size-3.5" />
+                      Approve
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

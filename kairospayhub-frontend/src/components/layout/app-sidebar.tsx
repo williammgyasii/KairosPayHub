@@ -26,8 +26,10 @@ import { cn } from '@/lib/utils'
 import { isSidebarNavItemActive } from '@/lib/sidebar-nav'
 import {
   canApproveAttendance,
+  canApproveGiving,
   canManageChurch,
   canSubmitRollCall,
+  canViewAttendanceMetrics,
   isCellLeader,
   isScopedLeader,
   type Me,
@@ -104,12 +106,15 @@ function attendanceNavForRole(me: Me & { onboarded: true }): NavEntry {
     children.push({ to: 'attendance', label: 'Meeting types', icon: CalendarCog, end: true })
   }
 
-  if (canSubmitRollCall(me) || canManageChurch(role)) {
-    children.push({ to: 'attendance/submissions', label: 'Submissions', icon: ClipboardList, end: true })
+  if (canSubmitRollCall(me)) {
+    children.push({ to: 'attendance/submissions', label: 'Mark attendance', icon: ClipboardList, end: true })
+  }
+
+  if (canViewAttendanceMetrics(role)) {
+    children.push({ to: 'attendance/overview', label: 'Metrics', icon: BarChart3 })
   }
 
   if (canApproveAttendance(role)) {
-    children.push({ to: 'attendance/overview', label: 'Metrics', icon: BarChart3, end: true })
     children.push({ to: 'attendance/approvals', label: 'Approvals', icon: ShieldCheck, end: true })
   }
 
@@ -262,14 +267,12 @@ export function AppSidebar({ me, className, expanded = false }: AppSidebarProps)
   const churchLabel = me.churchName ?? 'Your church'
   const showCollapseControl = !expanded
   const canSeeApprovalQueue = canApproveAttendance(me.role)
-  const canSeeGivingApprovals = canApproveAttendance(me.role)
+  const canSeeGivingApprovals = canApproveGiving(me)
   const { data: approvalQueue = [] } = useListApprovalQueueQuery(undefined, {
     skip: !canSeeApprovalQueue,
-    pollingInterval: 60_000,
   })
   const { data: givingPrograms = [] } = useListGivingProgramsQuery(undefined, {
     skip: !canSeeGivingApprovals,
-    pollingInterval: 60_000,
   })
   const givingAwaitingCount = givingPrograms.reduce(
     (sum, program) => sum + (program.awaitingMyApprovalCount ?? 0),

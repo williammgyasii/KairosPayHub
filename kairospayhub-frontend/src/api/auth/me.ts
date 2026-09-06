@@ -9,6 +9,7 @@ export type ChurchRole =
 export type RollCallScope = {
   scopeNodeId: string
   scopeUnitName: string
+  layerName?: string | null
 }
 
 export type AbilityRuleDto = {
@@ -27,6 +28,7 @@ export type MeNotOnboarded = {
   memberCount?: number | null
   countryCode?: string | null
   defaultCurrency?: string | null
+  timeZoneId?: string | null
   onboardingStep?: 'structure' | null
   role?: string | null
   abilities?: string[]
@@ -44,6 +46,7 @@ export type Me =
       churchLogoUrl: string | null
       countryCode?: string | null
       defaultCurrency?: string | null
+      timeZoneId?: string | null
       organizationId: string
       role: ChurchRole | 'Leader'
       scopeNodeId?: string | null
@@ -150,6 +153,11 @@ export function canSubmitRollCall(me: Me): boolean {
 }
 
 export function canApproveAttendance(role: string): boolean {
+  // One-hop parent leaders only — pastors/admins use Metrics, not the attendance approval queue.
+  return isScopedLeader(role)
+}
+
+export function canViewAttendanceMetrics(role: string): boolean {
   return canManageChurch(role) || isScopedLeader(role)
 }
 

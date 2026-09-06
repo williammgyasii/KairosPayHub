@@ -13,7 +13,6 @@ import { invalidateGivingTags } from '@/store/givingApi'
 import { notificationsApi } from '@/store/notificationsApi'
 
 const LOG_PREFIX = '[KairosPayHub notifications]'
-const POLL_INTERVAL_MS = 20_000
 
 function logTransport(connection: signalR.HubConnection): string {
   const transport = (
@@ -76,8 +75,8 @@ export function useNotificationsRealtime({
       const connection = new signalR.HubConnectionBuilder()
         .withUrl(hubUrl, {
           accessTokenFactory: async () => (await getToken()) ?? '',
-          transport:
-            signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
+          // WebSockets only — no HTTP long-polling fallback / interval refetch.
+          transport: signalR.HttpTransportType.WebSockets,
           withCredentials: false,
         })
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
@@ -95,7 +94,10 @@ export function useNotificationsRealtime({
           connectionId,
           transport: logTransport(connection),
         })
+        // Catch up after a drop — one-shot invalidate, not a timer.
         dispatch(notificationsApi.util.invalidateTags(['Notifications']))
+        dispatch(invalidateAttendanceApprovalQueue())
+        dispatch(invalidateGivingTags())
       })
 
       connection.onclose((err) => {
@@ -154,22 +156,4 @@ export function useNotificationsRealtime({
       connectionRef.current = null
     }
   }, [dispatch, enabled, limit])
-
-  useEffect(() => {
-    if (!enabled) return
-
-    const poll = () => {
-      if (document.visibilityState !== 'visible') return
-      dispatch(notificationsApi.util.invalidateTags(['Notifications']))
-    }
-
-    const intervalId = window.setInterval(poll, POLL_INTERVAL_MS)
-    const onFocus = () => poll()
-    window.addEventListener('focus', onFocus)
-
-    return () => {
-      window.clearInterval(intervalId)
-      window.removeEventListener('focus', onFocus)
-    }
-  }, [dispatch, enabled])
 }

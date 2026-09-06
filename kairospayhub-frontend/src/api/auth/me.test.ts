@@ -6,7 +6,10 @@ import {
   canManageMembers,
   canViewMemberGivings,
   canApproveGiving,
+  canApproveAttendance,
+  canViewAttendanceMetrics,
   canViewOverallGivings,
+  canSubmitRollCall,
   displayName,
   isCellLeader,
   isPastor,
@@ -219,5 +222,43 @@ describe('canManageMembers', () => {
     expect(canManageMembers('FellowshipLeader')).toBe(true)
     expect(canManageMembers('CellLeader')).toBe(false)
     expect(canManageMembers('Member')).toBe(false)
+  })
+})
+
+describe('canSubmitRollCall', () => {
+  it('is false for pastors with no roll-call scopes', () => {
+    expect(canSubmitRollCall(onboarded)).toBe(false)
+    expect(canSubmitRollCall({ ...onboarded, rollCallScopes: [] })).toBe(false)
+  })
+
+  it('is true when the actor has at least one roll-call scope', () => {
+    expect(
+      canSubmitRollCall({
+        ...onboarded,
+        role: 'CellLeader',
+        rollCallScopes: [{ scopeNodeId: 'cell-1', scopeUnitName: 'Cell A', layerName: 'Cell' }],
+      }),
+    ).toBe(true)
+  })
+})
+
+describe('canApproveAttendance', () => {
+  it('is true only for parent-capable scoped leaders, not pastors or cell leaders', () => {
+    expect(canApproveAttendance('FellowshipLeader')).toBe(true)
+    expect(canApproveAttendance('PFCCManager')).toBe(true)
+    expect(canApproveAttendance('CellLeader')).toBe(false)
+    expect(canApproveAttendance('Pastor')).toBe(false)
+    expect(canApproveAttendance('ChurchAdmin')).toBe(false)
+  })
+})
+
+describe('canViewAttendanceMetrics', () => {
+  it('allows church managers and scoped leaders (not bare cell leaders)', () => {
+    expect(canViewAttendanceMetrics('Pastor')).toBe(true)
+    expect(canViewAttendanceMetrics('ChurchAdmin')).toBe(true)
+    expect(canViewAttendanceMetrics('FellowshipLeader')).toBe(true)
+    expect(canViewAttendanceMetrics('PFCCManager')).toBe(true)
+    expect(canViewAttendanceMetrics('CellLeader')).toBe(false)
+    expect(canViewAttendanceMetrics('Member')).toBe(false)
   })
 })

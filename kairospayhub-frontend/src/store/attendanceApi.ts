@@ -2,6 +2,8 @@ import type {
   AttendanceApprovalQueueItem,
   AttendanceApproveResult,
   AttendanceMeetingType,
+  AttendanceMySubmission,
+  AttendanceOccurrenceDetail,
   AttendanceOccurrenceRollup,
   AttendanceOccurrenceRollupQuery,
   AttendanceOccurrenceSummary,
@@ -34,6 +36,12 @@ export const attendanceApi = baseApi.injectEndpoints({
         { type: 'AttendanceOccurrences', id: meetingTypeId },
       ],
     }),
+    getOccurrence: builder.query<AttendanceOccurrenceDetail, string>({
+      query: (occurrenceId) => `/api/attendance/occurrences/${occurrenceId}`,
+      providesTags: (_result, _error, occurrenceId) => [
+        { type: 'AttendanceRollup', id: occurrenceId },
+      ],
+    }),
     getOccurrenceRollup: builder.query<
       AttendanceOccurrenceRollup,
       { occurrenceId: string; query: AttendanceOccurrenceRollupQuery }
@@ -46,6 +54,10 @@ export const attendanceApi = baseApi.injectEndpoints({
     }),
     listApprovalQueue: builder.query<AttendanceApprovalQueueItem[], void>({
       query: () => '/api/attendance/approval-queue',
+      providesTags: ['AttendanceApprovalQueue'],
+    }),
+    listMySubmissions: builder.query<AttendanceMySubmission[], void>({
+      query: () => '/api/attendance/my-submissions',
       providesTags: ['AttendanceApprovalQueue'],
     }),
     getScopeRollCallReview: builder.query<
@@ -75,8 +87,10 @@ export const attendanceApi = baseApi.injectEndpoints({
 export const {
   useListMeetingTypesQuery,
   useListOccurrencesQuery,
+  useGetOccurrenceQuery,
   useGetOccurrenceRollupQuery,
   useListApprovalQueueQuery,
+  useListMySubmissionsQuery,
   useGetScopeRollCallReviewQuery,
   useApproveOccurrenceScopeMutation,
 } = attendanceApi

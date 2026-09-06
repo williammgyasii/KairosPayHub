@@ -156,11 +156,16 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.Title).IsRequired().HasMaxLength(200);
             e.Property(x => x.RecurrenceKind).HasConversion<string>().IsRequired();
             e.Property(x => x.ScopeKind).HasConversion<string>().IsRequired();
+            e.Property(x => x.IsAlwaysOpen).IsRequired().HasDefaultValue(false);
             e.HasIndex(x => x.ChurchId);
             e.HasOne(x => x.Church)
                 .WithMany()
                 .HasForeignKey(x => x.ChurchId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.SubmissionLayer)
+                .WithMany()
+                .HasForeignKey(x => x.SubmissionLayerId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<Domain.Attendance.AttendanceMeetingTypeScopeNode>(e =>
@@ -356,6 +361,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.Name).IsRequired();
             e.Property(x => x.CountryCode).HasMaxLength(2);
             e.Property(x => x.DefaultCurrency).IsRequired().HasMaxLength(3).HasDefaultValue("GHS");
+            e.Property(x => x.TimeZoneId).IsRequired().HasMaxLength(64).HasDefaultValue("UTC");
         });
 
         b.Entity<Domain.Structure.Pfcc>(e =>

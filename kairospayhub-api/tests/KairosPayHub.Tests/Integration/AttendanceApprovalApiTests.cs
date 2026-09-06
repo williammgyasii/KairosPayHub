@@ -36,27 +36,19 @@ public class AttendanceApprovalApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Rollup_pending_cell_count_excludes_non_approvable_pending_submissions()
+    public async Task Rollup_pending_cell_count_excludes_units_outside_approver_parent_scope()
     {
         var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: false);
         await AttendanceApprovalSeed.OpenAndSubmitCellRollCallAsync(fx, seed);
 
-        await using (var db = fx.CreateContext())
-        {
-            var submission = await db.AttendanceScopeSubmissions.SingleAsync(s =>
-                s.OccurrenceId == seed.OccurrenceId && s.ScopeNodeId == seed.CellNodeId);
-            submission.EnteredByRole = ChurchRole.FellowshipLeader;
-            await db.SaveChangesAsync();
-        }
+        // Pastor is not the one-hop parent — should not see pending in their approvable count.
+        var pastorQueueResp = await seed.PastorClient.GetAsync("/api/attendance/approval-queue");
+        var pastorQueue = await pastorQueueResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, pastorQueue.GetArrayLength());
 
-        var queueResp = await seed.FellowshipClient.GetAsync("/api/attendance/approval-queue");
-        var queue = await queueResp.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(0, queue.GetArrayLength());
-
-        var rollupResp = await seed.FellowshipClient.GetAsync(
-            $"/api/attendance/occurrences/{seed.OccurrenceId}/rollup");
-        var rollup = await rollupResp.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(0, rollup.GetProperty("pendingCellCount").GetInt32());
+        var fellowshipQueueResp = await seed.FellowshipClient.GetAsync("/api/attendance/approval-queue");
+        var fellowshipQueue = await fellowshipQueueResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, fellowshipQueue.GetArrayLength());
     }
 
     [Fact]
@@ -122,6 +114,12 @@ public class AttendanceApprovalApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Contains(
             rollup.GetProperty("items").EnumerateArray().ToList(),
             row => row.GetProperty("name").GetString() == "Member Kay");
+        Assert.Contains(
+            rollup.GetProperty("items").EnumerateArray().ToList(),
+            row =>
+                row.GetProperty("name").GetString() == "Member Kay"
+                && row.TryGetProperty("parentUnitName", out var parent)
+                && !string.IsNullOrWhiteSpace(parent.GetString()));
     }
 
     [Fact]
@@ -169,29 +167,51 @@ public class AttendanceApprovalApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task PFCC_manager_can_approve_cell_roll_call_directly_when_church_has_pfcc()
+    public async Task PFCC_manager_does_not_approve_cell_when_fellowship_is_immediate_parent()
     {
         var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: true);
         await AttendanceApprovalSeed.OpenAndSubmitCellRollCallAsync(fx, seed);
 
+        // One-hop only: cell → fellowship. PFCC is not the immediate parent.
         var pfccQueueResp = await seed.PfccClient!.GetAsync("/api/attendance/approval-queue");
         var pfccQueue = await pfccQueueResp.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, pfccQueue.GetArrayLength());
-
-        var pfccApproveResp = await seed.PfccClient.PostAsync(
-            $"/api/attendance/occurrences/{seed.OccurrenceId}/scopes/{seed.CellNodeId}/approve",
-            null);
-        Assert.Equal(HttpStatusCode.OK, pfccApproveResp.StatusCode);
-
-        await using var db = fx.CreateContext();
-        var submission = await db.AttendanceScopeSubmissions.AsNoTracking()
-            .SingleAsync(s => s.OccurrenceId == seed.OccurrenceId && s.ScopeNodeId == seed.CellNodeId);
-        Assert.Equal(AttendanceScopeApprovalStatus.Approved, submission.ApprovalStatus);
-        Assert.Equal(ChurchRole.PFCCManager, submission.EnteredByRole);
+        Assert.Equal(0, pfccQueue.GetArrayLength());
 
         var fellowshipQueueResp = await seed.FellowshipClient.GetAsync("/api/attendance/approval-queue");
         var fellowshipQueue = await fellowshipQueueResp.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(0, fellowshipQueue.GetArrayLength());
+        Assert.Equal(1, fellowshipQueue.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Church_manager_cannot_approve_when_parent_unit_has_no_leader()
+    {
+        var seed = await AttendanceApprovalSeed.CreateAsync(_factory, fx, includePfcc: false);
+        await using (var db = fx.CreateContext())
+        {
+            var parentId = await db.StructureNodes.AsNoTracking()
+                .Where(n => n.Id == seed.CellNodeId)
+                .Select(n => n.ParentNodeId)
+                .SingleAsync();
+            Assert.NotNull(parentId);
+
+            var parentAssignments = await db.RoleAssignments
+                .Where(r => r.ScopeNodeId == parentId)
+                .ToListAsync();
+            db.RoleAssignments.RemoveRange(parentAssignments);
+            await db.SaveChangesAsync();
+        }
+
+        await AttendanceApprovalSeed.OpenAndSubmitCellRollCallAsync(fx, seed);
+
+        var pastorQueueResp = await seed.PastorClient.GetAsync("/api/attendance/approval-queue");
+        Assert.Equal(HttpStatusCode.OK, pastorQueueResp.StatusCode);
+        var pastorQueue = await pastorQueueResp.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, pastorQueue.GetArrayLength());
+
+        var approveResp = await seed.PastorClient.PostAsync(
+            $"/api/attendance/occurrences/{seed.OccurrenceId}/scopes/{seed.CellNodeId}/approve",
+            null);
+        Assert.Equal(HttpStatusCode.Forbidden, approveResp.StatusCode);
     }
 }
 

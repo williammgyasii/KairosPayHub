@@ -113,7 +113,9 @@ export function AttendanceMeetingTypesPage() {
                       {formatMeetingSchedule(type)}
                     </td>
                     <td className="px-4 py-3">{type.scopeKind}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatSubmissionWindow(type)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {formatSubmissionWindow(type, me.timeZoneId)}
+                    </td>
                     <td className="px-4 py-3">{type.isActive ? 'Active' : 'Inactive'}</td>
                     {canManage && (
                       <td className="px-4 py-3 text-right">
@@ -149,6 +151,7 @@ export function AttendanceMeetingTypesPage() {
         onOpenChange={setCreateOpen}
         mode="create"
         api={api}
+        timeZoneId={me.timeZoneId}
         onSaved={load}
       />
 
@@ -160,6 +163,7 @@ export function AttendanceMeetingTypesPage() {
         mode="edit"
         meetingType={editingType}
         api={api}
+        timeZoneId={me.timeZoneId}
         onSaved={load}
       />
 
