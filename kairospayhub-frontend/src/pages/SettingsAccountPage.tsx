@@ -60,7 +60,10 @@ export function SettingsAccountPage() {
             <SettingsField label="Role" value={me.role} />
             {me.churchName ? <SettingsField label="Church" value={me.churchName} /> : null}
             {me.countryCode && me.defaultCurrency ? (
-              <SettingsField label="Locale" value={`${me.countryCode} · ${me.defaultCurrency}`} />
+              <SettingsField
+                label="Locale"
+                value={`${me.countryCode} · ${me.defaultCurrency}${me.timeZoneId ? ` · ${me.timeZoneId}` : ''}`}
+              />
             ) : null}
           </SettingsFieldGrid>
         </SettingsSection>

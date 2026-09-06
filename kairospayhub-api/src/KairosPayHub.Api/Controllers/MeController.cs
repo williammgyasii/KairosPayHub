@@ -38,6 +38,7 @@ public class MeController(CurrentActor current, KairosDbContext db, AbilityResol
         int? memberCount = null;
         string? countryCode = null;
         string? defaultCurrency = null;
+        string? timeZoneId = null;
         if (churchId is not null)
         {
             var church = await db.StructureChurches.AsNoTracking()
@@ -51,6 +52,7 @@ public class MeController(CurrentActor current, KairosDbContext db, AbilityResol
                     c.ApproximateMemberCount,
                     c.CountryCode,
                     c.DefaultCurrency,
+                    c.TimeZoneId,
                 })
                 .FirstOrDefaultAsync(ct);
             churchName = church?.Name;
@@ -60,6 +62,7 @@ public class MeController(CurrentActor current, KairosDbContext db, AbilityResol
             memberCount = church?.ApproximateMemberCount;
             countryCode = church?.CountryCode;
             defaultCurrency = church?.DefaultCurrency;
+            timeZoneId = church?.TimeZoneId;
         }
 
         if (actor.StructureRole == ChurchRole.Pastor
@@ -79,6 +82,7 @@ public class MeController(CurrentActor current, KairosDbContext db, AbilityResol
                 memberCount,
                 countryCode,
                 defaultCurrency,
+                timeZoneId,
                 onboardingStep = "structure",
                 role = actor.StructureRole?.ToString() ?? actor.Role.ToString(),
                 abilities = pending.Abilities,
@@ -122,12 +126,18 @@ public class MeController(CurrentActor current, KairosDbContext db, AbilityResol
                 from assignment in db.RoleAssignments.AsNoTracking()
                 join node in db.StructureNodes.AsNoTracking()
                     on assignment.ScopeNodeId equals node.Id
+                join layer in db.StructureLayers.AsNoTracking()
+                    on node.LayerId equals layer.Id
                 where assignment.ChurchId == actor.StructureChurchId
                     && assignment.AuthUserId == authUserId
-                    && assignment.Role == ChurchRole.CellLeader
                     && assignment.ScopeNodeId != null
-                orderby node.Name
-                select new { scopeNodeId = node.Id, scopeUnitName = node.Name })
+                orderby layer.SortOrder, node.Name
+                select new
+                {
+                    scopeNodeId = node.Id,
+                    scopeUnitName = node.Name,
+                    layerName = layer.DisplayName,
+                })
                 .ToListAsync(ct);
         }
 
@@ -142,6 +152,7 @@ public class MeController(CurrentActor current, KairosDbContext db, AbilityResol
             churchLogoUrl,
             countryCode,
             defaultCurrency,
+            timeZoneId,
             organizationId = actor.OrganizationId,
             role,
             scopeNodeId,

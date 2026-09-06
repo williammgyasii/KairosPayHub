@@ -18,7 +18,12 @@ public class AttendanceOccurrenceGenerator(KairosDbContext db, AttendanceRollCal
         if (!meetingType.IsActive || meetingType.RecurrenceKind != AttendanceRecurrenceKind.Weekly)
             return;
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var timeZoneId = await db.StructureChurches.AsNoTracking()
+            .Where(c => c.Id == meetingType.ChurchId)
+            .Select(c => c.TimeZoneId)
+            .FirstOrDefaultAsync(ct) ?? "UTC";
+
+        var today = AttendanceWindowCalculator.TodayInTimeZone(timeZoneId);
         var end = today.AddDays(meetingType.AutoGenerateWeeksAhead * 7);
 
         for (var date = today; date <= end; date = date.AddDays(1))
@@ -31,21 +36,32 @@ public class AttendanceOccurrenceGenerator(KairosDbContext db, AttendanceRollCal
             if (exists)
                 continue;
 
-            await CreateOccurrenceAsync(meetingType, date, ct);
+            await CreateOccurrenceAsync(meetingType, date, timeZoneId, ct);
         }
     }
 
     private async Task CreateOccurrenceAsync(
         AttendanceMeetingType meetingType,
         DateOnly meetingDate,
+        string timeZoneId,
         CancellationToken ct)
     {
-        var (opensAt, deadlineAt) = AttendanceWindowCalculator.Compute(
-            meetingDate,
-            meetingType.OpensDayOffset,
-            meetingType.OpensTimeUtc,
-            meetingType.DeadlineDayOffset,
-            meetingType.DeadlineTimeUtc);
+        DateTimeOffset opensAt;
+        DateTimeOffset deadlineAt;
+        if (meetingType.IsAlwaysOpen)
+        {
+            (opensAt, deadlineAt) = AlwaysOpenWindow(meetingDate);
+        }
+        else
+        {
+            (opensAt, deadlineAt) = AttendanceWindowCalculator.Compute(
+                meetingDate,
+                meetingType.OpensDayOffset,
+                meetingType.OpensTimeUtc,
+                meetingType.DeadlineDayOffset,
+                meetingType.DeadlineTimeUtc,
+                timeZoneId);
+        }
 
         var occurrence = new AttendanceOccurrence
         {
@@ -54,7 +70,7 @@ public class AttendanceOccurrenceGenerator(KairosDbContext db, AttendanceRollCal
             MeetingDate = meetingDate,
             SubmissionOpensAt = opensAt,
             SubmissionDeadlineAt = deadlineAt,
-            Status = DateTimeOffset.UtcNow >= opensAt
+            Status = meetingType.IsAlwaysOpen || DateTimeOffset.UtcNow >= opensAt
                 ? AttendanceOccurrenceStatus.Open
                 : AttendanceOccurrenceStatus.Scheduled,
         };
@@ -65,9 +81,37 @@ public class AttendanceOccurrenceGenerator(KairosDbContext db, AttendanceRollCal
         await rollCallSync.EnsureOccurrenceRollCallAsync(occurrence.Id, ct);
     }
 
+    public async Task ApplyAlwaysOpenWindowsAsync(Guid meetingTypeId, CancellationToken ct = default)
+    {
+        var occurrences = await db.AttendanceOccurrences
+            .Where(o => o.MeetingTypeId == meetingTypeId)
+            .ToListAsync(ct);
+
+        foreach (var occurrence in occurrences)
+        {
+            var (opensAt, deadlineAt) = AlwaysOpenWindow(occurrence.MeetingDate);
+            occurrence.SubmissionOpensAt = opensAt;
+            occurrence.SubmissionDeadlineAt = deadlineAt;
+            if (occurrence.Status != AttendanceOccurrenceStatus.Excused)
+                occurrence.Status = AttendanceOccurrenceStatus.Open;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task OpenTodayForDemoAsync(Guid meetingTypeId, CancellationToken ct = default)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var meetingType = await db.AttendanceMeetingTypes.AsNoTracking()
+            .SingleOrDefaultAsync(t => t.Id == meetingTypeId, ct);
+        if (meetingType is null)
+            return;
+
+        var timeZoneId = await db.StructureChurches.AsNoTracking()
+            .Where(c => c.Id == meetingType.ChurchId)
+            .Select(c => c.TimeZoneId)
+            .FirstOrDefaultAsync(ct) ?? "UTC";
+
+        var today = AttendanceWindowCalculator.TodayInTimeZone(timeZoneId);
         var occurrence = await db.AttendanceOccurrences
             .Include(o => o.ScopeSubmissions)
             .SingleOrDefaultAsync(o => o.MeetingTypeId == meetingTypeId && o.MeetingDate == today, ct);
@@ -90,5 +134,12 @@ public class AttendanceOccurrenceGenerator(KairosDbContext db, AttendanceRollCal
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    static (DateTimeOffset OpensAt, DateTimeOffset DeadlineAt) AlwaysOpenWindow(DateOnly meetingDate)
+    {
+        var opensAt = new DateTimeOffset(meetingDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddYears(-1);
+        var deadlineAt = new DateTimeOffset(meetingDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddYears(10);
+        return (opensAt, deadlineAt);
     }
 }

@@ -11,6 +11,8 @@ public class Church
     public string? LogoUrl { get; set; }
     public string? CountryCode { get; set; }
     public string DefaultCurrency { get; set; } = "GHS";
+    /// <summary>IANA timezone id used for attendance windows and local-time displays.</summary>
+    public string TimeZoneId { get; set; } = "UTC";
     public DateTimeOffset CreatedAt { get; set; }
 
     public ICollection<Pfcc> Pfccs { get; set; } = new List<Pfcc>();

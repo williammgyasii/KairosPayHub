@@ -32,6 +32,7 @@ public class ChurchLocaleApiTests(PostgresFixture fx) : IAsyncLifetime
             .First(c => c.GetProperty("code").GetString() == "CA");
         Assert.Equal("Canada", canada.GetProperty("name").GetString());
         Assert.Equal("CAD", canada.GetProperty("currency").GetString());
+        Assert.Equal("America/Toronto", canada.GetProperty("timeZoneId").GetString());
     }
 
     [Fact]
@@ -60,6 +61,27 @@ public class ChurchLocaleApiTests(PostgresFixture fx) : IAsyncLifetime
         var church = await db.StructureChurches.SingleAsync(c => c.Id == churchId);
         Assert.Equal("CA", church.CountryCode);
         Assert.Equal("CAD", church.DefaultCurrency);
+        Assert.Equal("America/Toronto", church.TimeZoneId);
+    }
+
+    [Fact]
+    public async Task Onboarding_with_ghana_sets_africa_accra_timezone()
+    {
+        var client = PastorClient();
+        var response = await client.PostAsJsonAsync(
+            "/api/onboarding",
+            new { churchName = "Accra Church", countryCode = "GH" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        Assert.Equal("GH", me.GetProperty("countryCode").GetString());
+        Assert.Equal("GHS", me.GetProperty("defaultCurrency").GetString());
+        Assert.Equal("Africa/Accra", me.GetProperty("timeZoneId").GetString());
+
+        await using var db = fx.CreateContext();
+        var churchId = me.GetProperty("churchId").GetGuid();
+        var church = await db.StructureChurches.SingleAsync(c => c.Id == churchId);
+        Assert.Equal("Africa/Accra", church.TimeZoneId);
     }
 
     [Fact]

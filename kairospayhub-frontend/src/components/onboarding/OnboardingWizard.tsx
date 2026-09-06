@@ -40,6 +40,7 @@ type SupportedCountry = {
   code: string
   name: string
   currency: string
+  timeZoneId: string
 }
 
 const stepMotion = {
@@ -329,7 +330,8 @@ export function OnboardingWizard({ me, onComplete }: OnboardingWizardProps) {
                     </div>
                     {selectedCountry ? (
                       <p className="text-xs text-muted-foreground">
-                        Default currency: {selectedCountry.currency}
+                        Default currency: {selectedCountry.currency} · Timezone:{' '}
+                        {selectedCountry.timeZoneId}
                       </p>
                     ) : null}
                   </div>

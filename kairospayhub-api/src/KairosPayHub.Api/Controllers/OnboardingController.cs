@@ -20,7 +20,13 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
     /// </summary>
     [HttpGet("countries")]
     public IActionResult ListCountries() =>
-        Ok(ChurchLocale.ListSupported().Select(c => new { code = c.Code, name = c.Name, currency = c.Currency }));
+        Ok(ChurchLocale.ListSupported().Select(c => new
+        {
+            code = c.Code,
+            name = c.Name,
+            currency = c.Currency,
+            timeZoneId = c.TimeZoneId,
+        }));
 
     /// <summary>
     /// First-login provisioning for a pastor: creates the church tenant, pastor
@@ -73,6 +79,7 @@ public class OnboardingController(CurrentActor current, KairosDbContext db) : Co
     {
         church.CountryCode = locale.Code;
         church.DefaultCurrency = locale.Currency;
+        church.TimeZoneId = locale.TimeZoneId;
 
         var location = request.Location?.Trim();
         if (!string.IsNullOrWhiteSpace(location))
