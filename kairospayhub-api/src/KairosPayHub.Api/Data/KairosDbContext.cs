@@ -293,8 +293,12 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.CustomTypeLabel).HasMaxLength(100);
             e.Property(x => x.ScopeKind).HasConversion<string>().IsRequired();
             e.Property(x => x.Status).HasConversion<string>().IsRequired();
+            e.Property(x => x.ApprovalStatus).HasConversion<string>().IsRequired();
             e.HasIndex(x => x.ChurchId);
             e.HasIndex(x => new { x.ChurchId, x.Status });
+            e.HasIndex(x => new { x.ChurchId, x.ParentProgramId });
+            e.HasIndex(x => new { x.ChurchId, x.Status, x.GoLiveAt });
+            e.HasIndex(x => new { x.ChurchId, x.ApprovalStatus });
             e.HasIndex(x => x.ParentProgramId);
             e.HasIndex(x => new { x.ChurchId, x.GivingType, x.PeriodLabel, x.ScopeKind })
                 .IsUnique()
@@ -331,6 +335,8 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.HasIndex(x => x.MemberId);
             e.HasIndex(x => new { x.ProgramId, x.Status });
             e.HasIndex(x => x.MemberParentNodeId);
+            e.HasIndex(x => x.BatchId);
+            e.HasIndex(x => new { x.ProgramId, x.BatchId });
             e.HasOne(x => x.Program)
                 .WithMany(p => p.Contributions)
                 .HasForeignKey(x => x.ProgramId)

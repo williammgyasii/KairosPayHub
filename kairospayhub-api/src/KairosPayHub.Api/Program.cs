@@ -65,6 +65,8 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddSingleton<SmtpEmailSender>();
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ChurchReadCache>();
 builder.Services.AddScoped<CurrentActor>();
 builder.Services.AddScoped<ChurchService>();
 builder.Services.AddScoped<StructureLeaderAccountService>();

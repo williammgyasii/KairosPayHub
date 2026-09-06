@@ -17,7 +17,8 @@ public class StructureService(
     IEmailSender email,
     IOptions<EmailOptions> emailOptions,
     GivingScopeService givingScope,
-    UserManager<ApplicationUser> users)
+    UserManager<ApplicationUser> users,
+    ChurchReadCache readCache)
 {
     public async Task<StructureTemplateDto?> GetTemplateAsync(Actor actor, CancellationToken ct = default)
     {
@@ -36,7 +37,22 @@ public class StructureService(
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
+        var role = actor.StructureRole?.ToString() ?? actor.Role.ToString();
+        var cacheKey = readCache.StructureTreeKey(churchId, authUserId, role, includeMembers);
+        return await readCache.GetOrCreateAsync(
+            cacheKey,
+            ChurchReadCache.StructureTreeTtl,
+            innerCt => BuildTreeAsync(actor, authUserId, churchId, includeMembers, innerCt),
+            ct);
+    }
 
+    private async Task<StructureTreeDto> BuildTreeAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid churchId,
+        bool includeMembers,
+        CancellationToken ct)
+    {
         var church = await db.StructureChurches.AsNoTracking()
             .SingleAsync(c => c.Id == churchId, ct);
 
@@ -225,7 +241,7 @@ public class StructureService(
             });
         }
 
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         var loaded = await db.StructureTemplates.AsNoTracking()
             .Include(t => t.Layers.OrderBy(l => l.SortOrder))
@@ -322,7 +338,7 @@ public class StructureService(
         for (var i = 0; i < existingLayers.Count; i++)
             existingLayers[i].DisplayName = inputs[i].DisplayName.Trim();
 
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(template.ChurchId, ct);
 
         var loaded = await db.StructureTemplates.AsNoTracking()
             .Include(t => t.Layers.OrderBy(l => l.SortOrder))
@@ -407,7 +423,7 @@ public class StructureService(
             DisplayName = layerInput.DisplayName.Trim(),
         };
         db.StructureLayers.Add(newLayer);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         var newLayerEntry = db.Entry(newLayer);
         if (newLayerEntry.State != EntityState.Detached)
@@ -476,7 +492,7 @@ public class StructureService(
             template.Name = NormalizeTemplateName(request.Name);
 
         DetachNonAddedStructureLayers(newLayer.Id);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         foreach (var (nodeId, bridgeId) in nodeReparentings)
         {
@@ -587,7 +603,7 @@ public class StructureService(
             template.Name = NormalizeTemplateName(request.Name);
 
         DetachNonAddedStructureLayers(newLayer.Id);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         foreach (var (memberId, bridgeId) in memberReparentings)
         {
@@ -758,7 +774,7 @@ public class StructureService(
 
         db.StructureLayers.RemoveRange(template.Layers);
         db.StructureTemplates.Remove(template);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
     }
 
     public async Task<CreateStructureNodeResponse> CreateNodeAsync(
@@ -794,11 +810,11 @@ public class StructureService(
             UnitNumber = resolvedUnitNumber,
         };
         db.StructureNodes.Add(node);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         var generatedLogin = await ApplyNodeLeaderAsync(
             churchId, template, node, layer, leaderMemberId, newLeader, ct);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         await db.Entry(node).Reference(n => n.Leader).LoadAsync(ct);
         return new CreateStructureNodeResponse(ToNodeDto(node), generatedLogin);
@@ -832,7 +848,7 @@ public class StructureService(
             await ApplyNodeLeaderAsync(churchId, template, node, layer, null, null, ct);
         else if (leaderMemberId is not null || newLeader is not null)
             await ApplyNodeLeaderAsync(churchId, template, node, layer, leaderMemberId, newLeader, ct);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         await db.Entry(node).Reference(n => n.Leader).LoadAsync(ct);
         return ToNodeDto(node);
@@ -855,7 +871,7 @@ public class StructureService(
         if (members.Count > 0)
         {
             db.ChurchMembers.RemoveRange(members);
-            await db.SaveChangesAsync(ct);
+            await SaveStructureChangesAsync(churchId, ct);
         }
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
@@ -869,7 +885,7 @@ public class StructureService(
         foreach (var toDelete in nodes.OrderByDescending(n => layerOrder[n.LayerId]))
             db.StructureNodes.Remove(toDelete);
 
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
     }
 
     public async Task<StructureNodeDto> CreateNodeAsync(
@@ -903,7 +919,7 @@ public class StructureService(
         await ValidateNodeParentAsync(churchId, layer, parentNodeId, ct, nodeId);
 
         node.ParentNodeId = parentNodeId;
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         await db.Entry(node).Reference(n => n.Leader).LoadAsync(ct);
         return ToNodeDto(node);
@@ -967,7 +983,7 @@ public class StructureService(
         if (member.Age is null && age is not null)
             member.Age = age;
         db.ChurchMembers.Add(member);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         return ToMemberDto(member);
     }
@@ -1135,7 +1151,7 @@ public class StructureService(
         await RequireMemberManageAsync(actor, authUserId, parentNodeId, ct);
 
         member.ParentNodeId = parentNodeId;
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         return ToMemberDto(member);
     }
@@ -1192,7 +1208,7 @@ public class StructureService(
         if (member.Age is null && age is not null)
             member.Age = age;
 
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
 
         return ToMemberDto(member);
     }
@@ -1224,7 +1240,7 @@ public class StructureService(
             node.LeaderMemberId = null;
 
         db.ChurchMembers.Remove(member);
-        await db.SaveChangesAsync(ct);
+        await SaveStructureChangesAsync(churchId, ct);
     }
 
     private static StructureNodeDto ToNodeDto(
@@ -1345,7 +1361,7 @@ public class StructureService(
                     UnitNumber = await NextUnitNumberAsync(churchId, deepestLayer.Id, node.Id, ct),
                 };
                 db.StructureNodes.Add(autoCell);
-                await db.SaveChangesAsync(ct);
+                await SaveStructureChangesAsync(churchId, ct);
                 memberParentNodeId = autoCell.Id;
             }
 
@@ -1385,7 +1401,7 @@ public class StructureService(
             }
 
             db.ChurchMembers.Add(member);
-            await db.SaveChangesAsync(ct);
+            await SaveStructureChangesAsync(churchId, ct);
             node.LeaderMemberId = member.Id;
 
             if (generatedLogin is not null)
@@ -1571,6 +1587,12 @@ public class StructureService(
         if (!Enum.TryParse<StructureLayerType>(value, ignoreCase: true, out var parsed))
             throw new BadRequestException($"Unknown layer type: {value}");
         return parsed;
+    }
+
+    private async Task SaveStructureChangesAsync(Guid churchId, CancellationToken ct)
+    {
+        await db.SaveChangesAsync(ct);
+        readCache.InvalidateStructureTree(churchId);
     }
 
     private static Guid RequireStructureChurch(Actor actor)
