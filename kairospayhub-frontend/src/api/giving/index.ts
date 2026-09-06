@@ -34,6 +34,7 @@ export type GivingProgram = {
   acceptsContributions: boolean
   directContributionCount: number
   directContributionTotalAmount: number
+  awaitingMyApprovalCount?: number
 }
 
 export type Contribution = {
@@ -232,6 +233,17 @@ export type CreateContributionInput = {
   batchId?: string | null
 }
 
+export type CreateContributionBatchInput = {
+  dateSent: string
+  attachmentKey: string
+  items: Array<{ memberId: string; amount: number }>
+  currency?: string
+  notes?: string | null
+  sentToPastor?: boolean | null
+  remittanceMedium?: RemittanceMedium | string | null
+  remittanceMediumOther?: string | null
+}
+
 export async function listPrograms(api: ApiClient) {
   const res = await api.get<{ programs: GivingProgram[] }>('/api/giving/programs')
   return res.programs
@@ -345,6 +357,14 @@ export async function listAllContributions(api: ApiClient, query: ContributionLi
   return normalizeContributionListResult(data)
 }
 
+export type MemberGivingCampaign = {
+  programId: string
+  title: string
+  parentProgramId: string | null
+  approvedAmount: number
+  approvedCount: number
+}
+
 export type MemberGivingTotal = {
   rank: number
   memberId: string
@@ -355,6 +375,7 @@ export type MemberGivingTotal = {
   pendingCount: number
   pendingTotal: number
   lastDateSent: string | null
+  campaigns: MemberGivingCampaign[]
 }
 
 export type MemberGivingTotalsSummary = {
@@ -404,17 +425,29 @@ export async function listMemberGivingTotals(
     summary?: Partial<MemberGivingTotalsSummary>
   }>(`/api/giving/member-totals${qs ? `?${qs}` : ''}`)
 
-  const members = (data?.members ?? []).map((row) => ({
-    rank: Number(row.rank ?? row.Rank ?? 0),
-    memberId: String(row.memberId ?? row.MemberId ?? ''),
-    memberName: String(row.memberName ?? row.MemberName ?? 'Member'),
-    memberParentNodeId: String(row.memberParentNodeId ?? row.MemberParentNodeId ?? ''),
-    approvedTotal: Number(row.approvedTotal ?? row.ApprovedTotal ?? 0),
-    approvedCount: Number(row.approvedCount ?? row.ApprovedCount ?? 0),
-    pendingCount: Number(row.pendingCount ?? row.PendingCount ?? 0),
-    pendingTotal: Number(row.pendingTotal ?? row.PendingTotal ?? 0),
-    lastDateSent: (row.lastDateSent ?? row.LastDateSent ?? null) as string | null,
-  }))
+  const members = (data?.members ?? []).map((row) => {
+    const campaignsRaw = (row.campaigns ?? row.Campaigns ?? []) as Array<Record<string, unknown>>
+    return {
+      rank: Number(row.rank ?? row.Rank ?? 0),
+      memberId: String(row.memberId ?? row.MemberId ?? ''),
+      memberName: String(row.memberName ?? row.MemberName ?? 'Member'),
+      memberParentNodeId: String(row.memberParentNodeId ?? row.MemberParentNodeId ?? ''),
+      approvedTotal: Number(row.approvedTotal ?? row.ApprovedTotal ?? 0),
+      approvedCount: Number(row.approvedCount ?? row.ApprovedCount ?? 0),
+      pendingCount: Number(row.pendingCount ?? row.PendingCount ?? 0),
+      pendingTotal: Number(row.pendingTotal ?? row.PendingTotal ?? 0),
+      lastDateSent: (row.lastDateSent ?? row.LastDateSent ?? null) as string | null,
+      campaigns: campaignsRaw.map((campaign) => ({
+        programId: String(campaign.programId ?? campaign.ProgramId ?? ''),
+        title: String(campaign.title ?? campaign.Title ?? 'Campaign'),
+        parentProgramId: (campaign.parentProgramId ?? campaign.ParentProgramId ?? null) as
+          | string
+          | null,
+        approvedAmount: Number(campaign.approvedAmount ?? campaign.ApprovedAmount ?? 0),
+        approvedCount: Number(campaign.approvedCount ?? campaign.ApprovedCount ?? 0),
+      })),
+    }
+  })
 
   const summary = data?.summary
   return {
@@ -443,6 +476,17 @@ export async function createContribution(
   input: CreateContributionInput,
 ) {
   return api.post<Contribution>(`/api/giving/programs/${programId}/contributions`, input)
+}
+
+export async function createContributionBatch(
+  api: ApiClient,
+  programId: string,
+  input: CreateContributionBatchInput,
+) {
+  return api.post<{ batchId: string; contributions: Contribution[] }>(
+    `/api/giving/programs/${programId}/contributions/batch`,
+    input,
+  )
 }
 
 export async function approveContribution(
@@ -508,12 +552,27 @@ export async function uploadGivingAttachment(file: File) {
 }
 
 export function givingAttachmentContentUrl(attachmentKey: string) {
-  return `${apiBaseUrl()}/api/giving/attachments/content?key=${encodeURIComponent(attachmentKey)}`
+  const primary = splitGivingAttachmentKeys(attachmentKey)[0] ?? attachmentKey
+  return `${apiBaseUrl()}/api/giving/attachments/content?key=${encodeURIComponent(primary)}`
+}
+
+/** Multiple proof images are stored as `|`-joined keys on one contribution. */
+export function splitGivingAttachmentKeys(attachmentKey: string | null | undefined): string[] {
+  if (!attachmentKey?.trim()) return []
+  return attachmentKey
+    .split('|')
+    .map((key) => key.trim())
+    .filter(Boolean)
+}
+
+export function joinGivingAttachmentKeys(keys: string[]): string {
+  return keys.map((key) => key.trim()).filter(Boolean).join('|')
 }
 
 export async function fetchGivingAttachmentBlobUrl(attachmentKey: string): Promise<string | null> {
+  const primary = splitGivingAttachmentKeys(attachmentKey)[0] ?? attachmentKey.trim()
   const token = getAccessToken()
-  const res = await fetch(givingAttachmentContentUrl(attachmentKey), {
+  const res = await fetch(givingAttachmentContentUrl(primary), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
   if (!res.ok) return null

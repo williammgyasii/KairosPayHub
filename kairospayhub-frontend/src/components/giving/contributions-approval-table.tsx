@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowUpDown, Check, Eye, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { ArrowUpDown } from 'lucide-react'
 import type { SortingState } from '@tanstack/react-table'
 import type { ApiClient } from '@/api/core'
 import type { Contribution, ContributionListQuery, GivingProgram } from '@/api/giving'
 import { formatAmount, listAllContributions, listProgramContributions } from '@/api/giving'
 import { canManageChurch } from '@/api/auth'
 import type { StructureTree } from '@/api/structure'
-import { memberPfccName, nodePfccName } from '@/lib/contribution-structure'
+import {
+  memberStructureUnitLabel,
+  nodeStructureUnitLabel,
+  structureScopeColumnLabel,
+} from '@/lib/contribution-structure'
 import {
   groupContributionsForApproval,
   paginateApprovalDisplayRows,
   summarizeBatch,
   type ApprovalDisplayRow,
 } from '@/lib/contribution-batches'
+import { ApprovalRowActionsMenu } from '@/components/giving/approval-row-actions-menu'
 import { ContributionBulkBatchModal } from '@/components/giving/contribution-bulk-batch-modal'
 import { ContributionDetailModal } from '@/components/giving/contribution-detail-modal'
 import { RejectContributionModal } from '@/components/giving/reject-contribution-modal'
@@ -28,9 +32,7 @@ import {
   programCreatorLabel,
   programSubmittedByLabel,
 } from '@/lib/giving-ui'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { InlineSpinner } from '@/components/ui/spinner'
@@ -159,8 +161,9 @@ export function ContributionsApprovalTable({
   const sortBy = SORT_MAP[sorting[0]?.id ?? 'createdAt'] ?? 'createdAt'
   const sortDir: ContributionListQuery['sortDir'] = sorting[0]?.desc ? 'desc' : 'asc'
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (opts?: { soft?: boolean }) => {
+    const soft = opts?.soft ?? (rows.length > 0 || displayRows.length > 0)
+    if (!soft) setLoading(true)
     setError(null)
     try {
       const baseQuery = {
@@ -211,9 +214,11 @@ export function ContributionsApprovalTable({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load contributions')
-      setRows([])
-      setDisplayRows([])
-      setTotalCount(0)
+      if (!soft) {
+        setRows([])
+        setDisplayRows([])
+        setTotalCount(0)
+      }
     } finally {
       setLoading(false)
     }
@@ -228,11 +233,26 @@ export function ContributionsApprovalTable({
     debouncedSearch,
     mode,
     canAct,
+    rows.length,
+    displayRows.length,
   ])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load({ soft: rows.length > 0 || displayRows.length > 0 })
+    // Intentionally only re-run when query inputs change — soft flag read from latest rows via load deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid loop from rows.length in soft path
+  }, [
+    api,
+    isChurchScope,
+    parentProgram?.id,
+    page,
+    pageSize,
+    sortBy,
+    sortDir,
+    debouncedSearch,
+    mode,
+    canAct,
+  ])
 
   function toggleSort(columnId: string) {
     setSorting((prev) => {
@@ -344,26 +364,37 @@ export function ContributionsApprovalTable({
       ]
     }
     if (usePastorPendingColumns) {
-      return [...base, { id: 'submittedBy', label: 'Submitted' }, { id: 'pfcc', label: 'PFCC' }]
+      return [
+        ...base,
+        { id: 'submittedBy', label: 'Submitted' },
+        { id: 'structureUnit', label: structureScopeColumnLabel(tree) },
+      ]
     }
     return [...base, { id: 'createdAt', label: 'Submitted' }, { id: 'enteredBy', label: 'Logged by' }]
-  }, [mode, showSubGivingColumn, isChurchScope, usePastorPendingColumns])
+  }, [mode, showSubGivingColumn, isChurchScope, usePastorPendingColumns, tree])
 
   const colSpan = columns.length + 1
   const showSubGivingsOnPage = page === 1 && filteredSubGivings.length > 0
 
   return (
     <>
-      <Card className={mode === 'pending' ? 'border-amber-200/50 bg-amber-500/[0.03]' : undefined}>
-        <CardHeader className="space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="overflow-hidden rounded-lg border border-border/60">
+        <div className="space-y-3 border-b border-border/60 px-4 py-3">
+          <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription>{description}</CardDescription>
+              <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+              <p className="text-xs text-muted-foreground">{description}</p>
             </div>
-            <div className="rounded-lg border border-border/60 bg-background px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Total </span>
-              <span className="font-semibold tabular-nums">{formatAmount(summaryTotal)}</span>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-right shadow-[0_0_0_3px_oklch(0.75_0.12_85/0.12)]">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-900/70 dark:text-amber-100/70">
+                Total
+              </p>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight text-foreground">
+                {formatAmount(summaryTotal)}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {totalCount} row{totalCount === 1 ? '' : 's'}
+              </p>
             </div>
           </div>
           <Input
@@ -372,41 +403,40 @@ export function ContributionsApprovalTable({
             placeholder="Search member, sub-giving, or notes…"
             className="max-w-sm"
           />
-        </CardHeader>
-        <CardContent className="p-0">
-          {error && <p className="px-5 pb-3 text-sm text-destructive">{error}</p>}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead>
-                <tr className="border-y border-border/60 bg-muted/20">
-                  {columns.map((column) => (
-                    <th key={column.id} className="px-4 py-3 text-left">
-                      {column.id === 'enteredBy' ||
-                      column.id === 'approvedByName' ||
-                      column.id === 'subGiving' ||
-                      column.id === 'submittedBy' ||
-                      column.id === 'pfcc' ? (
-                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {column.label}
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
-                          onClick={() => toggleSort(column.id)}
-                        >
-                          {column.label}
-                          <ArrowUpDown className="size-3.5" />
-                        </button>
-                      )}
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Actions
+        </div>
+        {error && <p className="px-4 py-2 text-sm text-destructive">{error}</p>}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[860px] text-sm">
+            <thead>
+              <tr className="border-b border-border/60 bg-muted/20">
+                {columns.map((column) => (
+                  <th key={column.id} className="px-4 py-3 text-left">
+                    {column.id === 'enteredBy' ||
+                    column.id === 'approvedByName' ||
+                    column.id === 'subGiving' ||
+                    column.id === 'submittedBy' ||
+                    column.id === 'structureUnit' ? (
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {column.label}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                        onClick={() => toggleSort(column.id)}
+                      >
+                        {column.label}
+                        <ArrowUpDown className="size-3 opacity-60" />
+                      </button>
+                    )}
                   </th>
-                </tr>
-              </thead>
-              <tbody>
+                ))}
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
                 {loading && page === 1 && !showSubGivingsOnPage ? (
                   <tr>
                     <td colSpan={colSpan} className="px-4 py-10 text-center">
@@ -470,7 +500,7 @@ export function ContributionsApprovalTable({
                                 {programSubmittedByLabel(subGiving)}
                               </td>
                               <td className="px-4 py-3 text-muted-foreground">
-                                {nodePfccName(tree, subGiving.scopeNodeId)}
+                                {nodeStructureUnitLabel(tree, subGiving.scopeNodeId)}
                               </td>
                             </>
                           ) : (
@@ -483,38 +513,14 @@ export function ContributionsApprovalTable({
                               </td>
                             </>
                           )}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button type="button" size="sm" variant="outline" asChild>
-                                <Link to={`/givings/${subGiving.id}`}>
-                                  <Eye className="size-3.5" />
-                                  View
-                                </Link>
-                              </Button>
-                              {canApproveSubGivings && (
-                                <>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={busy}
-                                    onClick={() => void handleApproveSubGiving(subGiving.id)}
-                                  >
-                                    <Check className="size-3.5" />
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={busy}
-                                    onClick={() => setRejectSubGivingTarget(subGiving)}
-                                  >
-                                    <X className="size-3.5" />
-                                    Reject
-                                  </Button>
-                                </>
-                              )}
-                            </div>
+                          <td className="px-4 py-3 text-right">
+                            <ApprovalRowActionsMenu
+                              busy={busy}
+                              canAct={canApproveSubGivings}
+                              viewHref={`/givings/${subGiving.id}`}
+                              onApprove={() => void handleApproveSubGiving(subGiving.id)}
+                              onReject={() => setRejectSubGivingTarget(subGiving)}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -578,7 +584,7 @@ export function ContributionsApprovalTable({
                                       {contributionSubmittedByLabel(summary)}
                                     </td>
                                     <td className="px-4 py-3 text-muted-foreground">
-                                      {memberPfccName(tree, summary.memberParentNodeId)}
+                                      {memberStructureUnitLabel(tree, summary.memberParentNodeId)}
                                     </td>
                                   </>
                                 ) : (
@@ -591,41 +597,14 @@ export function ContributionsApprovalTable({
                                     </td>
                                   </>
                                 )}
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setBatchTarget(entry.contributions)}
-                                    >
-                                      <Eye className="size-3.5" />
-                                      View
-                                    </Button>
-                                    {canAct && (
-                                      <>
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          disabled={busy}
-                                          onClick={() => void handleApproveBatch(entry.contributions)}
-                                        >
-                                          <Check className="size-3.5" />
-                                          Approve
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="outline"
-                                          disabled={busy}
-                                          onClick={() => setRejectBatchTarget(entry.contributions)}
-                                        >
-                                          <X className="size-3.5" />
-                                          Reject
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
+                                <td className="px-4 py-3 text-right">
+                                  <ApprovalRowActionsMenu
+                                    busy={busy}
+                                    canAct={canAct}
+                                    onView={() => setBatchTarget(entry.contributions)}
+                                    onApprove={() => void handleApproveBatch(entry.contributions)}
+                                    onReject={() => setRejectBatchTarget(entry.contributions)}
+                                  />
                                 </td>
                               </tr>
                             )
@@ -688,7 +667,7 @@ export function ContributionsApprovalTable({
                                   {contributionSubmittedByLabel(entry.contribution)}
                                 </td>
                                 <td className="px-4 py-3 text-muted-foreground">
-                                  {memberPfccName(tree, entry.contribution.memberParentNodeId)}
+                                  {memberStructureUnitLabel(tree, entry.contribution.memberParentNodeId)}
                                 </td>
                               </>
                             ) : (
@@ -701,46 +680,19 @@ export function ContributionsApprovalTable({
                                 </td>
                               </>
                             )}
-                            <td className="px-4 py-3">
-                              <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setViewTarget(entry.contribution)}
-                                >
-                                  <Eye className="size-3.5" />
-                                  View
-                                </Button>
-                                {canAct && (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void handleApprove(
-                                          entry.contribution.id,
-                                          entry.contribution.programId,
-                                        )
-                                      }
-                                    >
-                                      <Check className="size-3.5" />
-                                      Approve
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={busy}
-                                      onClick={() => setRejectTarget(entry.contribution)}
-                                    >
-                                      <X className="size-3.5" />
-                                      Reject
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
+                            <td className="px-4 py-3 text-right">
+                              <ApprovalRowActionsMenu
+                                busy={busy}
+                                canAct={canAct}
+                                onView={() => setViewTarget(entry.contribution)}
+                                onApprove={() =>
+                                  void handleApprove(
+                                    entry.contribution.id,
+                                    entry.contribution.programId,
+                                  )
+                                }
+                                onReject={() => setRejectTarget(entry.contribution)}
+                              />
                             </td>
                           </tr>
                         ),
@@ -808,7 +760,7 @@ export function ContributionsApprovalTable({
                                 {contributionSubmittedByLabel(row)}
                               </td>
                               <td className="px-4 py-3 text-muted-foreground">
-                                {memberPfccName(tree, row.memberParentNodeId)}
+                                {memberStructureUnitLabel(tree, row.memberParentNodeId)}
                               </td>
                             </>
                           ) : (
@@ -821,18 +773,11 @@ export function ContributionsApprovalTable({
                               </td>
                             </>
                           )}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setViewTarget(row)}
-                              >
-                                <Eye className="size-3.5" />
-                                View
-                              </Button>
-                            </div>
+                          <td className="px-4 py-3 text-right">
+                            <ApprovalRowActionsMenu
+                              busy={busy}
+                              onView={() => setViewTarget(row)}
+                            />
                           </td>
                         </tr>
                       ))
@@ -841,17 +786,16 @@ export function ContributionsApprovalTable({
                 )}
               </tbody>
             </table>
-          </div>
-          <TablePagination
-            page={page}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            disabled={loading || busy}
-            onPageChange={setPage}
-            onPageSizeChange={setPageSize}
-          />
-        </CardContent>
-      </Card>
+        </div>
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          disabled={loading || busy}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      </div>
 
       <ContributionDetailModal
         open={viewTarget !== null}

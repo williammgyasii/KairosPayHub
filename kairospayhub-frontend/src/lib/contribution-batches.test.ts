@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Contribution } from '@/api/giving'
-import { groupContributionsForApproval, summarizeBatch } from '@/lib/contribution-batches'
+import {
+  groupContributionsForActivity,
+  groupContributionsForApproval,
+  summarizeBatch,
+} from '@/lib/contribution-batches'
 
 function contribution(partial: Partial<Contribution> & Pick<Contribution, 'id'>): Contribution {
   return {
@@ -63,6 +67,19 @@ describe('contribution-batches', () => {
       expect(grouped[0].contributions).toHaveLength(2)
       expect(summarizeBatch(grouped[0].batchId, grouped[0].contributions).totalAmount).toBe(125)
     }
+    expect(grouped[1].kind).toBe('single')
+  })
+
+  it('groups activity rows from a flat list by batchId', () => {
+    const batchId = 'batch-2'
+    const grouped = groupContributionsForActivity([
+      contribution({ id: 'c1', batchId, memberId: 'm1', memberName: 'Ama', amount: 50 }),
+      contribution({ id: 'c2', batchId, memberId: 'm2', memberName: 'Kofi', amount: 75 }),
+      contribution({ id: 'c3', memberName: 'Mercy', amount: 20 }),
+    ])
+
+    expect(grouped).toHaveLength(2)
+    expect(grouped[0].kind).toBe('batch')
     expect(grouped[1].kind).toBe('single')
   })
 })

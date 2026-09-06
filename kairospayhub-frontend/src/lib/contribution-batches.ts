@@ -88,6 +88,23 @@ export function groupContributionsForApproval(
   return sortApprovalDisplayRows(rows)
 }
 
+/** Group a flat contribution list so shared batchId values become one activity row. */
+export function groupContributionsForActivity(contributions: Contribution[]): ApprovalDisplayRow[] {
+  const batchGroups = new Map<string, Contribution[]>()
+  for (const contribution of contributions) {
+    if (!contribution.batchId) continue
+    const existing = batchGroups.get(contribution.batchId) ?? []
+    existing.push(contribution)
+    batchGroups.set(contribution.batchId, existing)
+  }
+
+  for (const [batchId, items] of [...batchGroups.entries()]) {
+    if (items.length < 2) batchGroups.delete(batchId)
+  }
+
+  return groupContributionsForApproval(contributions, batchGroups)
+}
+
 export function paginateApprovalDisplayRows(
   rows: ApprovalDisplayRow[],
   page: number,

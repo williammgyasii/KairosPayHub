@@ -47,15 +47,20 @@ function clearTokens() {
 async function fetchProfile(
   token: string,
 ): Promise<Pick<Session, 'email' | 'emailConfirmed'> | null> {
-  const me = await fetch(`${apiBaseUrl()}/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (me.status === 401) return null
-  if (!me.ok) return { email: null, emailConfirmed: true }
-  const profile = (await me.json()) as ProfileResponse
-  return {
-    email: profile.email ?? null,
-    emailConfirmed: profile.emailConfirmed ?? true,
+  try {
+    const me = await fetch(`${apiBaseUrl()}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (me.status === 401) return null
+    if (!me.ok) return { email: null, emailConfirmed: true }
+    const profile = (await me.json()) as ProfileResponse
+    return {
+      email: profile.email ?? null,
+      emailConfirmed: profile.emailConfirmed ?? true,
+    }
+  } catch {
+    // API unavailable / network blip (e.g. restart race) — treat as no session
+    return null
   }
 }
 
@@ -125,15 +130,19 @@ async function refreshSession(): Promise<Session | null> {
 }
 
 export async function getSession(): Promise<Session | null> {
-  const access = sessionStorage.getItem(ACCESS_KEY)
-  if (access) {
-    const profile = await fetchProfile(access)
-    if (profile) {
-      return { email: profile.email, token: access, emailConfirmed: profile.emailConfirmed }
+  try {
+    const access = sessionStorage.getItem(ACCESS_KEY)
+    if (access) {
+      const profile = await fetchProfile(access)
+      if (profile) {
+        return { email: profile.email, token: access, emailConfirmed: profile.emailConfirmed }
+      }
+      sessionStorage.removeItem(ACCESS_KEY)
     }
-    sessionStorage.removeItem(ACCESS_KEY)
+    return await refreshSession()
+  } catch {
+    return null
   }
-  return refreshSession()
 }
 
 export function getAccessToken(): string | null {

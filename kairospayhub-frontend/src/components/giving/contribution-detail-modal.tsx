@@ -52,25 +52,45 @@ export function ContributionDetailModal({
         ? contribution.remittanceMediumOther
         : remittanceMediumLabel(contribution.remittanceMedium)
       : null
+  const subGiving = contributionSubGivingLabel(contribution)
+  const showActions = canAct && contribution.status === 'PendingApproval'
 
-  const detailFields: Array<{ label: string; value: ReactNode; span?: 2 }> = [
+  const meta: Array<{ label: string; value: ReactNode }> = [
+    {
+      label: 'Amount',
+      value: (
+        <span className="text-base font-semibold tabular-nums tracking-tight">
+          {formatAmount(contribution.amount, contribution.currency)}
+        </span>
+      ),
+    },
+    { label: 'Date sent', value: formatGivingDate(contribution.dateSent) },
+    { label: 'Logged by', value: contributionEntererLabel(contribution) },
+    {
+      label: 'Status',
+      value: (
+        <ContributionStatusBadge
+          status={contribution.status}
+          viewerRole={viewerRole}
+          pendingApproverRole={contribution.pendingApproverRole}
+          className="h-5 px-1.5 text-[10px]"
+        />
+      ),
+    },
     { label: 'Submitted', value: formatGivingDateTime(contribution.createdAt) },
+    ...(subGiving ? [{ label: 'Campaign', value: subGiving }] : []),
     ...(contributionLegacyParentLabel(contribution)
       ? [
           {
             label: 'Logged on',
             value: (
-              <span className="inline-flex flex-wrap items-center gap-2">
+              <span className="inline-flex flex-wrap items-center gap-1.5">
                 Parent campaign
-                <LegacyParentContributionBadge />
+                <LegacyParentContributionBadge className="scale-90" />
               </span>
             ),
-            span: 2 as const,
           },
         ]
-      : []),
-    ...(contributionSubGivingLabel(contribution)
-      ? [{ label: 'Sub giving', value: contributionSubGivingLabel(contribution)!, span: 2 as const }]
       : []),
     ...(remittance ? [{ label: 'Remittance', value: remittance }] : []),
     ...(sentVia ? [{ label: 'Sent via', value: sentVia }] : []),
@@ -81,119 +101,90 @@ export function ContributionDetailModal({
       ? [
           {
             label: 'Approved',
-            value: `${formatGivingDateTime(contribution.approvedAt)}${contribution.approvedByName ? ` · ${contribution.approvedByName}` : ''}`,
+            value: `${formatGivingDateTime(contribution.approvedAt)}${
+              contribution.approvedByName ? ` · ${contribution.approvedByName}` : ''
+            }`,
           },
         ]
       : []),
     ...(contribution.rejectedReason
-      ? [{ label: 'Rejection reason', value: contribution.rejectedReason, span: 2 as const }]
+      ? [{ label: 'Rejection', value: contribution.rejectedReason }]
       : []),
-    ...(contribution.notes ? [{ label: 'Notes', value: contribution.notes, span: 2 as const }] : []),
+    ...(contribution.notes ? [{ label: 'Notes', value: contribution.notes }] : []),
   ]
-
-  const showActions = canAct && contribution.status === 'PendingApproval'
 
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
       title={contribution.memberName}
-      description="Review submission details and payment proof before approving."
+      description={`${contribution.programTitle}${
+        contribution.programPeriodLabel ? ` · ${contribution.programPeriodLabel}` : ''
+      }`}
       size="xl"
       className="max-w-4xl"
+      contentClassName="p-0"
     >
-      <div className="grid gap-6">
-        <dl className="grid gap-4 border-b border-border/60 pb-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-          <DetailField label="Amount">
-            <span className="text-xl font-semibold tabular-nums tracking-tight">
-              {formatAmount(contribution.amount, contribution.currency)}
-            </span>
-          </DetailField>
-          <DetailField label="Date sent" value={formatGivingDate(contribution.dateSent)} />
-          <DetailField label="Logged by" value={contributionEntererLabel(contribution)} />
-          <DetailField label="Status">
-            <ContributionStatusBadge
-              status={contribution.status}
-              viewerRole={viewerRole}
-              pendingApproverRole={contribution.pendingApproverRole}
-            />
-          </DetailField>
+      <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(300px,1.15fr)]">
+        <dl className="grid grid-cols-2 content-start border-b border-border/60 md:border-b-0 md:border-r">
+          {meta.map((field) => (
+            <div
+              key={field.label}
+              className={cn(
+                'border-b border-border/50 px-4 py-3',
+                (field.label === 'Notes' || field.label === 'Rejection') && 'col-span-2',
+              )}
+            >
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {field.label}
+              </dt>
+              <dd className="mt-1 text-sm leading-snug text-foreground">{field.value}</dd>
+            </div>
+          ))}
         </dl>
 
-        <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
-          <dl className="grid gap-4 sm:grid-cols-2">
-            {detailFields.map((field) => (
-              <DetailField
-                key={field.label}
-                label={field.label}
-                value={field.value}
-                className={field.span === 2 ? 'sm:col-span-2' : undefined}
-              />
-            ))}
-          </dl>
-
-          <div className="flex min-h-[280px] flex-col">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Payment proof
-            </p>
-            <div className="mt-3 flex flex-1 items-center justify-center rounded-lg bg-muted/20 p-3">
-              <GivingAttachmentImage
-                attachmentKey={contribution.attachmentKey}
-                alt={`${contribution.memberName} payment proof`}
-                frameClassName="w-full max-h-[360px]"
-                className="max-h-[360px] object-contain"
-              />
-            </div>
+        <div className="flex min-h-[320px] flex-col bg-muted/20 p-4 md:min-h-[420px]">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Payment proof
+          </p>
+          <div className="mt-3 flex flex-1 items-center justify-center rounded-lg border border-primary/25 bg-background p-3 shadow-[0_0_0_3px_oklch(0.55_0.12_250/0.08)] ring-1 ring-primary/15">
+            <GivingAttachmentImage
+              attachmentKey={contribution.attachmentKey}
+              alt={`${contribution.memberName} payment proof`}
+              frameClassName="w-full max-h-[380px]"
+              className="max-h-[380px] object-contain"
+            />
           </div>
         </div>
-
-        {showActions && (
-          <div className="flex justify-end gap-2 border-t border-border/60 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy && pendingAction === 'approve'}
-              loading={busy && pendingAction === 'reject'}
-              loadingLabel="Rejecting…"
-              onClick={onReject}
-            >
-              <X className="size-3.5" />
-              Reject
-            </Button>
-            <Button
-              type="button"
-              disabled={busy && pendingAction === 'reject'}
-              loading={busy && pendingAction === 'approve'}
-              loadingLabel="Approving…"
-              onClick={onApprove}
-            >
-              <Check className="size-3.5" />
-              Approve
-            </Button>
-          </div>
-        )}
       </div>
-    </Modal>
-  )
-}
 
-function DetailField({
-  label,
-  value,
-  children,
-  className,
-}: {
-  label: string
-  value?: ReactNode
-  children?: ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cn('min-w-0', className)}>
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="mt-1.5 text-sm text-foreground">{children ?? value}</dd>
-    </div>
+      {showActions && (
+        <div className="flex justify-end gap-2 border-t border-border/60 px-4 py-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy && pendingAction === 'approve'}
+            loading={busy && pendingAction === 'reject'}
+            loadingLabel="Rejecting…"
+            onClick={onReject}
+          >
+            <X className="size-3.5 opacity-70" />
+            Reject
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy && pendingAction === 'reject'}
+            loading={busy && pendingAction === 'approve'}
+            loadingLabel="Approving…"
+            onClick={onApprove}
+          >
+            <Check className="size-3.5 opacity-70" />
+            Approve
+          </Button>
+        </div>
+      )}
+    </Modal>
   )
 }

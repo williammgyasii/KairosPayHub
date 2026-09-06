@@ -5,6 +5,7 @@ import type {
   CreateGivingProgramInput,
   GivingDashboard,
   GivingProgram,
+  GivingProgramRollup,
 } from '@/api/giving'
 import { normalizeContributionListResult } from '@/api/giving'
 import { baseApi } from '@/store/baseApi'
@@ -26,6 +27,15 @@ function contributionQueryString(query: ContributionListQuery) {
   return qs ? `?${qs}` : ''
 }
 
+const givingInvalidations = [
+  'GivingPrograms',
+  'GivingDashboard',
+  'GivingProgram',
+  'Contributions',
+  'ChildGivingPrograms',
+  'GivingRollup',
+] as const
+
 export const givingApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listGivingPrograms: builder.query<GivingProgram[], void>({
@@ -46,6 +56,17 @@ export const givingApi = baseApi.injectEndpoints({
     getGivingProgram: builder.query<GivingProgram, string>({
       query: (programId) => `/api/giving/programs/${programId}`,
       providesTags: (_result, _error, programId) => [{ type: 'GivingProgram', id: programId }],
+    }),
+    listChildGivingPrograms: builder.query<GivingProgram[], string>({
+      query: (parentProgramId) => `/api/giving/programs/${parentProgramId}/children`,
+      transformResponse: (response: { programs: GivingProgram[] }) => response.programs,
+      providesTags: (_result, _error, parentProgramId) => [
+        { type: 'ChildGivingPrograms', id: parentProgramId },
+      ],
+    }),
+    getProgramRollup: builder.query<GivingProgramRollup, string>({
+      query: (programId) => `/api/giving/programs/${programId}/rollup`,
+      providesTags: (_result, _error, programId) => [{ type: 'GivingRollup', id: programId }],
     }),
     listProgramContributions: builder.query<
       ContributionListResult,
@@ -71,7 +92,56 @@ export const givingApi = baseApi.injectEndpoints({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['GivingPrograms', 'GivingDashboard'],
+      invalidatesTags: (result) => {
+        const tags: Array<(typeof givingInvalidations)[number] | { type: 'GivingProgram'; id: string } | { type: 'ChildGivingPrograms'; id: string }> = [
+          ...givingInvalidations,
+        ]
+        if (result?.parentProgramId) {
+          tags.push(
+            { type: 'GivingProgram', id: result.parentProgramId },
+            { type: 'ChildGivingPrograms', id: result.parentProgramId },
+          )
+        }
+        return tags
+      },
+    }),
+    closeGivingProgram: builder.mutation<GivingProgram, string>({
+      query: (programId) => ({
+        url: `/api/giving/programs/${programId}/close`,
+        method: 'POST',
+        body: {},
+      }),
+      invalidatesTags: (_result, _error, programId) => [
+        { type: 'GivingProgram', id: programId },
+        'GivingPrograms',
+        'GivingDashboard',
+        'GivingRollup',
+      ],
+    }),
+    reopenGivingProgram: builder.mutation<GivingProgram, string>({
+      query: (programId) => ({
+        url: `/api/giving/programs/${programId}/reopen`,
+        method: 'POST',
+        body: {},
+      }),
+      invalidatesTags: (_result, _error, programId) => [
+        { type: 'GivingProgram', id: programId },
+        'GivingPrograms',
+        'GivingDashboard',
+        'GivingRollup',
+      ],
+    }),
+    deleteGivingProgram: builder.mutation<void, string>({
+      query: (programId) => ({
+        url: `/api/giving/programs/${programId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, programId) => [
+        { type: 'GivingProgram', id: programId },
+        'GivingPrograms',
+        'GivingDashboard',
+        'GivingRollup',
+      ],
     }),
     approveGivingProgram: builder.mutation<GivingProgram, string>({
       query: (programId) => ({
@@ -83,6 +153,7 @@ export const givingApi = baseApi.injectEndpoints({
         { type: 'GivingProgram', id: programId },
         'GivingPrograms',
         'GivingDashboard',
+        'ChildGivingPrograms',
       ],
     }),
     rejectGivingProgram: builder.mutation<
@@ -98,6 +169,7 @@ export const givingApi = baseApi.injectEndpoints({
         { type: 'GivingProgram', id: programId },
         'GivingPrograms',
         'GivingDashboard',
+        'ChildGivingPrograms',
       ],
     }),
     approveContribution: builder.mutation<
@@ -113,6 +185,8 @@ export const givingApi = baseApi.injectEndpoints({
         { type: 'Contributions', id: programId },
         'Contributions',
         'GivingDashboard',
+        'GivingRollup',
+        { type: 'GivingProgram', id: programId },
       ],
     }),
     rejectContribution: builder.mutation<
@@ -128,6 +202,8 @@ export const givingApi = baseApi.injectEndpoints({
         { type: 'Contributions', id: programId },
         'Contributions',
         'GivingDashboard',
+        'GivingRollup',
+        { type: 'GivingProgram', id: programId },
       ],
     }),
   }),
@@ -138,9 +214,14 @@ export const {
   useGetGivingDashboardQuery,
   useLazyGetGivingDashboardQuery,
   useGetGivingProgramQuery,
+  useListChildGivingProgramsQuery,
+  useGetProgramRollupQuery,
   useListProgramContributionsQuery,
   useListContributionsQuery,
   useCreateGivingProgramMutation,
+  useCloseGivingProgramMutation,
+  useReopenGivingProgramMutation,
+  useDeleteGivingProgramMutation,
   useApproveGivingProgramMutation,
   useRejectGivingProgramMutation,
   useApproveContributionMutation,
@@ -148,10 +229,23 @@ export const {
 } = givingApi
 
 export function invalidateGivingTags() {
+  return givingApi.util.invalidateTags([...givingInvalidations])
+}
+
+export function invalidateGivingProgramDetail(programId: string) {
   return givingApi.util.invalidateTags([
+    { type: 'GivingProgram', id: programId },
+    { type: 'ChildGivingPrograms', id: programId },
+    { type: 'Contributions', id: programId },
+    { type: 'GivingRollup', id: programId },
     'GivingPrograms',
     'GivingDashboard',
-    'GivingProgram',
-    'Contributions',
+  ])
+}
+
+export function invalidateChildGivingPrograms(parentProgramId: string) {
+  return givingApi.util.invalidateTags([
+    { type: 'ChildGivingPrograms', id: parentProgramId },
+    { type: 'GivingProgram', id: parentProgramId },
   ])
 }

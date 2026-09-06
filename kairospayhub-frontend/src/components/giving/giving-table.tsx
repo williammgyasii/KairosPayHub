@@ -79,12 +79,22 @@ export function GivingTable({
         header: ({ column }) => <SortHeader column={column} label="Campaign" />,
         cell: ({ row }) => (
           <div className="min-w-0">
-            <Link
-              to={`/givings/${row.original.id}`}
-              className="font-medium text-foreground hover:text-primary hover:underline"
-            >
-              {row.original.title}
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                to={`/givings/${row.original.id}`}
+                className="font-medium text-foreground hover:text-primary hover:underline"
+              >
+                {row.original.title}
+              </Link>
+              {(row.original.awaitingMyApprovalCount ?? 0) > 0 ? (
+                <Link
+                  to={`/givings/${row.original.id}?tab=awaiting`}
+                  className="inline-flex items-center rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-500/25 dark:text-amber-200"
+                >
+                  {row.original.awaitingMyApprovalCount} awaiting
+                </Link>
+              ) : null}
+            </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {givingTypeLabel(row.original.givingType)} · {row.original.periodLabel}
             </p>

@@ -30,9 +30,6 @@ import { cn } from '@/lib/utils'
 
 const FILTER_OPTIONS: { value: 'all' | ContributionStatus; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'PendingApproval', label: 'Pending' },
-  { value: 'Approved', label: 'Approved' },
-  { value: 'Rejected', label: 'Rejected' },
 ]
 
 export function ContributionsStructureTable({
@@ -74,7 +71,7 @@ export function ContributionsStructureTable({
     <>
       <StructureLevelTable
         title="Contributions by structure"
-        description={`${topLayerLabel} totals — use the menu to open overview or breakdown by level`}
+        description={`${topLayerLabel} totals from approved giving — use the menu to open overview or breakdown by level`}
         programId={programId}
         nodes={roots}
         counts={counts}

@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = 'http://localhost:5192'
+const DEFAULT_API_URL = 'http://127.0.0.1:5192'
 
 export function apiBaseUrl(): string {
   const configured = import.meta.env.VITE_API_URL?.trim()

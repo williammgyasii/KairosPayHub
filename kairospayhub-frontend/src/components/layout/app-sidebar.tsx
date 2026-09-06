@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useSidebar } from '@/components/layout/sidebar-context'
 import { useListApprovalQueueQuery } from '@/store/attendanceApi'
+import { useListGivingProgramsQuery } from '@/store/givingApi'
 
 const SIDEBAR_WIDTH_EXPANDED = 'w-64'
 const SIDEBAR_WIDTH_COLLAPSED = 'w-[72px]'
@@ -237,17 +238,45 @@ function applyAttendanceBadges(entries: NavEntry[], pendingApprovalCount: number
   })
 }
 
+function applyGivingsBadges(entries: NavEntry[], awaitingApprovalCount: number): NavEntry[] {
+  if (awaitingApprovalCount <= 0) return entries
+
+  return entries.map((entry) => {
+    if (entry.kind !== 'group' || entry.label !== 'Givings') return entry
+
+    return {
+      ...entry,
+      badgeCount: awaitingApprovalCount,
+      children: entry.children.map((child) =>
+        child.to === 'givings' ? { ...child, badgeCount: awaitingApprovalCount } : child,
+      ),
+    }
+  })
+}
+
 export function AppSidebar({ me, className, expanded = false }: AppSidebarProps) {
   const { collapsed: contextCollapsed, toggleCollapsed } = useSidebar()
   const collapsed = expanded ? false : contextCollapsed
   const churchLabel = me.churchName ?? 'Your church'
   const showCollapseControl = !expanded
   const canSeeApprovalQueue = canApproveAttendance(me.role)
+  const canSeeGivingApprovals = canApproveAttendance(me.role)
   const { data: approvalQueue = [] } = useListApprovalQueueQuery(undefined, {
     skip: !canSeeApprovalQueue,
     pollingInterval: 60_000,
   })
-  const nav = applyAttendanceBadges(navForRole(me), approvalQueue.length)
+  const { data: givingPrograms = [] } = useListGivingProgramsQuery(undefined, {
+    skip: !canSeeGivingApprovals,
+    pollingInterval: 60_000,
+  })
+  const givingAwaitingCount = givingPrograms.reduce(
+    (sum, program) => sum + (program.awaitingMyApprovalCount ?? 0),
+    0,
+  )
+  const nav = applyGivingsBadges(
+    applyAttendanceBadges(navForRole(me), approvalQueue.length),
+    givingAwaitingCount,
+  )
 
   return (
     <aside

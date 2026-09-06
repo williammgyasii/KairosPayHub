@@ -1,6 +1,6 @@
 import { useMemo, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, CheckCircle2, Clock3, HandCoins, Layers, ListChecks } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Clock3, Layers } from 'lucide-react'
 import type { Contribution, GivingProgram, GivingProgramRollup } from '@/api/giving'
 import { formatAmount } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
@@ -9,8 +9,9 @@ import {
   selectRollupBreakdownRows,
   type ContributionStructureOptions,
 } from '@/lib/contribution-structure'
-import { formatGivingDate } from '@/lib/giving-ui'
-import { ContributionStatusBadge } from '@/components/giving/giving-badges'
+import { RecentActivityTable } from '@/components/giving/recent-activity-table'
+import { groupContributionsForActivity } from '@/lib/contribution-batches'
+import { contributionsAwaitingMyApproval } from '@/lib/giving-ui'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +19,7 @@ export type ProgramDetailTab =
   | 'dashboard'
   | 'subgivings'
   | 'pending'
+  | 'awaiting'
   | 'approved'
   | 'contributions'
   | 'history'
@@ -34,11 +36,12 @@ interface ProgramDashboardProps {
   isPastor: boolean
   isFellowshipLeader: boolean
   isPfccManager: boolean
-  isCellLeader: boolean
   viewerRole: string
   structureOptions?: ContributionStructureOptions
   onTabChange: (tab: ProgramDetailTab) => void
-  onLogGiving?: () => void
+  busy?: boolean
+  onApproveContribution?: (contributionId: string, programId: string) => Promise<void>
+  onRejectContribution?: (contributionId: string, programId: string) => void
 }
 
 export function ProgramDashboard({
@@ -53,30 +56,38 @@ export function ProgramDashboard({
   isPastor,
   isFellowshipLeader,
   isPfccManager,
-  isCellLeader,
   viewerRole,
   structureOptions,
   onTabChange,
-  onLogGiving,
+  busy,
+  onApproveContribution,
+  onRejectContribution,
 }: ProgramDashboardProps) {
+  const approvedContributions = useMemo(
+    () => contributions.filter((c) => c.status === 'Approved'),
+    [contributions],
+  )
+
   const stats = useMemo(() => {
-    const approved = contributions.filter((c) => c.status === 'Approved')
     const rejected = contributions.filter((c) => c.status === 'Rejected')
     const approvedTotal =
-      rollup?.totalApprovedAmount ?? approved.reduce((sum, c) => sum + c.amount, 0)
+      rollup?.totalApprovedAmount ??
+      approvedContributions.reduce((sum, c) => sum + c.amount, 0)
 
     return {
       approvedTotal,
-      approvedCount: rollup?.totalApprovedCount ?? approved.length,
+      approvedCount: rollup?.totalApprovedCount ?? approvedContributions.length,
       pendingCount: pending.length,
+      awaitingCount: allPending.length,
       awaitingOthersCount: Math.max(0, allPending.length - pending.length),
       rejectedCount: rejected.length,
     }
-  }, [contributions, pending.length, allPending.length, rollup])
+  }, [contributions, approvedContributions, pending.length, allPending.length, rollup])
 
   const structureBreakdown = useMemo(() => {
     if (rollup && rollup.rows.length > 0) {
       return selectRollupBreakdownRows(rollup.rows, tree, structureOptions)
+        .filter((row) => row.totalAmount > 0)
         .sort((a, b) => b.totalAmount - a.totalAmount)
         .slice(0, 8)
         .map((row) => ({
@@ -86,7 +97,7 @@ export function ProgramDashboard({
         }))
     }
 
-    return buildContributionStructureTree(tree, contributions, structureOptions)
+    return buildContributionStructureTree(tree, approvedContributions, structureOptions)
       .sort((a, b) => b.totalAmount - a.totalAmount)
       .slice(0, 8)
       .map((row) => ({
@@ -94,22 +105,76 @@ export function ProgramDashboard({
         amount: row.totalAmount,
         count: row.paymentCount,
       }))
-  }, [rollup, tree, contributions, structureOptions])
+  }, [rollup, tree, approvedContributions, structureOptions])
 
-  const recent = useMemo(
-    () =>
-      [...contributions]
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 8),
-    [contributions],
+  const recent = useMemo(() => {
+    const grouped = groupContributionsForActivity(contributions)
+    return grouped.slice(0, 8)
+  }, [contributions])
+
+  const actionableContributionIds = useMemo(
+    () => contributionsAwaitingMyApproval(viewerRole, pending).map((c) => c.id),
+    [viewerRole, pending],
   )
 
   const maxStructureAmount = Math.max(...structureBreakdown.map((r) => r.amount), 1)
-  const hasRollupDescendants = rollup?.includesDescendants ?? false
   const isOpen = program.status === 'Open'
-  const canLog =
-    (isCellLeader || isFellowshipLeader || isPfccManager) && isOpen && acceptsContributions
   const showSubGivings = program.hasChildren || !program.parentProgramId
+  const pendingSubGivings = children.filter(
+    (child) => child.approvalStatus === 'PendingPastorApproval',
+  ).length
+
+  const attentionItems = useMemo(() => {
+    const items: { label: string; detail: string; onClick: () => void; highlight?: boolean }[] = []
+    if (stats.pendingCount > 0 && (isFellowshipLeader || isPfccManager || isPastor)) {
+      items.push({
+        label: 'Needs your review',
+        detail: `${stats.pendingCount} payment${stats.pendingCount === 1 ? '' : 's'} awaiting your approval`,
+        onClick: () => onTabChange('awaiting'),
+        highlight: true,
+      })
+    } else if (stats.awaitingCount > 0) {
+      items.push({
+        label: 'In the pipeline',
+        detail: `${stats.awaitingCount} payment${stats.awaitingCount === 1 ? '' : 's'} awaiting approval`,
+        onClick: () => onTabChange('awaiting'),
+      })
+    }
+    if (isPastor && pendingSubGivings > 0) {
+      items.push({
+        label: 'Sub-campaigns pending',
+        detail: `${pendingSubGivings} sub-campaign${pendingSubGivings === 1 ? '' : 's'} need pastor approval`,
+        onClick: () => onTabChange('subgivings'),
+        highlight: true,
+      })
+    }
+    if (showSubGivings && children.length > 0) {
+      items.push({
+        label: 'Sub-campaigns',
+        detail: `${children.length} active under this campaign`,
+        onClick: () => onTabChange('subgivings'),
+      })
+    }
+    if (!isOpen) {
+      items.push({
+        label: 'Campaign closed',
+        detail: 'Reopen to accept new giving logs',
+        onClick: () => onTabChange('dashboard'),
+      })
+    }
+    return items
+  }, [
+    stats.pendingCount,
+    stats.awaitingCount,
+    isFellowshipLeader,
+    isPfccManager,
+    isPastor,
+    pendingSubGivings,
+    showSubGivings,
+    children.length,
+    isOpen,
+    onTabChange,
+  ])
 
   return (
     <div className="space-y-5">
@@ -122,33 +187,31 @@ export function ProgramDashboard({
             {formatAmount(stats.approvedTotal)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {hasRollupDescendants
-              ? 'Includes sub givings in scope'
-              : `${stats.approvedCount} approved`}
+            {stats.approvedCount} approved payment{stats.approvedCount === 1 ? '' : 's'}
           </p>
         </div>
         <Kpi
-          label="Pending"
-          value={String(stats.pendingCount)}
+          label="Awaiting approval"
+          value={String(stats.awaitingCount)}
           icon={Clock3}
-          highlight={stats.pendingCount > 0}
-          onClick={stats.pendingCount > 0 ? () => onTabChange('pending') : undefined}
+          highlight={stats.awaitingCount > 0}
+          onClick={stats.awaitingCount > 0 ? () => onTabChange('awaiting') : undefined}
         />
         <Kpi
-          label="Status"
-          value={isOpen ? 'Open' : 'Closed'}
+          label="Approved payments"
+          value={String(stats.approvedCount)}
           icon={CheckCircle2}
-          valueClassName={isOpen ? 'text-emerald-600 dark:text-emerald-400' : undefined}
+          onClick={
+            stats.approvedCount > 0 ? () => onTabChange('contributions') : undefined
+          }
         />
       </section>
 
       {!acceptsContributions && (
-        <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3">
-          <p className="text-sm text-muted-foreground">
-            {isOpen
-              ? 'Contributions are not open on this campaign yet.'
-              : 'This campaign is closed — reopen it to log new contributions.'}
-          </p>
+        <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+          {program.status === 'Scheduled'
+            ? 'This campaign is scheduled — logging opens when it goes live.'
+            : 'This campaign is closed — reopen it to log new contributions.'}
         </div>
       )}
 
@@ -179,10 +242,10 @@ export function ProgramDashboard({
             <div>
               <h2 className="text-sm font-semibold tracking-tight">By unit</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Approved giving across your structure
+                Approved giving only — pending logs are not counted here
               </p>
             </div>
-            {contributions.length > 0 && (
+            {approvedContributions.length > 0 && (
               <Button type="button" variant="ghost" size="sm" className="h-8 text-primary" asChild>
                 <Link to={`/givings/${program.id}?tab=contributions`}>
                   Full breakdown
@@ -222,60 +285,37 @@ export function ProgramDashboard({
         </section>
 
         <aside className="space-y-4">
-          {(canLog || stats.pendingCount > 0 || isPastor || showSubGivings) && (
-            <section className="rounded-xl border border-border/60 bg-background p-4">
-              <h2 className="text-sm font-semibold tracking-tight">Quick actions</h2>
-              <div className="mt-3 flex flex-col gap-2">
-                {canLog && onLogGiving && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="w-full justify-start gap-2"
-                    onClick={onLogGiving}
-                  >
-                    <HandCoins className="size-4 shrink-0 opacity-80" />
-                    Log giving
-                  </Button>
-                )}
-                {stats.pendingCount > 0 && (isFellowshipLeader || isPfccManager || isPastor) && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={stats.pendingCount > 0 ? 'default' : 'outline'}
-                    className="w-full justify-start gap-2"
-                    onClick={() => onTabChange('pending')}
-                  >
-                    <ListChecks className="size-4 shrink-0 opacity-80" />
-                    Review pending ({stats.pendingCount})
-                  </Button>
-                )}
-                {showSubGivings && children.length > 0 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                    onClick={() => onTabChange('subgivings')}
-                  >
-                    <Layers className="size-4 shrink-0 opacity-80" />
-                    Sub-campaigns ({children.length})
-                  </Button>
-                )}
-                {isPastor && stats.awaitingOthersCount > 0 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                    onClick={() => onTabChange('contributions')}
-                  >
-                    <ArrowRight className="size-4 shrink-0 opacity-80" />
-                    Pipeline ({stats.awaitingOthersCount})
-                  </Button>
-                )}
-              </div>
-            </section>
-          )}
+          <section className="rounded-xl border border-border/60 bg-background p-4">
+            <h2 className="text-sm font-semibold tracking-tight">Needs attention</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              What to review next on this campaign
+            </p>
+            {attentionItems.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">
+                You&apos;re caught up — nothing waiting right now.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {attentionItems.map((item) => (
+                  <li key={item.label}>
+                    <button
+                      type="button"
+                      onClick={item.onClick}
+                      className={cn(
+                        'flex w-full flex-col rounded-lg border px-3 py-2.5 text-left transition-colors hover:border-primary/30 hover:bg-muted/20',
+                        item.highlight
+                          ? 'border-amber-300/60 bg-amber-50/40 dark:bg-amber-950/20'
+                          : 'border-border/60',
+                      )}
+                    >
+                      <span className="text-sm font-medium">{item.label}</span>
+                      <span className="mt-0.5 text-xs text-muted-foreground">{item.detail}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           {children.length > 0 && (
             <section className="rounded-xl border border-border/60 bg-background p-4">
@@ -304,40 +344,39 @@ export function ProgramDashboard({
         <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold tracking-tight">Recent activity</h2>
-            <p className="text-xs text-muted-foreground">Latest logged payments</p>
+            <p className="text-xs text-muted-foreground">
+              Latest logs — pending amounts are not part of approved totals yet
+            </p>
           </div>
-          {recent.length > 0 && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => onTabChange('contributions')}>
-              See all
-            </Button>
-          )}
         </div>
 
-        {recent.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            {acceptsContributions
+        <RecentActivityTable
+          rows={recent}
+          viewerRole={viewerRole}
+          emptyMessage={
+            acceptsContributions
               ? 'No contributions yet — use Log giving to add one.'
-              : 'Contributions are not open on this campaign yet.'}
-          </p>
-        ) : (
-          <ul className="divide-y divide-border/40">
-            {recent.map((row) => (
-              <li
-                key={row.id}
-                className="grid gap-2 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto_auto] sm:items-center sm:gap-4"
-              >
-                <span className="min-w-0 truncate font-medium">{row.memberName}</span>
-                <span className="text-muted-foreground">{formatGivingDate(row.dateSent)}</span>
-                <span className="font-semibold tabular-nums">{formatAmount(row.amount, row.currency)}</span>
-                <ContributionStatusBadge
-                  status={row.status}
-                  viewerRole={viewerRole}
-                  pendingApproverRole={row.pendingApproverRole}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+              : 'Contributions are not open on this campaign yet.'
+          }
+          actionableContributionIds={actionableContributionIds}
+          busy={busy}
+          onApprove={onApproveContribution}
+          onReject={onRejectContribution}
+          onSeeAll={
+            recent.length > 0
+              ? () =>
+                  onTabChange(
+                    recent.some((row) =>
+                      row.kind === 'batch'
+                        ? row.contributions.some((c) => c.status === 'PendingApproval')
+                        : row.contribution.status === 'PendingApproval',
+                    )
+                      ? 'awaiting'
+                      : 'contributions',
+                  )
+              : undefined
+          }
+        />
       </section>
     </div>
   )

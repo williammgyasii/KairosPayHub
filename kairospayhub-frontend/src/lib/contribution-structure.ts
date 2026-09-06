@@ -71,6 +71,55 @@ export function nodePfccName(tree: StructureTree | null, nodeId: string | null |
   return findAncestorByLayerType(tree, nodeId, 'PFCC')?.name ?? '—'
 }
 
+/** True when the church template includes the given standard layer type. */
+export function churchHasLayerType(
+  tree: StructureTree | null,
+  layerType: StructureLayerType,
+): boolean {
+  if (!tree) return false
+  return getLayers(tree).some((layer) => layer.standardType === layerType)
+}
+
+/** Column header for the top organizational unit shown to pastors (PFCC only if configured). */
+export function structureScopeColumnLabel(tree: StructureTree | null): string {
+  if (churchHasLayerType(tree, 'PFCC')) return 'PFCC'
+  if (churchHasLayerType(tree, 'Fellowship')) {
+    const fellowship = getLayers(tree!).find((layer) => layer.standardType === 'Fellowship')
+    return fellowship?.displayName ?? 'Fellowship'
+  }
+  const layers = tree ? getLayers(tree) : []
+  return layers[0]?.displayName ?? 'Unit'
+}
+
+/** Best unit label for a member path — PFCC when present on path, else fellowship, else leaf unit. */
+export function memberStructureUnitLabel(
+  tree: StructureTree | null,
+  memberParentNodeId: string,
+): string {
+  if (!tree) return '—'
+  if (churchHasLayerType(tree, 'PFCC')) {
+    const pfcc = findAncestorByLayerType(tree, memberParentNodeId, 'PFCC')
+    if (pfcc) return pfcc.name
+  }
+  const fellowship = findAncestorByLayerType(tree, memberParentNodeId, 'Fellowship')
+  if (fellowship) return fellowship.name
+  return nodeById(tree, memberParentNodeId)?.name ?? '—'
+}
+
+export function nodeStructureUnitLabel(
+  tree: StructureTree | null,
+  nodeId: string | null | undefined,
+): string {
+  if (!tree || !nodeId) return '—'
+  if (churchHasLayerType(tree, 'PFCC')) {
+    const pfcc = findAncestorByLayerType(tree, nodeId, 'PFCC')
+    if (pfcc) return pfcc.name
+  }
+  const fellowship = findAncestorByLayerType(tree, nodeId, 'Fellowship')
+  if (fellowship) return fellowship.name
+  return nodeById(tree, nodeId)?.name ?? '—'
+}
+
 export function enrichContribution(
   tree: StructureTree | null,
   contribution: Contribution,
@@ -86,7 +135,9 @@ export function enrichContribution(
 
   const unit = nodeById(tree, contribution.memberParentNodeId)
   const fellowship = findAncestorByLayerType(tree, contribution.memberParentNodeId, 'Fellowship')
-  const pfc = findAncestorByLayerType(tree, contribution.memberParentNodeId, 'PFCC')
+  const pfc = churchHasLayerType(tree, 'PFCC')
+    ? findAncestorByLayerType(tree, contribution.memberParentNodeId, 'PFCC')
+    : undefined
   const pathParts = [pfc?.name, fellowship?.name, unit?.name].filter(Boolean)
 
   return {
@@ -116,7 +167,9 @@ function structurePathNodes(
     return chain.slice(scopeIndex + 1)
   }
 
-  const pfcIndex = chain.findIndex((n) => layerForNode(tree, n)?.standardType === 'PFCC')
+  const pfcIndex = churchHasLayerType(tree, 'PFCC')
+    ? chain.findIndex((n) => layerForNode(tree, n)?.standardType === 'PFCC')
+    : -1
   if (pfcIndex >= 0) return chain.slice(pfcIndex)
   return chain
 }
@@ -148,8 +201,11 @@ export function selectRollupBreakdownRows(
     return withoutScope
   }
 
-  const pfcRows = rows.filter((row) => row.layerType === 'PFCC')
-  if (pfcRows.length > 0) return pfcRows
+  if (!tree || churchHasLayerType(tree, 'PFCC')) {
+    const pfcRows = rows.filter((row) => row.layerType === 'PFCC')
+    if (pfcRows.length > 0) return pfcRows
+  }
+
   const fellowshipRows = rows.filter((row) => row.layerType === 'Fellowship')
   return fellowshipRows.length > 0 ? fellowshipRows : rows
 }

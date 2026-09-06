@@ -93,8 +93,9 @@ export function GivingTransactionsLedger({
     setPage(1)
   }, [debouncedSearch, campaignId, status, pageSize, sorting])
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (opts?: { soft?: boolean }) => {
+    const soft = opts?.soft ?? rows.length > 0
+    if (!soft) setLoading(true)
     setError(null)
     try {
       const res = await listAllContributions(api, {
@@ -110,16 +111,19 @@ export function GivingTransactionsLedger({
       setTotalCount(res.totalCount)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load transactions')
-      setRows([])
-      setTotalCount(0)
+      if (!soft) {
+        setRows([])
+        setTotalCount(0)
+      }
     } finally {
       setLoading(false)
     }
-  }, [api, page, pageSize, sorting, debouncedSearch, status, campaignId])
+  }, [api, page, pageSize, sorting, debouncedSearch, status, campaignId, rows.length])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load({ soft: rows.length > 0 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- soft uses current rows without looping
+  }, [api, page, pageSize, sorting, debouncedSearch, status, campaignId])
 
   function toggleSort(columnId: SortColumn) {
     setSorting((prev) => {

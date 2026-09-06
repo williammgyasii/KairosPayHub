@@ -80,10 +80,12 @@ export function ContributionStatusBadge({
   status,
   viewerRole,
   pendingApproverRole,
+  className,
 }: {
   status: ContributionStatus | string
   viewerRole?: string
   pendingApproverRole?: string | null
+  className?: string
 }) {
   const tone = contributionStatusTone(status)
   const label = viewerRole
@@ -95,6 +97,7 @@ export function ContributionStatusBadge({
       className={cn(
         tone === 'pending' && 'border-amber-200/80 bg-amber-500/10 text-amber-900',
         tone === 'destructive' && 'border-destructive/30 bg-destructive/10 text-destructive',
+        className,
       )}
     >
       {label}

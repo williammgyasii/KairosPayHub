@@ -12,6 +12,8 @@ describe('RTK Query baseApi injection', () => {
     expect(baseApi.endpoints.getMe).toBeDefined()
     expect(baseApi.endpoints.getStructureTree).toBeDefined()
     expect(baseApi.endpoints.getGivingDashboard).toBeDefined()
+    expect(baseApi.endpoints.listChildGivingPrograms).toBeDefined()
+    expect(baseApi.endpoints.getProgramRollup).toBeDefined()
     expect(baseApi.endpoints.listNotifications).toBeDefined()
     expect(baseApi.endpoints.getCalendarFeed).toBeDefined()
     expect(baseApi.endpoints.listMeetingTypes).toBeDefined()

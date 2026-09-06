@@ -9,6 +9,7 @@ import {
 } from '@/lib/notification-realtime'
 import { useAppDispatch } from '@/store/hooks'
 import { invalidateAttendanceApprovalQueue } from '@/store/attendanceApi'
+import { invalidateGivingTags } from '@/store/givingApi'
 import { notificationsApi } from '@/store/notificationsApi'
 
 const LOG_PREFIX = '[KairosPayHub notifications]'
@@ -116,6 +117,14 @@ export function useNotificationsRealtime({
           || notification.kind === 'AttendanceRejected'
         ) {
           dispatch(invalidateAttendanceApprovalQueue())
+        }
+
+        if (
+          notification.kind === 'ContributionPendingApproval'
+          || notification.kind === 'ContributionApproved'
+          || notification.kind === 'ContributionRejected'
+        ) {
+          dispatch(invalidateGivingTags())
         }
       })
 

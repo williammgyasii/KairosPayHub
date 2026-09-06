@@ -10,6 +10,7 @@ interface ModalProps {
   description?: string
   children: React.ReactNode
   className?: string
+  contentClassName?: string
   size?: 'md' | 'lg' | 'xl'
 }
 
@@ -20,6 +21,7 @@ export function Modal({
   description,
   children,
   className,
+  contentClassName,
   size = 'md',
 }: ModalProps) {
   useEffect(() => {
@@ -75,7 +77,14 @@ export function Modal({
             <span className="sr-only">Close</span>
           </Button>
         </header>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div
+          className={cn(
+            'min-h-0 flex-1 overflow-y-auto px-5 py-4',
+            contentClassName,
+          )}
+        >
+          {children}
+        </div>
       </div>
     </div>
   )

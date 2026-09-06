@@ -22,15 +22,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [emailConfirmed, setEmailConfirmed] = useState(true)
 
   useEffect(() => {
-    auth.getSession().then((session) => {
-      if (session) {
-        setEmail(session.email)
-        setEmailConfirmed(session.emailConfirmed)
-        setStatus('authed')
-      } else {
+    auth
+      .getSession()
+      .then((session) => {
+        if (session) {
+          setEmail(session.email)
+          setEmailConfirmed(session.emailConfirmed)
+          setStatus('authed')
+        } else {
+          setStatus('anon')
+        }
+      })
+      .catch(() => {
         setStatus('anon')
-      }
-    })
+      })
   }, [])
 
   const signIn = useCallback(async (e: string, password: string) => {

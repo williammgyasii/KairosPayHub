@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Coins, Plus } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { useApi } from '@/api/core'
-import {
-  closeProgram,
-  deleteProgram,
-  getGivingDashboard,
-  listPrograms,
-  reopenProgram,
-  type GivingDashboard,
-  type GivingProgram,
-} from '@/api/giving'
+import type { GivingProgram } from '@/api/giving'
 import { useStructureTree } from '@/components/structure/structure-setup'
 import { CreateProgramWizard } from '@/components/giving/create-program-wizard'
 import {
@@ -31,6 +23,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { canCreateGivingProgram, canManageChurch, isScopedLeader } from '@/api/auth'
+import { formatRtkQueryError } from '@/store/baseQuery'
+import {
+  invalidateGivingTags,
+  useCloseGivingProgramMutation,
+  useDeleteGivingProgramMutation,
+  useGetGivingDashboardQuery,
+  useListGivingProgramsQuery,
+  useReopenGivingProgramMutation,
+} from '@/store/givingApi'
+import { useAppDispatch } from '@/store/hooks'
 import { formatApiError } from '@/lib/structure-tree'
 
 function canCreateGiving(role: string) {
@@ -40,41 +42,40 @@ function canCreateGiving(role: string) {
 export function GivingsPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const api = useApi()
+  const dispatch = useAppDispatch()
   const { tree } = useStructureTree()
-  const [givings, setGivings] = useState<GivingProgram[]>([])
-  const [dashboard, setDashboard] = useState<GivingDashboard | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<CampaignConfirmAction | null>(null)
   const [confirmProgram, setConfirmProgram] = useState<GivingProgram | null>(null)
-  const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const showTotals = canManageChurch(me.role) || isScopedLeader(me.role)
   const canCreate = canCreateGiving(me.role)
   const canManageCampaigns = canManageChurch(me.role)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const [programs, dashboardData] = await Promise.all([
-        listPrograms(api),
-        showTotals ? getGivingDashboard(api) : Promise.resolve(null),
-      ])
-      setGivings(programs)
-      setDashboard(dashboardData)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load givings')
-    } finally {
-      setLoading(false)
-    }
-  }, [api, showTotals])
+  const {
+    data: givings = [],
+    error: programsError,
+    isLoading: programsLoading,
+  } = useListGivingProgramsQuery()
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const {
+    data: dashboard = null,
+    error: dashboardError,
+    isLoading: dashboardLoading,
+  } = useGetGivingDashboardQuery(undefined, { skip: !showTotals })
+
+  const [closeProgram, { isLoading: closing }] = useCloseGivingProgramMutation()
+  const [reopenProgram, { isLoading: reopening }] = useReopenGivingProgramMutation()
+  const [deleteProgram, { isLoading: deleting }] = useDeleteGivingProgramMutation()
+
+  const loading = programsLoading || (showTotals && dashboardLoading)
+  const error = programsError
+    ? formatRtkQueryError(programsError)
+    : dashboardError
+      ? formatRtkQueryError(dashboardError)
+      : null
+  const actionBusy = closing || reopening || deleting
 
   const metrics = useMemo(() => deriveGivingMetrics(dashboard, givings), [dashboard, givings])
 
@@ -97,20 +98,20 @@ export function GivingsPage() {
 
   async function handleConfirmAction() {
     if (!confirmProgram || !confirmAction) return
-    setActionBusy(true)
     setActionError(null)
     try {
-      if (confirmAction === 'close') await closeProgram(api, confirmProgram.id)
-      if (confirmAction === 'reopen') await reopenProgram(api, confirmProgram.id)
-      if (confirmAction === 'delete') await deleteProgram(api, confirmProgram.id)
+      if (confirmAction === 'close') await closeProgram(confirmProgram.id).unwrap()
+      if (confirmAction === 'reopen') await reopenProgram(confirmProgram.id).unwrap()
+      if (confirmAction === 'delete') await deleteProgram(confirmProgram.id).unwrap()
       setConfirmAction(null)
       setConfirmProgram(null)
-      await load()
     } catch (err) {
       setActionError(formatApiError(err))
-    } finally {
-      setActionBusy(false)
     }
+  }
+
+  function handleCreated() {
+    dispatch(invalidateGivingTags())
   }
 
   return (
@@ -180,7 +181,7 @@ export function GivingsPage() {
           me={me}
           api={api}
           tree={tree}
-          onCreated={() => void load()}
+          onCreated={handleCreated}
         />
       ) : null}
 

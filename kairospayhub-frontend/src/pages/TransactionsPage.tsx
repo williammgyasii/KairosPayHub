@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
@@ -6,10 +6,8 @@ import { useApi } from '@/api/core'
 import {
   approveContribution,
   approveSubGiving,
-  listPrograms,
   rejectContribution,
   rejectSubGiving,
-  type GivingProgram,
 } from '@/api/giving'
 import { useStructureTree } from '@/components/structure/structure-setup'
 import { canManageChurch, isScopedLeader } from '@/api/auth'
@@ -17,6 +15,8 @@ import { ContributionsApprovalTable } from '@/components/giving/contributions-ap
 import { GivingTransactionsLedger } from '@/components/giving/giving-transactions-ledger'
 import { cn } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
+import { formatRtkQueryError } from '@/store/baseQuery'
+import { useListGivingProgramsQuery } from '@/store/givingApi'
 
 type TransactionsTab = 'pending' | 'approved' | 'all'
 
@@ -25,15 +25,19 @@ export function TransactionsPage() {
   const api = useApi()
   const { tree } = useStructureTree()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [programs, setPrograms] = useState<GivingProgram[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const churchManager = canManageChurch(me.role)
   const canAct = churchManager || isScopedLeader(me.role)
   const showApprovedTab = churchManager || isScopedLeader(me.role)
+
+  const {
+    data: programs = [],
+    error: programsError,
+    isLoading: programsLoading,
+    refetch: refetchPrograms,
+  } = useListGivingProgramsQuery()
 
   const tabParam = searchParams.get('tab')
   const tab: TransactionsTab =
@@ -51,21 +55,8 @@ export function TransactionsPage() {
     [programs],
   )
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      setPrograms(await listPrograms(api))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load transactions')
-    } finally {
-      setLoading(false)
-    }
-  }, [api])
-
-  useEffect(() => {
-    void load()
-  }, [load])
+  const error = programsError ? formatRtkQueryError(programsError) : null
+  const showInitialSpinner = programsLoading && programs.length === 0
 
   function setTab(nextTab: TransactionsTab) {
     setSearchParams(nextTab === 'pending' ? {} : { tab: nextTab }, { replace: true })
@@ -76,7 +67,7 @@ export function TransactionsPage() {
     setActionError(null)
     try {
       await approveContribution(api, contributionProgramId, contributionId)
-      await load()
+      await refetchPrograms()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not approve')
     } finally {
@@ -93,7 +84,7 @@ export function TransactionsPage() {
     setActionError(null)
     try {
       await rejectContribution(api, contributionProgramId, contributionId, reason ?? undefined)
-      await load()
+      await refetchPrograms()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not reject')
     } finally {
@@ -106,7 +97,7 @@ export function TransactionsPage() {
     setActionError(null)
     try {
       await approveSubGiving(api, programId)
-      await load()
+      await refetchPrograms()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not approve sub-giving')
     } finally {
@@ -119,7 +110,7 @@ export function TransactionsPage() {
     setActionError(null)
     try {
       await rejectSubGiving(api, programId, reason ?? undefined)
-      await load()
+      await refetchPrograms()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not reject sub-giving')
     } finally {
@@ -166,42 +157,50 @@ export function TransactionsPage() {
         </div>
       </div>
 
-      {loading ? (
+      {showInitialSpinner ? (
         <Spinner label="Loading transactions…" />
-      ) : tab === 'all' ? (
-        <GivingTransactionsLedger
-          api={api}
-          campaigns={programs}
-          tree={tree}
-          viewerRole={me.role}
-        />
-      ) : tab === 'pending' ? (
-        <ContributionsApprovalTable
-          api={api}
-          scope="church"
-          tree={tree}
-          mode="pending"
-          viewerRole={me.role}
-          canAct={canAct}
-          canApproveSubGivings={churchManager}
-          pendingSubGivings={pendingSubGivings}
-          busy={busy}
-          onApprove={handleApprove}
-          onReject={handleReject}
-          onApproveSubGiving={handleApproveSubGiving}
-          onRejectSubGiving={handleRejectSubGiving}
-          onSummaryChange={() => void load()}
-        />
       ) : (
-        <ContributionsApprovalTable
-          api={api}
-          scope="church"
-          mode="approved"
-          viewerRole={me.role}
-          busy={busy}
-          onApprove={async () => {}}
-          onReject={async () => {}}
-        />
+        <>
+          <div className={tab === 'all' ? undefined : 'hidden'}>
+            <GivingTransactionsLedger
+              api={api}
+              campaigns={programs}
+              tree={tree}
+              viewerRole={me.role}
+            />
+          </div>
+          <div className={tab === 'pending' ? undefined : 'hidden'}>
+            <ContributionsApprovalTable
+              api={api}
+              scope="church"
+              tree={tree}
+              mode="pending"
+              viewerRole={me.role}
+              canAct={canAct}
+              canApproveSubGivings={churchManager}
+              pendingSubGivings={pendingSubGivings}
+              busy={busy}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onApproveSubGiving={handleApproveSubGiving}
+              onRejectSubGiving={handleRejectSubGiving}
+              onSummaryChange={() => void refetchPrograms()}
+            />
+          </div>
+          {showApprovedTab && (
+            <div className={tab === 'approved' ? undefined : 'hidden'}>
+              <ContributionsApprovalTable
+                api={api}
+                scope="church"
+                mode="approved"
+                viewerRole={me.role}
+                busy={busy}
+                onApprove={async () => {}}
+                onReject={async () => {}}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   )

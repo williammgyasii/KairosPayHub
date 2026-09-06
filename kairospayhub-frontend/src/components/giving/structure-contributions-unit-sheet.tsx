@@ -244,7 +244,7 @@ function UploadsByStructureSection({
       <div className="border-b border-border/60 bg-muted/15 px-4 py-3">
         <h3 className="text-sm font-semibold tracking-tight">Who uploaded what</h3>
         <p className="text-xs text-muted-foreground">
-          Every logged payment below this PFCC, grouped by fellowship and cell
+          Every logged payment below this unit, grouped by structure
         </p>
       </div>
       <div className="divide-y divide-border/50">

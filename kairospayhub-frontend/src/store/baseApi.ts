@@ -13,6 +13,8 @@ export const baseApi = createApi({
     'GivingDashboard',
     'GivingProgram',
     'Contributions',
+    'ChildGivingPrograms',
+    'GivingRollup',
     'AttendanceMeetingTypes',
     'AttendanceOccurrences',
     'AttendanceRollup',

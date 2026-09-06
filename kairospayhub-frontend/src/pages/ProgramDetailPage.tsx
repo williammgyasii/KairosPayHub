@@ -1,28 +1,29 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { useApi } from '@/api/core'
 import { useStructureTree } from '@/components/structure/structure-setup'
-import {
-  getProgram,
-  getProgramRollup,
-  listChildPrograms,
-  listProgramContributions,
-  type Contribution,
-  type ContributionListSummary,
-  type GivingProgram,
-  type GivingProgramRollup,
-} from '@/api/giving'
 import { ProgramDetailView, type ProgramDetailModal } from '@/components/giving/program-detail-view'
 import type { ProgramDetailTab } from '@/components/giving/program-dashboard'
 import { canManageChurch, isScopedLeader } from '@/api/auth'
 import { Spinner } from '@/components/ui/spinner'
+import { formatRtkQueryError } from '@/store/baseQuery'
+import {
+  invalidateChildGivingPrograms,
+  invalidateGivingProgramDetail,
+  useGetGivingProgramQuery,
+  useGetProgramRollupQuery,
+  useListChildGivingProgramsQuery,
+  useListProgramContributionsQuery,
+} from '@/store/givingApi'
+import { useAppDispatch } from '@/store/hooks'
 
 export function ProgramDetailPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const { programId = '' } = useParams<{ programId: string }>()
   const [searchParams] = useSearchParams()
   const api = useApi()
+  const dispatch = useAppDispatch()
   const { tree } = useStructureTree()
 
   const initialTab = useMemo(() => {
@@ -31,6 +32,7 @@ export function ProgramDetailPage() {
       'dashboard',
       'subgivings',
       'pending',
+      'awaiting',
       'approved',
       'contributions',
       'history',
@@ -45,58 +47,49 @@ export function ProgramDetailPage() {
     return undefined
   }, [searchParams])
 
-  const [program, setProgram] = useState<GivingProgram | null>(null)
-  const [children, setChildren] = useState<GivingProgram[]>([])
-  const [contributions, setContributions] = useState<Contribution[]>([])
-  const [contributionSummary, setContributionSummary] = useState<ContributionListSummary | null>(null)
-  const [rollup, setRollup] = useState<GivingProgramRollup | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   const canSeeRollup = canManageChurch(me.role) || isScopedLeader(me.role)
 
-  const load = useCallback(async () => {
+  const {
+    data: program,
+    error: programError,
+    isLoading: programLoading,
+  } = useGetGivingProgramQuery(programId, { skip: !programId })
+
+  const { data: children = [] } = useListChildGivingProgramsQuery(programId, {
+    skip: !programId || !program?.hasChildren,
+  })
+
+  const {
+    data: contributionList,
+    error: contributionsError,
+  } = useListProgramContributionsQuery(
+    { programId, query: { page: 1, pageSize: 100 } },
+    { skip: !programId },
+  )
+
+  const { data: rollup = null } = useGetProgramRollupQuery(programId, {
+    skip: !programId || !canSeeRollup,
+  })
+
+  const onRefresh = useCallback(async () => {
     if (!programId) return
-    setLoading(true)
-    setError(null)
-    try {
-      const prog = await getProgram(api, programId)
-      setProgram(prog)
-      const childRows = prog.hasChildren ? await listChildPrograms(api, programId) : []
-      setChildren(childRows)
-      const contributionList = await listProgramContributions(api, programId, {
-        page: 1,
-        pageSize: 500,
-      })
-      setContributions(contributionList.contributions)
-      setContributionSummary(contributionList.summary)
-      if (canSeeRollup) {
-        setRollup(await getProgramRollup(api, programId))
-      } else {
-        setRollup(null)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load program')
-      setProgram(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [api, programId, canSeeRollup])
+    dispatch(invalidateGivingProgramDetail(programId))
+  }, [dispatch, programId])
 
-  const reloadChildren = useCallback(async () => {
+  const onRefreshChildren = useCallback(async () => {
     if (!programId) return
-    try {
-      setChildren(await listChildPrograms(api, programId))
-    } catch {
-      // Parent load will surface errors on full refresh.
-    }
-  }, [api, programId])
+    dispatch(invalidateChildGivingPrograms(programId))
+  }, [dispatch, programId])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const error = programError
+    ? formatRtkQueryError(programError)
+    : contributionsError
+      ? formatRtkQueryError(contributionsError)
+      : null
 
-  if (loading && !program) return <Spinner label="Loading program…" />
+  if (programLoading && !program) {
+    return <Spinner label="Loading program…" />
+  }
 
   if (!program) {
     return <p className="text-sm text-destructive">{error ?? 'Program not found.'}</p>
@@ -109,11 +102,11 @@ export function ProgramDetailPage() {
       tree={tree}
       program={program}
       children={children}
-      contributions={contributions}
-      contributionSummary={contributionSummary}
+      contributions={contributionList?.contributions ?? []}
+      contributionSummary={contributionList?.summary ?? null}
       rollup={rollup}
-      onRefresh={load}
-      onRefreshChildren={reloadChildren}
+      onRefresh={onRefresh}
+      onRefreshChildren={onRefreshChildren}
       initialTab={initialTab}
       initialModal={initialModal}
     />

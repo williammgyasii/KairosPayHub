@@ -82,6 +82,11 @@ export function ProgramDetailView({
     [contributions],
   )
 
+  const approvedContributions = useMemo(
+    () => contributions.filter((c) => c.status === 'Approved'),
+    [contributions],
+  )
+
   const myPendingContributions = useMemo(
     () => contributionsAwaitingMyApproval(me.role, pendingContributions),
     [me.role, pendingContributions],
@@ -95,29 +100,40 @@ export function ProgramDetailView({
   const awaitingMyApprovalCount =
     contributionSummary?.awaitingMyApprovalCount ?? myPendingContributions.length
   const approvedCount =
-    contributionSummary?.approvedCount ??
-    contributions.filter((c) => c.status === 'Approved').length
-
-  const pendingTabCount =
-    awaitingMyApprovalCount + (churchManager ? pendingSubGivingsCount : 0)
+    contributionSummary?.approvedCount ?? approvedContributions.length
+  const awaitingCount = pendingContributions.length
 
   const tabs = useMemo(() => {
-    const items: { id: DetailTab; label: string; badge?: number }[] = [{ id: 'dashboard', label: 'Dashboard' }]
+    const items: { id: DetailTab; label: string; badge?: number }[] = [
+      { id: 'dashboard', label: 'Dashboard' },
+    ]
     if (showSubGivings) {
       const badge = churchManager
         ? pendingSubGivingsCount || children.length || undefined
         : children.length || undefined
       items.push({ id: 'subgivings', label: 'Sub-campaigns', badge })
     }
-    if (pendingTabCount > 0) {
-      items.push({ id: 'pending', label: 'Pending', badge: pendingTabCount })
-    }
     if (churchManager && approvedCount > 0) {
       items.push({ id: 'approved', label: 'Approved', badge: approvedCount })
     }
-    items.push({ id: 'contributions', label: 'Contributions', badge: contributions.length })
-    if (contributions.length > 0) {
-      items.push({ id: 'history', label: 'History', badge: new Set(contributions.map((c) => c.memberId)).size })
+    if (awaitingCount > 0 || awaitingMyApprovalCount > 0) {
+      items.push({
+        id: 'awaiting',
+        label: 'Awaiting approval',
+        badge: awaitingCount || awaitingMyApprovalCount,
+      })
+    }
+    items.push({
+      id: 'contributions',
+      label: 'Contributions',
+      badge: approvedCount || undefined,
+    })
+    if (approvedCount > 0) {
+      items.push({
+        id: 'history',
+        label: 'History',
+        badge: new Set(approvedContributions.map((c) => c.memberId)).size,
+      })
     }
     return items
   }, [
@@ -125,18 +141,24 @@ export function ProgramDetailView({
     showSubGivings,
     pendingSubGivingsCount,
     children.length,
-    pendingTabCount,
+    awaitingCount,
+    awaitingMyApprovalCount,
     approvedCount,
-    contributions.length,
+    approvedContributions,
   ])
 
-  const [tab, setTab] = useState<DetailTab>(initialTab ?? 'dashboard')
+  const [tab, setTab] = useState<DetailTab>(() => {
+    if (initialTab === 'pending') return 'awaiting'
+    return initialTab ?? 'dashboard'
+  })
 
   // ProgramDetailPage keeps this component mounted when only :programId changes,
   // so reset tab when switching campaigns (e.g. parent sub-givings → leaf sub-giving).
   useEffect(() => {
     setTab((current) => {
-      if (initialTab && tabs.some((item) => item.id === initialTab)) return initialTab
+      const preferred = initialTab === 'pending' ? 'awaiting' : initialTab
+      if (preferred && tabs.some((item) => item.id === preferred)) return preferred
+      if (current === 'pending') return 'awaiting'
       if (tabs.some((item) => item.id === current)) return current
       return 'dashboard'
     })
@@ -257,7 +279,7 @@ export function ProgramDetailView({
 
       <ProgramDetailTabs tabs={tabs} activeId={tab} onChange={setTab} />
 
-      {tab === 'dashboard' && (
+      <div className={tab === 'dashboard' ? undefined : 'hidden'}>
         <ProgramDashboard
           program={program}
           contributions={contributions}
@@ -270,29 +292,34 @@ export function ProgramDetailView({
           isPastor={churchManager}
           isFellowshipLeader={isFellowshipLeader}
           isPfccManager={isPfccManager}
-          isCellLeader={isCellLeader}
           viewerRole={me.role}
           structureOptions={structureOptions}
           onTabChange={setTab}
-          onLogGiving={canLogContributions ? () => setLogOpen(true) : undefined}
+          busy={busy}
+          onApproveContribution={handleApprove}
+          onRejectContribution={(contributionId, programId) => {
+            void handleReject(contributionId, programId, null)
+          }}
         />
+      </div>
+
+      {showSubGivings && (
+        <div className={tab === 'subgivings' ? undefined : 'hidden'}>
+          <SubGivingsPanel
+            meRole={me.role}
+            children={children}
+            api={api}
+            onRefresh={onRefresh}
+            onCreateClick={
+              canCreateSubGivingRole && !program.parentProgramId
+                ? () => setSubGivingOpen(true)
+                : undefined
+            }
+          />
+        </div>
       )}
 
-      {tab === 'subgivings' && showSubGivings && (
-        <SubGivingsPanel
-          meRole={me.role}
-          children={children}
-          api={api}
-          onRefresh={onRefresh}
-          onCreateClick={
-            canCreateSubGivingRole && !program.parentProgramId
-              ? () => setSubGivingOpen(true)
-              : undefined
-          }
-        />
-      )}
-
-      {tab === 'pending' && (
+      <div className={tab === 'awaiting' || tab === 'pending' ? undefined : 'hidden'}>
         <ContributionsApprovalTable
           api={api}
           tree={tree}
@@ -300,7 +327,7 @@ export function ProgramDetailView({
           childPrograms={children}
           mode="pending"
           viewerRole={me.role}
-          canAct
+          canAct={awaitingMyApprovalCount > 0 || churchManager}
           canApproveSubGivings={churchManager}
           busy={busy}
           onApprove={handleApprove}
@@ -309,36 +336,42 @@ export function ProgramDetailView({
           onRejectSubGiving={handleRejectSubGiving}
           onSummaryChange={() => void onRefresh()}
         />
+      </div>
+
+      {churchManager && (
+        <div className={tab === 'approved' ? undefined : 'hidden'}>
+          <ContributionsApprovalTable
+            api={api}
+            tree={tree}
+            parentProgram={program}
+            childPrograms={children}
+            mode="approved"
+            viewerRole={me.role}
+            busy={busy}
+            onApprove={async () => {}}
+            onReject={async () => {}}
+            onSummaryChange={() => void onRefresh()}
+          />
+        </div>
       )}
 
-      {tab === 'approved' && churchManager && (
-        <ContributionsApprovalTable
-          api={api}
-          tree={tree}
-          parentProgram={program}
-          childPrograms={children}
-          mode="approved"
-          viewerRole={me.role}
-          busy={busy}
-          onApprove={async () => {}}
-          onReject={async () => {}}
-          onSummaryChange={() => void onRefresh()}
-        />
-      )}
-
-      {tab === 'contributions' && (
+      <div className={tab === 'contributions' ? undefined : 'hidden'}>
         <ContributionsStructureTable
           programId={program.id}
-          contributions={contributions}
+          contributions={approvedContributions}
           tree={tree}
           structureOptions={structureOptions}
           viewerRole={me.role}
         />
-      )}
+      </div>
 
-      {tab === 'history' && (
-        <ContributionsHistoryTable contributions={contributions} tree={tree} viewerRole={me.role} />
-      )}
+      <div className={tab === 'history' ? undefined : 'hidden'}>
+        <ContributionsHistoryTable
+          contributions={approvedContributions}
+          tree={tree}
+          viewerRole={me.role}
+        />
+      </div>
 
       {logOpen && canLogContributions ? (
         <Modal
@@ -347,9 +380,9 @@ export function ProgramDetailView({
             if (!nextOpen && !busy) setLogOpen(false)
           }}
           title="Log giving"
-          description="Record a member payment with proof. Submissions stay pending until approved."
-          size="xl"
-          className="max-w-3xl"
+          size="lg"
+          className="max-h-[min(88vh,680px)]"
+          contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
         >
           <LogContributionWizard
             embedded
@@ -359,7 +392,8 @@ export function ProgramDetailView({
             tree={tree}
             scopeNodeId={me.scopeNodeId}
             disabled={busy}
-            className="min-h-[min(70vh,640px)]"
+            className="h-full min-h-0"
+            onCancel={() => setLogOpen(false)}
             onLogged={async () => {
               await onRefresh()
               if (onRefreshChildren) await onRefreshChildren()
