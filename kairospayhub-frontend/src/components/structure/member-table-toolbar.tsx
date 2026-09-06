@@ -64,6 +64,12 @@ interface MemberTableToolbarProps {
   searchPlaceholder?: string
   leadingSlot?: ReactNode
   trailingSlot?: ReactNode
+  /** Extra filter rows rendered inside the filters panel (e.g. campaign amount rules). */
+  extraFilterSlot?: ReactNode
+  extraActiveFilterCount?: number
+  onAddExtraFilter?: () => void
+  onClearExtraFilters?: () => void
+  addFilterLabel?: string
   className?: string
 }
 
@@ -84,6 +90,11 @@ export function MemberTableToolbar({
   searchPlaceholder,
   leadingSlot,
   trailingSlot,
+  extraFilterSlot,
+  extraActiveFilterCount = 0,
+  onAddExtraFilter,
+  onClearExtraFilters,
+  addFilterLabel = 'Add filter',
   className,
 }: MemberTableToolbarProps) {
   const fields = useMemo(
@@ -93,8 +104,10 @@ export function MemberTableToolbar({
         : buildMemberFilterFields(structureLayers),
     [structureLayers, structureOnly],
   )
-  const activeCount = getActiveFilterRules(rules).length
-  const [filtersOpen, setFiltersOpen] = useState(activeCount > 0 || rules.length > 0)
+  const activeCount = getActiveFilterRules(rules).length + extraActiveFilterCount
+  const [filtersOpen, setFiltersOpen] = useState(
+    activeCount > 0 || rules.length > 0 || Boolean(extraFilterSlot),
+  )
 
   function addRule() {
     onChangeRules([...rules, createMemberFilterRule(structureOnly ? fields[0]?.field : undefined)])
@@ -113,6 +126,7 @@ export function MemberTableToolbar({
 
   function clearAllFilters() {
     onChangeRules([])
+    onClearExtraFilters?.()
     setFiltersOpen(false)
   }
 
@@ -208,8 +222,8 @@ export function MemberTableToolbar({
         </div>
 
         {filtersOpen && (
-          <div className="relative rounded-lg border border-border/70 bg-muted/20 p-3 shadow-sm">
-            {rules.length > 0 && (
+          <div className="relative rounded-lg border border-border/70 bg-muted/20 p-3">
+            {rules.length + (extraFilterSlot ? 1 : 0) > 0 && (
               <Button
                 type="button"
                 variant="ghost"
@@ -235,16 +249,32 @@ export function MemberTableToolbar({
                 />
               ))}
 
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={addRule}
-              >
-                <Plus className="size-3.5" />
-                Add filter
-              </Button>
+              {extraFilterSlot}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={addRule}
+                >
+                  <Plus className="size-3.5" />
+                  {addFilterLabel}
+                </Button>
+                {onAddExtraFilter ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={onAddExtraFilter}
+                  >
+                    <Plus className="size-3.5" />
+                    Add amount filter
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </div>
         )}

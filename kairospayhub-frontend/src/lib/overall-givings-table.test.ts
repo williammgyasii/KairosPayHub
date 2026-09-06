@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import type { MemberGivingCampaign, MemberGivingTotal } from '@/api/giving'
+import type { MemberGivingTotal } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { applyMemberFilterRules, createMemberFilterRule } from '@/lib/member-filters'
 import {
+  amountForCampaign,
+  applyOverallAmountFilters,
   buildOverallGivingsStructureColumns,
+  campaignColumnId,
+  CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY,
+  collectCampaignColumns,
+  createOverallAmountFilterRule,
   memberGivingMatchesVisibleSearch,
   memberGivingToFilterRow,
-  truncateCampaignChips,
+  OVERALL_GIVINGS_COLUMNS_STORAGE_KEY,
+  overallGivingsColumnsStorageKey,
+  rowMatchesOverallAmountFilter,
 } from '@/lib/overall-givings-table'
 
 function treeWithoutPfcc(): StructureTree {
@@ -63,30 +71,64 @@ function treeWithoutPfcc(): StructureTree {
   }
 }
 
-const campaigns: MemberGivingCampaign[] = [
-  { programId: '1', title: 'Rhapsody 2026', parentProgramId: null, approvedAmount: 50, approvedCount: 1 },
-  {
-    programId: '2',
-    title: 'January Rhapsody',
-    parentProgramId: '1',
-    approvedAmount: 75,
-    approvedCount: 1,
-  },
-  { programId: '3', title: 'Sunday', parentProgramId: null, approvedAmount: 20, approvedCount: 1 },
-  { programId: '4', title: 'Special', parentProgramId: null, approvedAmount: 10, approvedCount: 1 },
-]
+describe('collectCampaignColumns', () => {
+  it('unions campaigns with mains before subs', () => {
+    const rows: MemberGivingTotal[] = [
+      {
+        rank: 1,
+        memberId: 'm1',
+        memberName: 'Kojo',
+        memberParentNodeId: 'c1',
+        approvedTotal: 125,
+        approvedCount: 2,
+        pendingCount: 0,
+        pendingTotal: 0,
+        lastDateSent: null,
+        campaigns: [
+          {
+            programId: 'sub',
+            title: 'January Rhapsody',
+            parentProgramId: 'root',
+            approvedAmount: 75,
+            approvedCount: 1,
+          },
+          {
+            programId: 'root',
+            title: 'Rhapsody 2026',
+            parentProgramId: null,
+            approvedAmount: 50,
+            approvedCount: 1,
+          },
+        ],
+      },
+      {
+        rank: 2,
+        memberId: 'm2',
+        memberName: 'Ama',
+        memberParentNodeId: 'c2',
+        approvedTotal: 20,
+        approvedCount: 1,
+        pendingCount: 0,
+        pendingTotal: 0,
+        lastDateSent: null,
+        campaigns: [
+          {
+            programId: 'sunday',
+            title: 'Sunday Service',
+            parentProgramId: null,
+            approvedAmount: 20,
+            approvedCount: 1,
+          },
+        ],
+      },
+    ]
 
-describe('truncateCampaignChips', () => {
-  it('returns all campaigns when under the limit', () => {
-    const result = truncateCampaignChips(campaigns.slice(0, 2), 3)
-    expect(result.visible).toHaveLength(2)
-    expect(result.overflow).toBe(0)
-  })
-
-  it('truncates with overflow count', () => {
-    const result = truncateCampaignChips(campaigns, 3)
-    expect(result.visible).toHaveLength(3)
-    expect(result.overflow).toBe(1)
+    const columns = collectCampaignColumns(rows)
+    expect(columns.map((c) => c.programId)).toEqual(['root', 'sunday', 'sub'])
+    expect(columns[0]?.isSubCampaign).toBe(false)
+    expect(columns[2]?.isSubCampaign).toBe(true)
+    expect(amountForCampaign(rows[0]!, 'sub')).toBe(75)
+    expect(amountForCampaign(rows[0]!, 'sunday')).toBeNull()
   })
 })
 
@@ -169,22 +211,31 @@ describe('memberGivingMatchesVisibleSearch', () => {
       },
     ],
   }
+  const campaignColumns = collectCampaignColumns([row])
 
-  it('matches campaign titles when campaigns column is visible', () => {
+  it('matches campaign amount columns when visible', () => {
     expect(
       memberGivingMatchesVisibleSearch(
         row,
         'january',
         tree,
-        ['memberName', 'campaigns'],
+        [campaignColumnId('1')],
         structureColumns,
+        campaignColumns,
       ),
     ).toBe(true)
   })
 
-  it('ignores hidden campaign column when searching', () => {
+  it('ignores hidden campaign columns when searching', () => {
     expect(
-      memberGivingMatchesVisibleSearch(row, 'january', tree, ['memberName'], structureColumns),
+      memberGivingMatchesVisibleSearch(
+        row,
+        'january',
+        tree,
+        ['memberName'],
+        structureColumns,
+        campaignColumns,
+      ),
     ).toBe(false)
   })
 
@@ -196,7 +247,92 @@ describe('memberGivingMatchesVisibleSearch', () => {
         tree,
         ['structure:fellowship'],
         structureColumns,
+        campaignColumns,
       ),
     ).toBe(true)
+  })
+})
+
+describe('overall amount filters', () => {
+  const rows: MemberGivingTotal[] = [
+    {
+      rank: 1,
+      memberId: 'm1',
+      memberName: 'Kojo',
+      memberParentNodeId: 'c1',
+      approvedTotal: 125,
+      approvedCount: 2,
+      pendingCount: 0,
+      pendingTotal: 0,
+      lastDateSent: null,
+      campaigns: [
+        {
+          programId: 'root',
+          title: 'Rhapsody',
+          parentProgramId: null,
+          approvedAmount: 50,
+          approvedCount: 1,
+        },
+        {
+          programId: 'sub',
+          title: 'January',
+          parentProgramId: 'root',
+          approvedAmount: 75,
+          approvedCount: 1,
+        },
+      ],
+    },
+    {
+      rank: 2,
+      memberId: 'm2',
+      memberName: 'Ama',
+      memberParentNodeId: 'c2',
+      approvedTotal: 20,
+      approvedCount: 1,
+      pendingCount: 0,
+      pendingTotal: 0,
+      lastDateSent: null,
+      campaigns: [
+        {
+          programId: 'root',
+          title: 'Rhapsody',
+          parentProgramId: null,
+          approvedAmount: 20,
+          approvedCount: 1,
+        },
+      ],
+    },
+  ]
+
+  it('filters approved total greater than', () => {
+    const rule = { ...createOverallAmountFilterRule('approvedTotal'), operator: 'gt' as const, value: '100' }
+    expect(applyOverallAmountFilters(rows, [rule]).map((r) => r.memberId)).toEqual(['m1'])
+  })
+
+  it('filters a campaign amount less than', () => {
+    const rule = {
+      ...createOverallAmountFilterRule('campaign:root'),
+      operator: 'lt' as const,
+      value: '40',
+    }
+    expect(rowMatchesOverallAmountFilter(rows[1]!, rule)).toBe(true)
+    expect(applyOverallAmountFilters(rows, [rule]).map((r) => r.memberId)).toEqual(['m2'])
+  })
+
+  it('treats missing campaign amount as zero', () => {
+    const rule = {
+      ...createOverallAmountFilterRule('campaign:sub'),
+      operator: 'lt' as const,
+      value: '10',
+    }
+    expect(applyOverallAmountFilters(rows, [rule]).map((r) => r.memberId)).toEqual(['m2'])
+  })
+})
+
+describe('overallGivingsColumnsStorageKey', () => {
+  it('uses separate keys for church vs campaign scope', () => {
+    expect(overallGivingsColumnsStorageKey('church')).toBe(OVERALL_GIVINGS_COLUMNS_STORAGE_KEY)
+    expect(overallGivingsColumnsStorageKey('campaign')).toBe(CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY)
+    expect(OVERALL_GIVINGS_COLUMNS_STORAGE_KEY).not.toBe(CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY)
   })
 })
