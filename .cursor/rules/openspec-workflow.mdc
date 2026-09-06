@@ -17,6 +17,7 @@ This project uses [OpenSpec](https://openspec.dev) for spec-driven development.
 ## Rules
 
 - Do **not** skip specs for user-facing behavior changes.
+- Follow the full **spec → test → implement** loop in `spec-driven-development.mdc`.
 - Keep specs testable (WHEN/THEN scenarios).
 - Implementation details belong in `design.md`, not spec files.
 - One change per feature; small, reviewable task chunks.

@@ -1,0 +1,49 @@
+---
+description: Spec → test → implement workflow; specs are the source of truth for behavior and bugs
+alwaysApply: true
+---
+
+# Spec-driven development
+
+Behavior is defined in OpenSpec **before** code. Specs stay the contract for features, tests, and bug fixes.
+
+## Where specs live
+
+| Location | Purpose |
+|----------|---------|
+| `openspec/changes/<name>/` | Active feature work (proposal, specs, design, tasks) |
+| `openspec/specs/` | Merged, canonical behavior after archive |
+| `design.md` in a change | Implementation notes, not user-facing requirements |
+
+Before coding, read relevant specs under `openspec/changes/` or `openspec/specs/`. If none exist for user-facing work, **propose a change first** (see `openspec-workflow.mdc`).
+
+## Build loop (TDD)
+
+1. **Spec** — Add or update WHEN/THEN scenarios in `specs/**/spec.md`.
+2. **Test** — Write failing tests that encode those scenarios (API integration or frontend unit tests).
+3. **Implement** — Minimal code to pass tests.
+4. **Verify** — Run tests; mark tasks complete in `tasks.md`.
+
+Do not skip tests for non-trivial behavior. Prefer one reviewable chunk at a time.
+
+## Bugs and regressions
+
+When fixing a bug:
+
+1. Find or add the **spec scenario** that should have caught it.
+2. Add a **regression test** tied to that scenario.
+3. Fix the code.
+4. Reference the spec path in the commit message (e.g. `openspec/specs/giving/contributions/spec.md`).
+
+If behavior was never specified, add the scenario to an active change or a small follow-up spec delta before fixing.
+
+## Agent checklist
+
+- [ ] Checked `openspec/changes/` for overlapping active work
+- [ ] Read applicable `spec.md` / `proposal.md` / `design.md`
+- [ ] Tests written or updated before or with the fix
+- [ ] Spec scenarios remain the authority when code and product disagree
+
+## Client data reads
+
+Prefer **RTK Query** hooks from `@/store/*Api` for GET/list endpoints (5-minute cache via `baseApi`). Use `useApi()` only for mutations or endpoints not yet migrated. Invalidate tags after writes instead of ad-hoc refetch loops.
