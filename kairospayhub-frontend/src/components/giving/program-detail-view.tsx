@@ -11,20 +11,23 @@ import {
 } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { givingTypeLabel, contributionsAwaitingMyApproval } from '@/lib/giving-ui'
-import { canCreateSubGiving, canManageChurch } from '@/api/auth'
+import { canCreateSubGiving, canManageChurch, isScopedLeader } from '@/api/auth'
 import { structureOptionsForLeader } from '@/lib/contribution-structure'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
 import { ContributionsApprovalTable } from '@/components/giving/contributions-approval-table'
 import { CreateSubPeriodWizard } from '@/components/giving/create-sub-period-wizard'
 import { LogContributionWizard } from '@/components/giving/log-contribution-wizard'
-import { ProgramDashboard, type ProgramDetailTab } from '@/components/giving/program-dashboard'
+import { ProgramDashboard, normalizeProgramDetailTab, type ProgramDetailTab } from '@/components/giving/program-dashboard'
 import { ProgramDetailTabs } from '@/components/giving/program-detail-tabs'
 import { ProgramStatusBadge, ScopeKindBadge } from '@/components/giving/giving-badges'
+import { MemberGivingRankingsTable } from '@/components/giving/member-giving-rankings-table'
 import { SubGivingsPanel } from '@/components/giving/sub-givings-panel'
+import { GivingTransactionsLedger } from '@/components/giving/giving-transactions-ledger'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export type ProgramDetailModal = 'log'
 
@@ -71,11 +74,14 @@ export function ProgramDetailView({
     acceptsContributions
   const [subGivingOpen, setSubGivingOpen] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
+  const [txStatus, setTxStatus] = useState<'pending' | 'approved' | 'all'>('pending')
   const showSubGivings = program.hasChildren || !program.parentProgramId
   const structureOptions = useMemo(
     () => structureOptionsForLeader(me.role, me.scopeNodeId),
     [me.role, me.scopeNodeId],
   )
+
+  const campaignTreePrograms = useMemo(() => [program, ...children], [program, children])
 
   const pendingContributions = useMemo(
     () => contributions.filter((c) => c.status === 'PendingApproval'),
@@ -102,6 +108,9 @@ export function ProgramDetailView({
   const approvedCount =
     contributionSummary?.approvedCount ?? approvedContributions.length
   const awaitingCount = pendingContributions.length
+  const canSeeMemberGivings = churchManager || isScopedLeader(me.role)
+  const canSeeTransactions =
+    awaitingCount > 0 || awaitingMyApprovalCount > 0 || approvedCount > 0 || churchManager
 
   const tabs = useMemo(() => {
     const items: { id: DetailTab; label: string; badge?: number }[] = [
@@ -113,27 +122,33 @@ export function ProgramDetailView({
         : children.length || undefined
       items.push({ id: 'subgivings', label: 'Sub-campaigns', badge })
     }
-    if (churchManager && approvedCount > 0) {
-      items.push({ id: 'approved', label: 'Approved', badge: approvedCount })
-    }
-    if (awaitingCount > 0 || awaitingMyApprovalCount > 0) {
+    if (canSeeMemberGivings) {
       items.push({
-        id: 'awaiting',
-        label: 'Awaiting approval',
-        badge: awaitingCount || awaitingMyApprovalCount,
+        id: 'member-givings',
+        label: 'Member givings',
+        badge: approvedCount || undefined,
       })
     }
-    items.push({
-      id: 'contributions',
-      label: 'Contributions',
-      badge: approvedCount || undefined,
-    })
-    if (approvedCount > 0) {
+    if (canSeeTransactions) {
       items.push({
-        id: 'history',
-        label: 'History',
-        badge: new Set(approvedContributions.map((c) => c.memberId)).size,
+        id: 'transactions',
+        label: 'Transactions',
+        badge: awaitingCount || awaitingMyApprovalCount || undefined,
       })
+    }
+    if (!canSeeMemberGivings) {
+      items.push({
+        id: 'contributions',
+        label: 'Contributions',
+        badge: approvedCount || undefined,
+      })
+      if (approvedCount > 0) {
+        items.push({
+          id: 'history',
+          label: 'History',
+          badge: new Set(approvedContributions.map((c) => c.memberId)).size,
+        })
+      }
     }
     return items
   }, [
@@ -145,24 +160,29 @@ export function ProgramDetailView({
     awaitingMyApprovalCount,
     approvedCount,
     approvedContributions,
+    canSeeMemberGivings,
+    canSeeTransactions,
   ])
 
   const [tab, setTab] = useState<DetailTab>(() => {
-    if (initialTab === 'pending') return 'awaiting'
-    return initialTab ?? 'dashboard'
+    return normalizeProgramDetailTab(initialTab) ?? 'dashboard'
   })
 
   // ProgramDetailPage keeps this component mounted when only :programId changes,
   // so reset tab when switching campaigns (e.g. parent sub-givings → leaf sub-giving).
   useEffect(() => {
     setTab((current) => {
-      const preferred = initialTab === 'pending' ? 'awaiting' : initialTab
+      const preferred = normalizeProgramDetailTab(initialTab)
       if (preferred && tabs.some((item) => item.id === preferred)) return preferred
-      if (current === 'pending') return 'awaiting'
-      if (tabs.some((item) => item.id === current)) return current
+      const normalizedCurrent = normalizeProgramDetailTab(current) ?? current
+      if (tabs.some((item) => item.id === normalizedCurrent)) return normalizedCurrent
       return 'dashboard'
     })
   }, [program.id, initialTab, tabs])
+
+  useEffect(() => {
+    setTxStatus('pending')
+  }, [program.id])
 
   useEffect(() => {
     if (initialModal === 'log' && canLogContributions) {
@@ -319,59 +339,114 @@ export function ProgramDetailView({
         </div>
       )}
 
-      <div className={tab === 'awaiting' || tab === 'pending' ? undefined : 'hidden'}>
-        <ContributionsApprovalTable
-          api={api}
-          tree={tree}
-          parentProgram={program}
-          childPrograms={children}
-          mode="pending"
-          viewerRole={me.role}
-          canAct={awaitingMyApprovalCount > 0 || churchManager}
-          canApproveSubGivings={churchManager}
-          busy={busy}
-          onApprove={handleApprove}
-          onReject={handleReject}
-          onApproveSubGiving={handleApproveSubGiving}
-          onRejectSubGiving={handleRejectSubGiving}
-          onSummaryChange={() => void onRefresh()}
-        />
-      </div>
-
-      {churchManager && (
-        <div className={tab === 'approved' ? undefined : 'hidden'}>
-          <ContributionsApprovalTable
+      {canSeeMemberGivings && (
+        <div className={tab === 'member-givings' ? undefined : 'hidden'}>
+          <MemberGivingRankingsTable
             api={api}
+            campaigns={campaignTreePrograms}
             tree={tree}
-            parentProgram={program}
-            childPrograms={children}
-            mode="approved"
             viewerRole={me.role}
-            busy={busy}
-            onApprove={async () => {}}
-            onReject={async () => {}}
-            onSummaryChange={() => void onRefresh()}
+            programId={program.id}
+            scopeMode="campaign"
           />
         </div>
       )}
 
-      <div className={tab === 'contributions' ? undefined : 'hidden'}>
-        <ContributionsStructureTable
-          programId={program.id}
-          contributions={approvedContributions}
-          tree={tree}
-          structureOptions={structureOptions}
-          viewerRole={me.role}
-        />
-      </div>
+      {canSeeTransactions && (
+        <div className={tab === 'transactions' || tab === 'awaiting' || tab === 'pending' ? undefined : 'hidden'}>
+          <div className="mb-4 border-b border-border/60">
+            <div className="-mb-px flex flex-wrap gap-1">
+              {(
+                [
+                  { id: 'pending', label: 'Pending' },
+                  { id: 'approved', label: 'Approved' },
+                  { id: 'all', label: 'All' },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTxStatus(item.id)}
+                  className={cn(
+                    'border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors',
+                    txStatus === item.id
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <div className={tab === 'history' ? undefined : 'hidden'}>
-        <ContributionsHistoryTable
-          contributions={approvedContributions}
-          tree={tree}
-          viewerRole={me.role}
-        />
-      </div>
+          <div className={txStatus === 'pending' ? undefined : 'hidden'}>
+            <ContributionsApprovalTable
+              api={api}
+              tree={tree}
+              parentProgram={program}
+              childPrograms={children}
+              mode="pending"
+              viewerRole={me.role}
+              canAct={awaitingMyApprovalCount > 0 || churchManager}
+              canApproveSubGivings={churchManager}
+              busy={busy}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onApproveSubGiving={handleApproveSubGiving}
+              onRejectSubGiving={handleRejectSubGiving}
+              onSummaryChange={() => void onRefresh()}
+            />
+          </div>
+
+          <div className={txStatus === 'approved' ? undefined : 'hidden'}>
+            <ContributionsApprovalTable
+              api={api}
+              tree={tree}
+              parentProgram={program}
+              childPrograms={children}
+              mode="approved"
+              viewerRole={me.role}
+              busy={busy}
+              onApprove={async () => {}}
+              onReject={async () => {}}
+              onSummaryChange={() => void onRefresh()}
+            />
+          </div>
+
+          <div className={txStatus === 'all' ? undefined : 'hidden'}>
+            <GivingTransactionsLedger
+              api={api}
+              campaigns={campaignTreePrograms}
+              tree={tree}
+              viewerRole={me.role}
+              lockedProgramId={program.id}
+            />
+          </div>
+        </div>
+      )}
+
+      {!canSeeMemberGivings && (
+        <>
+          <div className={tab === 'contributions' ? undefined : 'hidden'}>
+            <ContributionsStructureTable
+              programId={program.id}
+              contributions={approvedContributions}
+              tree={tree}
+              structureOptions={structureOptions}
+              viewerRole={me.role}
+            />
+          </div>
+
+          <div className={tab === 'history' ? undefined : 'hidden'}>
+            <ContributionsHistoryTable
+              contributions={approvedContributions}
+              tree={tree}
+              viewerRole={me.role}
+            />
+          </div>
+        </>
+      )}
 
       {logOpen && canLogContributions ? (
         <Modal

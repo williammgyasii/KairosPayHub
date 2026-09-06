@@ -88,7 +88,7 @@ export function GivingTable({
               </Link>
               {(row.original.awaitingMyApprovalCount ?? 0) > 0 ? (
                 <Link
-                  to={`/givings/${row.original.id}?tab=awaiting`}
+                  to={`/givings/${row.original.id}?tab=transactions`}
                   className="inline-flex items-center rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-500/25 dark:text-amber-200"
                 >
                   {row.original.awaitingMyApprovalCount} awaiting

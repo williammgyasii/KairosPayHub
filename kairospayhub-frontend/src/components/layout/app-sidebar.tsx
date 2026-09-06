@@ -248,7 +248,9 @@ function applyGivingsBadges(entries: NavEntry[], awaitingApprovalCount: number):
       ...entry,
       badgeCount: awaitingApprovalCount,
       children: entry.children.map((child) =>
-        child.to === 'givings' ? { ...child, badgeCount: awaitingApprovalCount } : child,
+        child.to === 'givings/transactions'
+          ? { ...child, badgeCount: awaitingApprovalCount }
+          : child,
       ),
     }
   })

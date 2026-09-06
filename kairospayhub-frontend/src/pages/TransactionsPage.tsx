@@ -39,7 +39,7 @@ export function TransactionsPage() {
     refetch: refetchPrograms,
   } = useListGivingProgramsQuery()
 
-  const tabParam = searchParams.get('tab')
+  const tabParam = searchParams.get('tab') ?? searchParams.get('status')
   const tab: TransactionsTab =
     tabParam === 'all'
       ? 'all'
@@ -129,10 +129,10 @@ export function TransactionsPage() {
         title="Transactions"
         description={
           tab === 'all'
-            ? 'Full payment ledger across campaigns — every logged contribution with filters and detail.'
+            ? 'Church-wide payment ledger — every logged contribution across campaigns you can access.'
             : canAct
-              ? 'Review pending giving submissions and approved records across all campaigns.'
-              : 'Track giving submissions logged in your scope.'
+              ? 'All church transactions: review pending submissions and browse approved records across campaigns.'
+              : 'Track giving submissions logged in your scope across campaigns.'
         }
       />
 

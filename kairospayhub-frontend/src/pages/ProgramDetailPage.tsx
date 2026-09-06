@@ -4,7 +4,7 @@ import type { DashboardOutletContext } from '@/components/layout/dashboard-layou
 import { useApi } from '@/api/core'
 import { useStructureTree } from '@/components/structure/structure-setup'
 import { ProgramDetailView, type ProgramDetailModal } from '@/components/giving/program-detail-view'
-import type { ProgramDetailTab } from '@/components/giving/program-dashboard'
+import { normalizeProgramDetailTab, type ProgramDetailTab } from '@/components/giving/program-dashboard'
 import { canManageChurch, isScopedLeader } from '@/api/auth'
 import { Spinner } from '@/components/ui/spinner'
 import { formatRtkQueryError } from '@/store/baseQuery'
@@ -26,19 +26,8 @@ export function ProgramDetailPage() {
   const dispatch = useAppDispatch()
   const { tree } = useStructureTree()
 
-  const initialTab = useMemo(() => {
-    const tab = searchParams.get('tab')
-    const allowed: ProgramDetailTab[] = [
-      'dashboard',
-      'subgivings',
-      'pending',
-      'awaiting',
-      'approved',
-      'contributions',
-      'history',
-    ]
-    if (tab === 'log') return undefined
-    return allowed.includes(tab as ProgramDetailTab) ? (tab as ProgramDetailTab) : undefined
+  const initialTab = useMemo((): ProgramDetailTab | undefined => {
+    return normalizeProgramDetailTab(searchParams.get('tab'))
   }, [searchParams])
 
   const initialModal = useMemo((): ProgramDetailModal | undefined => {

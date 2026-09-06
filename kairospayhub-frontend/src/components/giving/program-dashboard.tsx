@@ -18,11 +18,28 @@ import { cn } from '@/lib/utils'
 export type ProgramDetailTab =
   | 'dashboard'
   | 'subgivings'
+  | 'member-givings'
+  | 'transactions'
   | 'pending'
   | 'awaiting'
   | 'approved'
   | 'contributions'
   | 'history'
+
+export function normalizeProgramDetailTab(tab: string | null | undefined): ProgramDetailTab | undefined {
+  if (!tab || tab === 'log') return undefined
+  if (tab === 'pending' || tab === 'awaiting') return 'transactions'
+  if (tab === 'approved') return 'member-givings'
+  const allowed: ProgramDetailTab[] = [
+    'dashboard',
+    'subgivings',
+    'member-givings',
+    'transactions',
+    'contributions',
+    'history',
+  ]
+  return allowed.includes(tab as ProgramDetailTab) ? (tab as ProgramDetailTab) : undefined
+}
 
 interface ProgramDashboardProps {
   program: GivingProgram
@@ -130,14 +147,14 @@ export function ProgramDashboard({
       items.push({
         label: 'Needs your review',
         detail: `${stats.pendingCount} payment${stats.pendingCount === 1 ? '' : 's'} awaiting your approval`,
-        onClick: () => onTabChange('awaiting'),
+        onClick: () => onTabChange('transactions'),
         highlight: true,
       })
     } else if (stats.awaitingCount > 0) {
       items.push({
         label: 'In the pipeline',
         detail: `${stats.awaitingCount} payment${stats.awaitingCount === 1 ? '' : 's'} awaiting approval`,
-        onClick: () => onTabChange('awaiting'),
+        onClick: () => onTabChange('transactions'),
       })
     }
     if (isPastor && pendingSubGivings > 0) {
@@ -195,14 +212,14 @@ export function ProgramDashboard({
           value={String(stats.awaitingCount)}
           icon={Clock3}
           highlight={stats.awaitingCount > 0}
-          onClick={stats.awaitingCount > 0 ? () => onTabChange('awaiting') : undefined}
+          onClick={stats.awaitingCount > 0 ? () => onTabChange('transactions') : undefined}
         />
         <Kpi
           label="Approved payments"
           value={String(stats.approvedCount)}
           icon={CheckCircle2}
           onClick={
-            stats.approvedCount > 0 ? () => onTabChange('contributions') : undefined
+            stats.approvedCount > 0 ? () => onTabChange('member-givings') : undefined
           }
         />
       </section>
@@ -371,8 +388,8 @@ export function ProgramDashboard({
                         ? row.contributions.some((c) => c.status === 'PendingApproval')
                         : row.contribution.status === 'PendingApproval',
                     )
-                      ? 'awaiting'
-                      : 'contributions',
+                      ? 'transactions'
+                      : 'member-givings',
                   )
               : undefined
           }

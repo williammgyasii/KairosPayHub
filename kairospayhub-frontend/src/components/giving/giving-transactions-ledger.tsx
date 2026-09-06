@@ -55,6 +55,8 @@ interface GivingTransactionsLedgerProps {
   campaigns: GivingProgram[]
   tree: StructureTree | null
   viewerRole?: string
+  /** When set, locks the ledger to this campaign tree (hides All-campaigns picker). */
+  lockedProgramId?: string
 }
 
 export function GivingTransactionsLedger({
@@ -62,14 +64,16 @@ export function GivingTransactionsLedger({
   campaigns,
   tree,
   viewerRole,
+  lockedProgramId,
 }: GivingTransactionsLedgerProps) {
+  const isCampaignScoped = Boolean(lockedProgramId)
   const [rows, setRows] = useState<Contribution[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [campaignId, setCampaignId] = useState('')
+  const [campaignId, setCampaignId] = useState(lockedProgramId ?? '')
   const [status, setStatus] = useState<'' | ContributionStatus>('')
   const [sorting, setSorting] = useState<{ id: SortColumn; desc: boolean }>({
     id: 'createdAt',
@@ -83,6 +87,15 @@ export function GivingTransactionsLedger({
     () => campaigns.filter((row) => !row.parentProgramId),
     [campaigns],
   )
+
+  const scopedCampaignLabel = useMemo(() => {
+    if (!lockedProgramId) return null
+    return campaigns.find((row) => row.id === lockedProgramId)?.title ?? 'This campaign'
+  }, [lockedProgramId, campaigns])
+
+  useEffect(() => {
+    if (lockedProgramId) setCampaignId(lockedProgramId)
+  }, [lockedProgramId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -105,7 +118,7 @@ export function GivingTransactionsLedger({
         sortDir: sorting.desc ? 'desc' : 'asc',
         search: debouncedSearch || undefined,
         status: status || undefined,
-        programId: campaignId || undefined,
+        programId: campaignId || lockedProgramId || undefined,
       })
       setRows(res.contributions)
       setTotalCount(res.totalCount)
@@ -118,12 +131,12 @@ export function GivingTransactionsLedger({
     } finally {
       setLoading(false)
     }
-  }, [api, page, pageSize, sorting, debouncedSearch, status, campaignId, rows.length])
+  }, [api, page, pageSize, sorting, debouncedSearch, status, campaignId, lockedProgramId, rows.length])
 
   useEffect(() => {
     void load({ soft: rows.length > 0 })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- soft uses current rows without looping
-  }, [api, page, pageSize, sorting, debouncedSearch, status, campaignId])
+  }, [api, page, pageSize, sorting, debouncedSearch, status, campaignId, lockedProgramId])
 
   function toggleSort(columnId: SortColumn) {
     setSorting((prev) => {
@@ -151,18 +164,24 @@ export function GivingTransactionsLedger({
           placeholder="Search member, campaign, or notes…"
           className="max-w-sm"
         />
-        <select
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          value={campaignId}
-          onChange={(e) => setCampaignId(e.target.value)}
-        >
-          <option value="">All campaigns</option>
-          {rootCampaigns.map((campaign) => (
-            <option key={campaign.id} value={campaign.id}>
-              {campaign.title} · {campaign.periodLabel}
-            </option>
-          ))}
-        </select>
+        {isCampaignScoped ? (
+          <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+            <span className="truncate">{scopedCampaignLabel}</span>
+          </div>
+        ) : (
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            value={campaignId}
+            onChange={(e) => setCampaignId(e.target.value)}
+          >
+            <option value="">All campaigns</option>
+            {rootCampaigns.map((campaign) => (
+              <option key={campaign.id} value={campaign.id}>
+                {campaign.title} · {campaign.periodLabel}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
           value={status}
