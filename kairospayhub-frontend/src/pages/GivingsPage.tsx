@@ -22,7 +22,7 @@ import { GivingTable, type GivingTableRow } from '@/components/giving/giving-tab
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
-import { canCreateGivingProgram, canManageChurch, isScopedLeader } from '@/api/auth'
+import { canCreateGivingProgram, canManageChurch, canViewOverallGivings } from '@/api/auth'
 import { formatRtkQueryError } from '@/store/baseQuery'
 import {
   invalidateGivingTags,
@@ -49,7 +49,7 @@ export function GivingsPage() {
   const [confirmProgram, setConfirmProgram] = useState<GivingProgram | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const showTotals = canManageChurch(me.role) || isScopedLeader(me.role)
+  const showTotals = canViewOverallGivings(me)
   const canCreate = canCreateGiving(me.role)
   const canManageCampaigns = canManageChurch(me.role)
 

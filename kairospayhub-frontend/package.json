@@ -12,6 +12,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@casl/ability": "^7.0.1",
+    "@casl/react": "^7.0.1",
     "@microsoft/signalr": "^10.0.11",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-dropdown-menu": "^2.1.24",

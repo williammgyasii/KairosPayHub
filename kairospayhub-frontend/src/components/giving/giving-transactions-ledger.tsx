@@ -40,8 +40,8 @@ const SORT_COLUMNS: { id: SortColumn; label: string }[] = [
 
 const STATUS_OPTIONS: { value: '' | ContributionStatus; label: string }[] = [
   { value: '', label: 'All statuses' },
-  { value: 'Approved', label: 'Approved' },
   { value: 'PendingApproval', label: 'Pending' },
+  { value: 'Approved', label: 'Approved' },
   { value: 'Rejected', label: 'Rejected' },
 ]
 

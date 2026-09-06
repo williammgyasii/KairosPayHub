@@ -11,6 +11,11 @@ export type RollCallScope = {
   scopeUnitName: string
 }
 
+export type AbilityRuleDto = {
+  action: string
+  subject: string
+}
+
 export type MeNotOnboarded = {
   onboarded: false
   email: string | null
@@ -24,6 +29,9 @@ export type MeNotOnboarded = {
   defaultCurrency?: string | null
   onboardingStep?: 'structure' | null
   role?: string | null
+  abilities?: string[]
+  abilityRules?: AbilityRuleDto[]
+  leadershipProfile?: string | null
 }
 
 export type Me =
@@ -44,6 +52,11 @@ export type Me =
       legacyChurchId: string | null
       email: string | null
       name: string | null
+      /** Product abilities from API (preferred for feature gates). */
+      abilities?: string[]
+      /** Packed CASL rules from API. */
+      abilityRules?: AbilityRuleDto[]
+      leadershipProfile?: string | null
     }
 
 export function needsOnboarding(me: Me): boolean {
@@ -80,6 +93,38 @@ export function canManageMembers(role: string): boolean {
 
 export function isCellLeader(role: string): boolean {
   return role === 'CellLeader'
+}
+
+/** Prefer API abilities; fall back to role helpers for older payloads. */
+export function canViewMemberGivings(roleOrMe: string | Me): boolean {
+  if (typeof roleOrMe !== 'string') {
+    if (roleOrMe.onboarded && hasAbilityList(roleOrMe.abilities, 'viewMemberGivings')) return true
+    if (!roleOrMe.onboarded) return false
+    return canViewMemberGivings(roleOrMe.role)
+  }
+  return canManageChurch(roleOrMe) || isScopedLeader(roleOrMe) || isCellLeader(roleOrMe)
+}
+
+function hasAbilityList(abilities: string[] | undefined, ability: string) {
+  return (abilities ?? []).includes(ability)
+}
+
+export function canApproveGiving(roleOrMe: string | Me): boolean {
+  if (typeof roleOrMe !== 'string') {
+    if (roleOrMe.onboarded && hasAbilityList(roleOrMe.abilities, 'approveGiving')) return true
+    if (!roleOrMe.onboarded) return false
+    return canApproveGiving(roleOrMe.role)
+  }
+  return canManageChurch(roleOrMe) || isScopedLeader(roleOrMe)
+}
+
+export function canViewOverallGivings(roleOrMe: string | Me): boolean {
+  if (typeof roleOrMe !== 'string') {
+    if (roleOrMe.onboarded && hasAbilityList(roleOrMe.abilities, 'viewOverallGivings')) return true
+    if (!roleOrMe.onboarded) return false
+    return canViewOverallGivings(roleOrMe.role)
+  }
+  return canManageChurch(roleOrMe) || isScopedLeader(roleOrMe) || isCellLeader(roleOrMe)
 }
 
 export function rollCallScopesFor(me: Me): RollCallScope[] {

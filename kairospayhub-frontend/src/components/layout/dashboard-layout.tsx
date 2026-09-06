@@ -6,6 +6,7 @@ import { DashboardTopbar } from '@/components/layout/dashboard-topbar'
 import { NotificationsRealtime } from '@/components/layout/notifications-realtime'
 import { SidebarProvider, useSidebar } from '@/components/layout/sidebar-context'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AbilityProvider } from '@/auth/AbilityProvider'
 
 interface DashboardLayoutProps {
   me: Me & { onboarded: true }
@@ -53,11 +54,13 @@ function SidebarWidthSync() {
 
 export function DashboardLayout({ me, reloadMe }: DashboardLayoutProps) {
   return (
-    <SidebarProvider>
-      <TooltipProvider>
-        <DashboardLayoutInner me={me} reloadMe={reloadMe} />
-      </TooltipProvider>
-    </SidebarProvider>
+    <AbilityProvider me={me}>
+      <SidebarProvider>
+        <TooltipProvider>
+          <DashboardLayoutInner me={me} reloadMe={reloadMe} />
+        </TooltipProvider>
+      </SidebarProvider>
+    </AbilityProvider>
   )
 }
 

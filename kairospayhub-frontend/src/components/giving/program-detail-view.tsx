@@ -11,7 +11,8 @@ import {
 } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { givingTypeLabel, contributionsAwaitingMyApproval } from '@/lib/giving-ui'
-import { canCreateSubGiving, canManageChurch, isScopedLeader } from '@/api/auth'
+import { canCreateSubGiving, canManageChurch, canViewMemberGivings } from '@/api/auth'
+import { useAppAbility } from '@/auth/ability-context'
 import { structureOptionsForLeader } from '@/lib/contribution-structure'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
@@ -63,6 +64,7 @@ export function ProgramDetailView({
   initialModal,
 }: ProgramDetailViewProps) {
   const churchManager = canManageChurch(me.role)
+  const ability = useAppAbility()
   const canCreateSubGivingRole = canCreateSubGiving(me.role)
   const isFellowshipLeader = me.role === 'FellowshipLeader'
   const isPfccManager = me.role === 'PFCCManager'
@@ -74,7 +76,7 @@ export function ProgramDetailView({
     acceptsContributions
   const [subGivingOpen, setSubGivingOpen] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
-  const [txStatus, setTxStatus] = useState<'pending' | 'approved' | 'all'>('pending')
+  const [txStatus, setTxStatus] = useState<'pending' | 'approved' | 'all'>('all')
   const showSubGivings = program.hasChildren || !program.parentProgramId
   const structureOptions = useMemo(
     () => structureOptionsForLeader(me.role, me.scopeNodeId),
@@ -108,7 +110,8 @@ export function ProgramDetailView({
   const approvedCount =
     contributionSummary?.approvedCount ?? approvedContributions.length
   const awaitingCount = pendingContributions.length
-  const canSeeMemberGivings = churchManager || isScopedLeader(me.role)
+  const canSeeMemberGivings =
+    ability.can('view', 'MemberGivings') || canViewMemberGivings(me)
   const canSeeTransactions =
     awaitingCount > 0 || awaitingMyApprovalCount > 0 || approvedCount > 0 || churchManager
 
@@ -181,8 +184,8 @@ export function ProgramDetailView({
   }, [program.id, initialTab, tabs])
 
   useEffect(() => {
-    setTxStatus('pending')
-  }, [program.id])
+    setTxStatus(awaitingCount > 0 || awaitingMyApprovalCount > 0 ? 'pending' : 'all')
+  }, [program.id]) // eslint-disable-line react-hooks/exhaustive-deps -- only reset when switching campaigns
 
   useEffect(() => {
     if (initialModal === 'log' && canLogContributions) {
@@ -358,9 +361,9 @@ export function ProgramDetailView({
             <div className="-mb-px flex flex-wrap gap-1">
               {(
                 [
+                  { id: 'all', label: 'All' },
                   { id: 'pending', label: 'Pending' },
                   { id: 'approved', label: 'Approved' },
-                  { id: 'all', label: 'All' },
                 ] as const
               ).map((item) => (
                 <button
@@ -378,6 +381,16 @@ export function ProgramDetailView({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className={txStatus === 'all' ? undefined : 'hidden'}>
+            <GivingTransactionsLedger
+              api={api}
+              campaigns={campaignTreePrograms}
+              tree={tree}
+              viewerRole={me.role}
+              lockedProgramId={program.id}
+            />
           </div>
 
           <div className={txStatus === 'pending' ? undefined : 'hidden'}>
@@ -411,16 +424,6 @@ export function ProgramDetailView({
               onApprove={async () => {}}
               onReject={async () => {}}
               onSummaryChange={() => void onRefresh()}
-            />
-          </div>
-
-          <div className={txStatus === 'all' ? undefined : 'hidden'}>
-            <GivingTransactionsLedger
-              api={api}
-              campaigns={campaignTreePrograms}
-              tree={tree}
-              viewerRole={me.role}
-              lockedProgramId={program.id}
             />
           </div>
         </div>

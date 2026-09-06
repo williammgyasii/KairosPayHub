@@ -136,7 +136,8 @@ export function StructureTemplateWizard({
               )}
             >
               Tap <span className="font-medium text-foreground">+</span> between nodes to add a layer.
-              Members always sit on the last layer (Cell).
+              Rename layers freely (Zone, District, Home group, …) — leadership permissions follow
+              layer kind (mid vs leaf), not the label. Members always sit on the last layer.
             </p>
           </div>
         </div>

@@ -4,6 +4,9 @@ import {
   canCreateSubGiving,
   canManageChurch,
   canManageMembers,
+  canViewMemberGivings,
+  canApproveGiving,
+  canViewOverallGivings,
   displayName,
   isCellLeader,
   isPastor,
@@ -98,6 +101,41 @@ describe('isScopedLeader', () => {
     expect(isScopedLeader('PFCCManager')).toBe(true)
     expect(isScopedLeader('FellowshipLeader')).toBe(true)
     expect(isScopedLeader('Pastor')).toBe(false)
+  })
+})
+
+describe('canViewMemberGivings', () => {
+  it('allows church managers, scoped leaders, and cell leaders', () => {
+    expect(canViewMemberGivings('Pastor')).toBe(true)
+    expect(canViewMemberGivings('ChurchAdmin')).toBe(true)
+    expect(canViewMemberGivings('PFCCManager')).toBe(true)
+    expect(canViewMemberGivings('FellowshipLeader')).toBe(true)
+    expect(canViewMemberGivings('CellLeader')).toBe(true)
+    expect(canViewMemberGivings('Member')).toBe(false)
+  })
+
+  it('prefers abilities on Me payloads', () => {
+    expect(
+      canViewMemberGivings({
+        ...onboarded,
+        role: 'Member',
+        abilities: ['viewMemberGivings'],
+      }),
+    ).toBe(true)
+    expect(
+      canApproveGiving({
+        ...onboarded,
+        role: 'CellLeader',
+        abilities: ['viewMemberGivings'],
+      }),
+    ).toBe(false)
+    expect(
+      canViewOverallGivings({
+        ...onboarded,
+        role: 'CellLeader',
+        abilities: ['viewOverallGivings'],
+      }),
+    ).toBe(true)
   })
 })
 

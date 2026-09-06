@@ -5,7 +5,7 @@ import { useApi } from '@/api/core'
 import { useStructureTree } from '@/components/structure/structure-setup'
 import { ProgramDetailView, type ProgramDetailModal } from '@/components/giving/program-detail-view'
 import { normalizeProgramDetailTab, type ProgramDetailTab } from '@/components/giving/program-dashboard'
-import { canManageChurch, isScopedLeader } from '@/api/auth'
+import { canViewMemberGivings } from '@/api/auth'
 import { Spinner } from '@/components/ui/spinner'
 import { formatRtkQueryError } from '@/store/baseQuery'
 import {
@@ -36,7 +36,7 @@ export function ProgramDetailPage() {
     return undefined
   }, [searchParams])
 
-  const canSeeRollup = canManageChurch(me.role) || isScopedLeader(me.role)
+  const canSeeRollup = canViewMemberGivings(me)
 
   const {
     data: program,

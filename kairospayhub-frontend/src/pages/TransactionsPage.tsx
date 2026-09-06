@@ -10,7 +10,7 @@ import {
   rejectSubGiving,
 } from '@/api/giving'
 import { useStructureTree } from '@/components/structure/structure-setup'
-import { canManageChurch, isScopedLeader } from '@/api/auth'
+import { canApproveGiving, canManageChurch, canViewOverallGivings } from '@/api/auth'
 import { ContributionsApprovalTable } from '@/components/giving/contributions-approval-table'
 import { GivingTransactionsLedger } from '@/components/giving/giving-transactions-ledger'
 import { cn } from '@/lib/utils'
@@ -29,8 +29,8 @@ export function TransactionsPage() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   const churchManager = canManageChurch(me.role)
-  const canAct = churchManager || isScopedLeader(me.role)
-  const showApprovedTab = churchManager || isScopedLeader(me.role)
+  const canAct = canApproveGiving(me)
+  const showApprovedTab = canViewOverallGivings(me) || canApproveGiving(me)
 
   const {
     data: programs = [],
@@ -41,11 +41,11 @@ export function TransactionsPage() {
 
   const tabParam = searchParams.get('tab') ?? searchParams.get('status')
   const tab: TransactionsTab =
-    tabParam === 'all'
-      ? 'all'
+    tabParam === 'pending'
+      ? 'pending'
       : tabParam === 'approved' && showApprovedTab
         ? 'approved'
-        : 'pending'
+        : 'all'
 
   const pendingSubGivings = useMemo(
     () =>
@@ -59,7 +59,7 @@ export function TransactionsPage() {
   const showInitialSpinner = programsLoading && programs.length === 0
 
   function setTab(nextTab: TransactionsTab) {
-    setSearchParams(nextTab === 'pending' ? {} : { tab: nextTab }, { replace: true })
+    setSearchParams(nextTab === 'all' ? {} : { tab: nextTab }, { replace: true })
   }
 
   async function handleApprove(contributionId: string, contributionProgramId: string) {
@@ -141,6 +141,7 @@ export function TransactionsPage() {
 
       <div className="border-b border-border/60">
         <div className="-mb-px flex flex-wrap gap-1">
+          <TransactionsTabButton active={tab === 'all'} onClick={() => setTab('all')} label="All" />
           <TransactionsTabButton
             active={tab === 'pending'}
             onClick={() => setTab('pending')}
@@ -153,7 +154,6 @@ export function TransactionsPage() {
               label="Approved"
             />
           )}
-          <TransactionsTabButton active={tab === 'all'} onClick={() => setTab('all')} label="All" />
         </div>
       </div>
 
