@@ -293,7 +293,7 @@ export function MemberGivingRankingsTable({
     )
   }
 
-  const columns = useMemo((): ColumnDef<MemberGivingTotal, unknown>[] => {
+  const columns = useMemo(() => {
     const structureDefs: ColumnDef<MemberGivingTotal, unknown>[] = structureColumns.map(
       (column) =>
         columnHelper.display({
@@ -449,7 +449,7 @@ export function MemberGivingRankingsTable({
           </Button>
         ),
       }),
-    ]
+    ] as unknown as ColumnDef<MemberGivingTotal, unknown>[]
   }, [structureColumns, campaignColumns, tree])
 
   const table = useReactTable({
