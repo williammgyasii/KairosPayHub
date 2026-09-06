@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Briefcase,
@@ -59,6 +59,12 @@ interface MemberTableToolbarProps {
   totalCount: number
   compact?: boolean
   structureOnly?: boolean
+  /** When true, hides the "All fields" scope picker (e.g. replace with a custom leading control). */
+  hideSearchField?: boolean
+  searchPlaceholder?: string
+  leadingSlot?: ReactNode
+  trailingSlot?: ReactNode
+  className?: string
 }
 
 export function MemberTableToolbar({
@@ -74,6 +80,11 @@ export function MemberTableToolbar({
   totalCount,
   compact = false,
   structureOnly = false,
+  hideSearchField = false,
+  searchPlaceholder,
+  leadingSlot,
+  trailingSlot,
+  className,
 }: MemberTableToolbarProps) {
   const fields = useMemo(
     () =>
@@ -111,7 +122,7 @@ export function MemberTableToolbar({
       : (fieldDefFor(fields, searchField)?.label ?? 'Field')
 
   return (
-    <div className="min-w-0 border-b border-border/60 bg-background">
+    <div className={cn('min-w-0 border-b border-border/60 bg-background', className)}>
       <div
         className={cn(
           'flex flex-col gap-3',
@@ -120,7 +131,9 @@ export function MemberTableToolbar({
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-            {!structureOnly && (
+            {leadingSlot}
+
+            {!structureOnly && !hideSearchField && (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -156,13 +169,16 @@ export function MemberTableToolbar({
               <Input
                 value={searchQuery}
                 onChange={(e) => onSearchQueryChange(e.target.value)}
-                placeholder={structureOnly ? 'Search by name…' : 'Search visible columns…'}
+                placeholder={
+                  searchPlaceholder ??
+                  (structureOnly ? 'Search by name…' : 'Search visible columns…')
+                }
                 className="h-9 pl-9"
               />
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Button
               type="button"
               variant={filtersOpen ? 'secondary' : 'outline'}
@@ -184,6 +200,7 @@ export function MemberTableToolbar({
                 </span>
               )}
             </Button>
+            {trailingSlot}
             <span className="text-xs tabular-nums text-muted-foreground">
               {filteredCount} / {totalCount}
             </span>
