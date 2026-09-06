@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Lock } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Lock } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { useApi } from '@/api/core'
 import { useAppDispatch } from '@/store/hooks'
-import { invalidateAttendanceApprovalQueue } from '@/store/attendanceApi'
+import { invalidateAttendanceApprovalQueue, useListMySubmissionsQuery } from '@/store/attendanceApi'
 import {
   getOccurrence,
   listMeetingTypes,
@@ -23,19 +23,20 @@ import {
   buildInviteeDrafts,
   type InviteeRollCallDraft,
 } from '@/components/attendance/attendance-roll-call-sheet'
+import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Spinner } from '@/components/ui/spinner'
+import { InlineSpinner } from '@/components/ui/spinner'
 import {
   formatOccurrenceLabel,
   nextUpcomingOccurrence,
   pickNearestOccurrence,
-  rollCallState,
   selectableOccurrences,
   upcomingRollCallLockMessage,
 } from '@/lib/attendance-ui'
 import { cn } from '@/lib/utils'
 
 type EntryStatus = 'Present' | 'Absent' | 'Unrecorded'
+type WizardStep = 'pick' | 'mark'
 
 const selectClassName =
   'flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm'
@@ -76,9 +77,13 @@ export function AttendanceSubmissionsPage() {
   const scopedLeader = isScopedLeader(me.role)
   const rollCallScopes = rollCallScopesFor(me)
   const canRollCall = canSubmitRollCall(me)
-  const pastorDemo = churchManager && !canRollCall
-  const canUseRollCall = canRollCall || pastorDemo
+  const timeZoneId = me.onboarded ? me.timeZoneId : null
+  const { data: mySubmissions = [], isFetching: loadingMySubmissions } = useListMySubmissionsQuery(
+    undefined,
+    { skip: !canRollCall },
+  )
 
+  const [step, setStep] = useState<WizardStep>('pick')
   const [selectedScopeNodeId, setSelectedScopeNodeId] = useState('')
   const [meetingTypes, setMeetingTypes] = useState<AttendanceMeetingType[]>([])
   const [occurrences, setOccurrences] = useState<AttendanceOccurrenceSummary[]>([])
@@ -90,7 +95,7 @@ export function AttendanceSubmissionsPage() {
   const [loadingTypes, setLoadingTypes] = useState(true)
   const [loadingOccurrences, setLoadingOccurrences] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<'save' | 'submit' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -107,29 +112,8 @@ export function AttendanceSubmissionsPage() {
   }, [rollCallScopes])
 
   const selectedCell = useMemo(() => {
-    if (canRollCall) {
-      return rollCallScopes.find((scope) => scope.scopeNodeId === selectedScopeNodeId) ?? null
-    }
-    if (pastorDemo && detail) {
-      const submission = detail.scopeSubmissions.find(
-        (row) => row.scopeNodeId === selectedScopeNodeId,
-      )
-      if (!submission) return null
-      return {
-        scopeNodeId: submission.scopeNodeId,
-        scopeUnitName: submission.scopeUnitName,
-      }
-    }
-    return null
-  }, [canRollCall, rollCallScopes, selectedScopeNodeId, pastorDemo, detail])
-
-  const pastorDemoCells = useMemo(() => {
-    if (!pastorDemo || !detail) return []
-    return detail.scopeSubmissions.map((row) => ({
-      scopeNodeId: row.scopeNodeId,
-      scopeUnitName: row.scopeUnitName,
-    }))
-  }, [pastorDemo, detail])
+    return rollCallScopes.find((scope) => scope.scopeNodeId === selectedScopeNodeId) ?? null
+  }, [rollCallScopes, selectedScopeNodeId])
 
   const loadTypes = useCallback(async () => {
     setLoadingTypes(true)
@@ -164,8 +148,16 @@ export function AttendanceSubmissionsPage() {
       .then((rows) => {
         if (cancelled) return
         setOccurrences(rows)
-        const nearest = pickNearestOccurrence(rows)
-        setSelectedOccurrenceId(nearest?.id ?? '')
+        const nearest = pickNearestOccurrence(rows, undefined, timeZoneId)
+        setSelectedOccurrenceId((current) => {
+          if (current && rows.some((row) => row.id === current) && nearest) {
+            const stillSelectable = selectableOccurrences(rows, undefined, timeZoneId).some(
+              (row) => row.id === current,
+            )
+            if (stillSelectable) return current
+          }
+          return nearest?.id ?? ''
+        })
       })
       .catch((err) => {
         if (!cancelled) {
@@ -179,7 +171,7 @@ export function AttendanceSubmissionsPage() {
     return () => {
       cancelled = true
     }
-  }, [api, selectedTypeId])
+  }, [api, selectedTypeId, timeZoneId])
 
   function applyDetailForScope(nextDetail: AttendanceOccurrenceDetail, scopeNodeId: string) {
     setDetail(nextDetail)
@@ -195,12 +187,8 @@ export function AttendanceSubmissionsPage() {
   }
 
   useEffect(() => {
-    if (!selectedOccurrenceId) {
-      setDetail(null)
-      return
-    }
-    if (!pastorDemo && !selectedScopeNodeId) {
-      setDetail(null)
+    if (step !== 'mark' || !selectedOccurrenceId || !selectedScopeNodeId) {
+      if (step !== 'mark') setDetail(null)
       return
     }
 
@@ -211,17 +199,7 @@ export function AttendanceSubmissionsPage() {
     void getOccurrence(api, selectedOccurrenceId)
       .then((nextDetail) => {
         if (cancelled) return
-        const scopeId =
-          selectedScopeNodeId
-          || (pastorDemo ? nextDetail.scopeSubmissions[0]?.scopeNodeId ?? '' : '')
-        if (!scopeId) {
-          setDetail(nextDetail)
-          return
-        }
-        if (pastorDemo && !selectedScopeNodeId) {
-          setSelectedScopeNodeId(scopeId)
-        }
-        applyDetailForScope(nextDetail, scopeId)
+        applyDetailForScope(nextDetail, selectedScopeNodeId)
       })
       .catch((err) => {
         if (!cancelled) {
@@ -235,7 +213,7 @@ export function AttendanceSubmissionsPage() {
     return () => {
       cancelled = true
     }
-  }, [api, selectedOccurrenceId, selectedScopeNodeId, pastorDemo])
+  }, [api, selectedOccurrenceId, selectedScopeNodeId, step])
 
   async function reloadDetail() {
     if (!selectedOccurrenceId || !selectedScopeNodeId) return
@@ -263,12 +241,11 @@ export function AttendanceSubmissionsPage() {
     await putOccurrenceEntries(api, detail.id, selectedScopeNodeId, {
       entries,
       inviteeEntries: inviteePayload,
-      pastorOverride: pastorDemo,
     })
   }
 
   async function onSaveRollCall() {
-    setBusy(true)
+    setBusyAction('save')
     setError(null)
     setMessage(null)
     try {
@@ -278,38 +255,37 @@ export function AttendanceSubmissionsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save roll call')
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function onSubmitRollCall() {
     if (!detail || !selectedScopeNodeId) return
-    setBusy(true)
+    setBusyAction('submit')
     setError(null)
     setMessage(null)
     try {
       await saveEntries()
-      await submitOccurrenceScope(api, detail.id, selectedScopeNodeId, {
-        pastorOverride: pastorDemo,
-      })
+      await submitOccurrenceScope(api, detail.id, selectedScopeNodeId)
       dispatch(invalidateAttendanceApprovalQueue())
       await reloadDetail()
       setMessage('Roll call submitted for approval.')
+      setStep('pick')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit roll call')
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   const selectableOccurrenceRows = useMemo(
-    () => selectableOccurrences(occurrences),
-    [occurrences],
+    () => selectableOccurrences(occurrences, undefined, timeZoneId),
+    [occurrences, timeZoneId],
   )
 
   const nextUpcomingOccurrenceRow = useMemo(
-    () => nextUpcomingOccurrence(occurrences),
-    [occurrences],
+    () => nextUpcomingOccurrence(occurrences, undefined, timeZoneId),
+    [occurrences, timeZoneId],
   )
 
   const upcomingLockMessage = useMemo(
@@ -320,50 +296,86 @@ export function AttendanceSubmissionsPage() {
     [nextUpcomingOccurrenceRow],
   )
 
-  const rollCallUi = useMemo(() => {
-    if (!detail || !selectedScopeNodeId) return null
-    return rollCallState(detail, selectedScopeNodeId, undefined, { pastorDemo })
-  }, [detail, selectedScopeNodeId, pastorDemo])
+  const selectedMeetingType = useMemo(
+    () => meetingTypes.find((type) => type.id === selectedTypeId) ?? null,
+    [meetingTypes, selectedTypeId],
+  )
+
+  const selectedOccurrence = useMemo(
+    () => selectableOccurrenceRows.find((row) => row.id === selectedOccurrenceId) ?? null,
+    [selectableOccurrenceRows, selectedOccurrenceId],
+  )
 
   const cellEntries = useMemo(() => {
     if (!detail) return []
     return detail.entries.filter((entry) => entry.memberScopeNodeId === selectedScopeNodeId)
   }, [detail, selectedScopeNodeId])
 
+  const canContinue =
+    Boolean(selectedTypeId && selectedOccurrenceId) && selectableOccurrenceRows.length > 0
+
   const pageDescription = canRollCall
-    ? 'Mark attendance for your cell, then submit for approval.'
-    : pastorDemo
-      ? 'Demo roll call for any cell. Use Open now when creating a meeting type to open today’s service immediately.'
+    ? step === 'pick'
+      ? 'Choose the meeting and service date, then continue to mark attendance.'
+      : 'Mark members and invitees, then save a draft or submit for approval.'
+    : churchManager
+      ? 'Unit leaders mark attendance. Use Meeting types and Metrics from here.'
       : scopedLeader
-        ? 'Roll call is entered per cell. Link your cell leader assignment to submit attendance here.'
-        : 'Cell leaders submit attendance here when the window is open.'
+        ? 'If you also lead a submission unit, it appears below. Otherwise use Approvals to review child roll calls.'
+        : 'Unit leaders mark attendance here when the window is open.'
 
   return (
     <div className="space-y-6">
-      <DashboardPageHeader
-        breadcrumbs={[
-          { label: 'Dashboard', to: '/' },
-          { label: 'Attendance', to: churchManager ? '/attendance' : '/attendance/submissions' },
-          { label: 'Submissions' },
-        ]}
-        title="Roll call"
-        description={pageDescription}
-      />
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <DashboardPageHeader
+          breadcrumbs={[
+            { label: 'Dashboard', to: '/' },
+            { label: 'Attendance', to: churchManager ? '/attendance' : '/attendance/submissions' },
+            { label: 'Mark attendance' },
+          ]}
+          title="Mark attendance"
+          description={pageDescription}
+          className="flex-1"
+        />
+        {upcomingLockMessage ? (
+          <div className="flex max-w-md gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs dark:border-amber-500/30 dark:bg-amber-500/10 lg:mt-1">
+            <Lock className="mt-0.5 size-3.5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
+            <div className="min-w-0">
+              <p className="font-medium text-amber-900 dark:text-amber-100">
+                Upcoming: {upcomingLockMessage.title.replace(' — roll call locked', '')}
+              </p>
+              <p className="mt-0.5 text-amber-800/90 dark:text-amber-200/90">
+                {upcomingLockMessage.description}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       {error && <StatusBanner tone="error" message={error} />}
       {message && <StatusBanner tone="success" message={message} />}
 
-      {!canUseRollCall ? (
+      {!canRollCall ? (
         <EmptyState
-          title={scopedLeader ? 'Roll call is for cell leaders' : 'Roll call is for cell leaders'}
+          title={
+            churchManager
+              ? 'Pastors don’t mark attendance'
+              : scopedLeader
+                ? 'No submission unit assigned'
+                : 'Mark attendance is for unit leaders'
+          }
           description={
-            scopedLeader
-              ? 'To approve roll calls from cells in your scope, open Attendance → Approvals.'
-              : 'Attendance is marked per cell. Ask your pastor to assign you as a cell leader in Structure if you lead a cell.'
+            churchManager
+              ? 'Leaders of the meeting’s submission layer mark attendance. Parent leaders approve.'
+              : scopedLeader
+                ? 'To approve roll calls from units below you, open Attendance → Approvals.'
+                : 'Ask your pastor to assign you as leader of a submission unit in Structure.'
           }
         />
       ) : loadingTypes ? (
-        <Spinner label="Loading meetings…" />
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <InlineSpinner /> Loading meetings…
+        </p>
       ) : meetingTypes.length === 0 ? (
         <EmptyState
           title="No meetings yet"
@@ -373,121 +385,215 @@ export function AttendanceSubmissionsPage() {
               : 'Your church has not set up any meeting types yet.'
           }
         />
-      ) : (
-        <>
-          <section className="space-y-4 border-b pb-6">
-            {(rollCallScopes.length > 1 || pastorDemoCells.length > 1) && (
-              <div className="max-w-md space-y-1.5">
-                <Label htmlFor="cell-scope" className="text-xs text-muted-foreground">
-                  Cell
-                </Label>
-                <select
-                  id="cell-scope"
-                  value={selectedScopeNodeId}
-                  onChange={(e) => setSelectedScopeNodeId(e.target.value)}
-                  className={selectClassName}
-                >
-                  {(canRollCall ? rollCallScopes : pastorDemoCells).map((scope) => (
-                    <option key={scope.scopeNodeId} value={scope.scopeNodeId}>
-                      {scope.scopeUnitName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {pastorDemo && pastorDemoCells.length === 1 && (
-              <p className="text-sm text-muted-foreground">
-                Cell: <span className="font-medium text-foreground">{pastorDemoCells[0].scopeUnitName}</span>
-              </p>
-            )}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="meeting-type" className="text-xs text-muted-foreground">
-                  Meeting
-                </Label>
-                <select
-                  id="meeting-type"
-                  value={selectedTypeId}
-                  onChange={(e) => setSelectedTypeId(e.target.value)}
-                  className={selectClassName}
-                >
-                  {meetingTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="occurrence" className="text-xs text-muted-foreground">
-                  Service date
-                </Label>
-                <select
-                  id="occurrence"
-                  value={selectedOccurrenceId}
-                  onChange={(e) => setSelectedOccurrenceId(e.target.value)}
-                  disabled={loadingOccurrences || selectableOccurrenceRows.length === 0}
-                  className={selectClassName}
-                >
-                  {selectableOccurrenceRows.map((occurrence) => (
-                    <option key={occurrence.id} value={occurrence.id}>
-                      {formatOccurrenceLabel(occurrence)}
-                    </option>
-                  ))}
-                </select>
-                {selectableOccurrenceRows.length === 0 && !loadingOccurrences && !nextUpcomingOccurrenceRow && (
-                  <p className="text-xs text-muted-foreground">
-                    No past services yet. Upcoming dates appear after the service happens.
-                  </p>
-                )}
-              </div>
+      ) : step === 'pick' ? (
+        <section className="space-y-5">
+          {rollCallScopes.length > 1 && (
+            <div className="max-w-md space-y-1.5">
+              <Label htmlFor="cell-scope" className="text-xs text-muted-foreground">
+                Logging for (choose your unit)
+              </Label>
+              <select
+                id="cell-scope"
+                value={selectedScopeNodeId}
+                onChange={(e) => setSelectedScopeNodeId(e.target.value)}
+                className={selectClassName}
+              >
+                {rollCallScopes.map((scope) => (
+                  <option key={scope.scopeNodeId} value={scope.scopeNodeId}>
+                    {scope.layerName
+                      ? `${scope.layerName}: ${scope.scopeUnitName}`
+                      : scope.scopeUnitName}
+                  </option>
+                ))}
+              </select>
             </div>
-            {upcomingLockMessage && !loadingOccurrences && (
-              <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
-                <Lock
-                  className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
-                  aria-hidden
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                    {upcomingLockMessage.title}
-                  </p>
-                  <p className="mt-0.5 text-xs text-amber-800/90 dark:text-amber-200/90">
-                    {upcomingLockMessage.description}
-                  </p>
-                </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="meeting-type" className="text-xs text-muted-foreground">
+                Meeting
+              </Label>
+              <select
+                id="meeting-type"
+                value={selectedTypeId}
+                onChange={(e) => {
+                  setSelectedTypeId(e.target.value)
+                  setStep('pick')
+                }}
+                className={selectClassName}
+              >
+                {meetingTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="occurrence" className="text-xs text-muted-foreground">
+                Service date
+              </Label>
+              <select
+                id="occurrence"
+                value={selectedOccurrenceId}
+                onChange={(e) => setSelectedOccurrenceId(e.target.value)}
+                disabled={loadingOccurrences || selectableOccurrenceRows.length === 0}
+                className={selectClassName}
+              >
+                {selectableOccurrenceRows.map((occurrence) => (
+                  <option key={occurrence.id} value={occurrence.id}>
+                    {formatOccurrenceLabel(occurrence)}
+                  </option>
+                ))}
+              </select>
+              {loadingOccurrences ? (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <InlineSpinner className="size-3" /> Loading dates…
+                </p>
+              ) : null}
+              {selectableOccurrenceRows.length === 0 && !loadingOccurrences && (
+                <p className="text-xs text-muted-foreground">
+                  No past or today services yet for this meeting.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-md"
+              disabled={!canContinue}
+              onClick={() => {
+                setMessage(null)
+                setError(null)
+                setStep('mark')
+              }}
+            >
+              Continue
+              <ArrowRight className="ml-1.5 size-3.5" />
+            </Button>
+          </div>
+
+          <section className="space-y-3 border-t pt-5">
+            <div>
+              <h2 className="text-sm font-medium">Your submissions</h2>
+              <p className="text-sm text-muted-foreground">
+                Recent roll calls you have submitted from your units.
+              </p>
+            </div>
+            {loadingMySubmissions && mySubmissions.length === 0 ? (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <InlineSpinner /> Loading…
+              </p>
+            ) : mySubmissions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No submitted roll calls yet.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30 text-left text-xs text-muted-foreground">
+                      <th className="px-3 py-2 font-medium">Meeting</th>
+                      <th className="px-3 py-2 font-medium">Date</th>
+                      <th className="px-3 py-2 font-medium">Unit</th>
+                      <th className="px-3 py-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {mySubmissions.map((row) => (
+                      <tr key={`${row.occurrenceId}:${row.scopeNodeId}`}>
+                        <td className="px-3 py-2.5 font-medium">{row.meetingTypeTitle}</td>
+                        <td className="px-3 py-2.5 text-muted-foreground">
+                          {formatOccurrenceLabel({
+                            id: row.occurrenceId,
+                            meetingDate: row.meetingDate,
+                            status: 'Open',
+                            submissionOpensAt: '',
+                            submissionDeadlineAt: '',
+                            scopeSubmissionCount: 1,
+                          }).split(' · ')[0]}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">{row.scopeUnitName}</td>
+                        <td className="px-3 py-2.5">
+                          {row.approvalStatus === 'PendingApproval'
+                            ? 'Pending approval'
+                            : row.approvalStatus === 'Approved'
+                              ? 'Approved'
+                              : row.approvalStatus === 'Rejected'
+                                ? 'Rejected'
+                                : row.approvalStatus}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
+        </section>
+      ) : (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="rounded-md"
+              onClick={() => {
+                setStep('pick')
+                setMessage(null)
+              }}
+            >
+              <ArrowLeft className="mr-1.5 size-3.5" />
+              Go back
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              {[
+                selectedMeetingType?.title,
+                selectedOccurrence
+                  ? new Date(`${selectedOccurrence.meetingDate}T12:00:00`).toLocaleDateString(
+                      undefined,
+                      { month: 'short', day: 'numeric' },
+                    )
+                  : null,
+                selectedCell?.scopeUnitName,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          </div>
 
-          {loadingOccurrences || loadingDetail ? (
-            <Spinner label="Loading roll call…" />
-          ) : rollCallUi?.reason === 'serviceNotHappened' ? (
-            <EmptyState
-              title="Service has not happened yet"
-              description={rollCallUi.message ?? ''}
-            />
+          {loadingDetail ? (
+            <p className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
+              <InlineSpinner /> Loading attendance sheet…
+            </p>
           ) : detail && selectedScopeNodeId ? (
-            <section className="pt-6">
-              <AttendanceRollCallSheet
-                  detail={{ ...detail, entries: cellEntries }}
-                  scopeNodeId={selectedScopeNodeId}
-                  cellName={selectedCell?.scopeUnitName}
-                  viewerRole={me.role}
-                  pastorDemo={pastorDemo}
-                  values={entryValues}
-                  inviteeValues={inviteeValues}
-                  onChange={(memberId, status) =>
-                    setEntryValues((current) => ({ ...current, [memberId]: status }))
-                  }
-                  onInviteeValuesChange={setInviteeValues}
-                  busy={busy}
-                  onSave={() => void onSaveRollCall()}
-                  onSubmit={() => void onSubmitRollCall()}
-              />
-            </section>
-          ) : null}
-        </>
+            <AttendanceRollCallSheet
+              detail={{ ...detail, entries: cellEntries }}
+              scopeNodeId={selectedScopeNodeId}
+              cellName={selectedCell?.scopeUnitName}
+              viewerRole={me.role}
+              timeZoneId={timeZoneId}
+              values={entryValues}
+              inviteeValues={inviteeValues}
+              onChange={(memberId, status) =>
+                setEntryValues((current) => ({ ...current, [memberId]: status }))
+              }
+              onInviteeValuesChange={setInviteeValues}
+              busy={busyAction !== null}
+              busyAction={busyAction}
+              onSave={() => void onSaveRollCall()}
+              onSubmit={() => void onSubmitRollCall()}
+            />
+          ) : (
+            <EmptyState
+              title="Could not open this sheet"
+              description="Go back and pick another meeting or date."
+            />
+          )}
+        </section>
       )}
     </div>
   )

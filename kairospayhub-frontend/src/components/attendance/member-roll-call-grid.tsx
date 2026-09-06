@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { cn } from '@/lib/utils'
 
 type MemberStatus = 'Present' | 'Absent' | 'Unrecorded'
@@ -40,6 +41,8 @@ export function MemberRollCallGrid({
   disabled?: boolean
   onToggleStatus?: (memberId: string, status: 'Present' | 'Absent') => void
 }) {
+  const clickTimers = useRef<Map<string, number>>(new Map())
+
   if (members.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -48,42 +51,63 @@ export function MemberRollCallGrid({
     )
   }
 
+  const interactive = !readOnly && !disabled && Boolean(onToggleStatus)
+
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {members.map((member) => {
-        const interactive = !readOnly && !disabled && Boolean(onToggleStatus)
-        const content = (
-          <>
-            <span className="line-clamp-2 text-sm font-medium leading-snug">{member.name}</span>
-            <span className="mt-1.5 text-[11px] font-medium uppercase tracking-wide opacity-80">
-              {statusLabel(member.status)}
-            </span>
-          </>
-        )
-
-        if (!interactive) {
-          return (
-            <div key={member.id} className={boxClassName(member.status, false)}>
-              {content}
-            </div>
+    <div className="space-y-3">
+      {interactive ? (
+        <p className="text-xs text-muted-foreground">
+          Click to mark present · Double-click to mark absent
+        </p>
+      ) : null}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {members.map((member) => {
+          const content = (
+            <>
+              <span className="line-clamp-2 text-sm font-medium leading-snug">{member.name}</span>
+              <span className="mt-1.5 text-[11px] font-medium uppercase tracking-wide opacity-80">
+                {statusLabel(member.status)}
+              </span>
+            </>
           )
-        }
 
-        return (
-          <button
-            key={member.id}
-            type="button"
-            disabled={disabled}
-            className={boxClassName(member.status, true)}
-            onClick={() => {
-              const next = member.status === 'Present' ? 'Absent' : 'Present'
-              onToggleStatus?.(member.id, next)
-            }}
-          >
-            {content}
-          </button>
-        )
-      })}
+          if (!interactive) {
+            return (
+              <div key={member.id} className={boxClassName(member.status, false)}>
+                {content}
+              </div>
+            )
+          }
+
+          return (
+            <button
+              key={member.id}
+              type="button"
+              disabled={disabled}
+              className={boxClassName(member.status, true)}
+              onClick={() => {
+                const existing = clickTimers.current.get(member.id)
+                if (existing) window.clearTimeout(existing)
+                const timer = window.setTimeout(() => {
+                  clickTimers.current.delete(member.id)
+                  onToggleStatus?.(member.id, 'Present')
+                }, 250)
+                clickTimers.current.set(member.id, timer)
+              }}
+              onDoubleClick={() => {
+                const existing = clickTimers.current.get(member.id)
+                if (existing) {
+                  window.clearTimeout(existing)
+                  clickTimers.current.delete(member.id)
+                }
+                onToggleStatus?.(member.id, 'Absent')
+              }}
+            >
+              {content}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

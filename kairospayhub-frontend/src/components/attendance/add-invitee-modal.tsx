@@ -336,7 +336,7 @@ export function AddInviteeModal({
               <span>
                 First time visiting our church
                 <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                  First timers appear on the First timers tab after you save roll call.
+                  Shown on the Invitees list — no separate first-timers tab.
                 </span>
               </span>
             </label>

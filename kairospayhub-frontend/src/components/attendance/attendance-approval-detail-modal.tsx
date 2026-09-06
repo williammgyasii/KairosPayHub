@@ -12,7 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { useGetScopeRollCallReviewQuery } from '@/store/attendanceApi'
 import { cn } from '@/lib/utils'
 
-type RollCallTab = 'members' | 'invitees' | 'firstTimers'
+type RollCallTab = 'members' | 'invitees'
 
 function formatServiceDate(meetingDate: string) {
   const parsed = new Date(`${meetingDate}T12:00:00`)
@@ -107,30 +107,6 @@ function InvitationSummary({ rows }: { rows: InviteeRollCallDraft[] }) {
   )
 }
 
-function FirstTimerMetrics({ rows }: { rows: InviteeRollCallDraft[] }) {
-  const neverBefore = rows.filter((row) => row.priorChurchAttendance === 'Never').length
-  const onceBefore = rows.filter((row) => row.priorChurchAttendance === 'Once').length
-  const moreThanOnce = rows.filter((row) => row.priorChurchAttendance === 'MoreThanOnce').length
-
-  const stats = [
-    { label: 'Total first timers', value: rows.length },
-    { label: 'Never at any church', value: neverBefore },
-    { label: 'Been once before', value: onceBefore },
-    { label: 'Been more than once', value: moreThanOnce },
-  ]
-
-  return (
-    <div className="grid grid-cols-2 gap-4 border-b pb-4 sm:grid-cols-4">
-      {stats.map((stat) => (
-        <div key={stat.label}>
-          <p className="text-xs text-muted-foreground">{stat.label}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{stat.value}</p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 interface AttendanceApprovalDetailModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -171,18 +147,13 @@ export function AttendanceApprovalDetailModal({
     [review],
   )
 
-  const firstTimerRows = useMemo(
-    () => inviteeRows.filter((row) => row.wasFirstTimer),
-    [inviteeRows],
-  )
-
   const presentCount = review?.entries.filter((entry) => entry.status === 'Present').length ?? 0
   const absentCount = review?.entries.filter((entry) => entry.status === 'Absent').length ?? 0
+  const firstTimerCount = inviteeRows.filter((row) => row.wasFirstTimer).length
 
   const tabs: { id: RollCallTab; label: string; count: number }[] = [
     { id: 'members', label: 'Members', count: review?.entries.length ?? 0 },
     { id: 'invitees', label: 'Invitees', count: inviteeRows.length },
-    { id: 'firstTimers', label: 'First timers', count: firstTimerRows.length },
   ]
 
   if (!item) return null
@@ -220,6 +191,12 @@ export function AttendanceApprovalDetailModal({
                 Members
               </dt>
               <dd className="mt-1.5 text-xl font-semibold tabular-nums">{review.entries.length}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                First timers
+              </dt>
+              <dd className="mt-1.5 text-xl font-semibold tabular-nums">{firstTimerCount}</dd>
             </div>
             <div>
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -268,17 +245,6 @@ export function AttendanceApprovalDetailModal({
               <ReadOnlyInviteeTable
                 rows={inviteeRows}
                 emptyMessage="No invitees recorded for this service."
-              />
-            </div>
-          )}
-
-          {tab === 'firstTimers' && (
-            <div className="space-y-4">
-              <FirstTimerMetrics rows={firstTimerRows} />
-              <InvitationSummary rows={firstTimerRows} />
-              <ReadOnlyInviteeTable
-                rows={firstTimerRows}
-                emptyMessage="No first timers recorded for this service."
               />
             </div>
           )}

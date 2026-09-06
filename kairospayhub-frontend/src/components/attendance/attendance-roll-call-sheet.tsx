@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Save, Send } from 'lucide-react'
 import type {
   AttendanceEntry,
   AttendanceInviteeEntry,
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type EntryStatus = 'Present' | 'Absent' | 'Unrecorded'
-type RollCallTab = 'members' | 'invitees' | 'firstTimers'
+type RollCallTab = 'members' | 'invitees'
 
 export type InviteeRollCallDraft = {
   inviteeId: string
@@ -41,6 +41,7 @@ function InviteeTable({
   disabled,
   busy,
   onGraduateInvitee,
+  onToggleFirstTimer,
 }: {
   rows: InviteeRollCallDraft[]
   emptyMessage: string
@@ -48,6 +49,7 @@ function InviteeTable({
   disabled?: boolean
   busy?: boolean
   onGraduateInvitee?: (inviteeId: string) => void
+  onToggleFirstTimer?: (inviteeId: string, wasFirstTimer: boolean) => void
 }) {
   if (rows.length === 0) {
     return <p className="py-10 text-center text-sm text-muted-foreground">{emptyMessage}</p>
@@ -73,7 +75,21 @@ function InviteeTable({
               <td className="px-3 py-3 text-muted-foreground">{row.invitedByMemberName || '—'}</td>
               <td className="px-3 py-3 text-muted-foreground">{row.inviteePhone || '—'}</td>
               <td className="px-3 py-3 text-muted-foreground">{row.inviteeResidence || '—'}</td>
-              <td className="px-3 py-3">{yesNo(row.wasFirstTimer)}</td>
+              <td className="px-3 py-3">
+                {onToggleFirstTimer && !disabled ? (
+                  <label className="inline-flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={row.wasFirstTimer}
+                      disabled={busy}
+                      onChange={(e) => onToggleFirstTimer(row.inviteeId, e.target.checked)}
+                    />
+                    {yesNo(row.wasFirstTimer)}
+                  </label>
+                ) : (
+                  yesNo(row.wasFirstTimer)
+                )}
+              </td>
               {showRegisterAction && (
                 <td className="px-3 py-3">
                   {row.graduatedMemberId ? (
@@ -99,30 +115,6 @@ function InviteeTable({
   )
 }
 
-function FirstTimerMetrics({ rows }: { rows: InviteeRollCallDraft[] }) {
-  const neverBefore = rows.filter((row) => row.priorChurchAttendance === 'Never').length
-  const onceBefore = rows.filter((row) => row.priorChurchAttendance === 'Once').length
-  const moreThanOnce = rows.filter((row) => row.priorChurchAttendance === 'MoreThanOnce').length
-
-  const stats = [
-    { label: 'Total first timers', value: rows.length },
-    { label: 'Never at any church', value: neverBefore },
-    { label: 'Been once before', value: onceBefore },
-    { label: 'Been more than once', value: moreThanOnce },
-  ]
-
-  return (
-    <div className="grid grid-cols-2 gap-4 border-b pb-4 sm:grid-cols-4">
-      {stats.map((stat) => (
-        <div key={stat.label}>
-          <p className="text-xs text-muted-foreground">{stat.label}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{stat.value}</p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 interface AttendanceRollCallSheetProps {
   detail: AttendanceOccurrenceDetail
   scopeNodeId: string
@@ -132,10 +124,11 @@ interface AttendanceRollCallSheetProps {
   onChange: (memberId: string, status: EntryStatus) => void
   onInviteeValuesChange: Dispatch<SetStateAction<InviteeRollCallDraft[]>>
   busy?: boolean
+  busyAction?: 'save' | 'submit' | null
   onSave: () => void
   onSubmit: () => void
   viewerRole?: string
-  pastorDemo?: boolean
+  timeZoneId?: string | null
 }
 
 function scopeSubmission(detail: AttendanceOccurrenceDetail, scopeNodeId: string) {
@@ -162,6 +155,7 @@ function InviteeList({
   showMemberActions,
   emptyMessage,
   onGraduateInvitee,
+  onToggleFirstTimer,
 }: {
   rows: InviteeRollCallDraft[]
   disabled: boolean
@@ -169,6 +163,7 @@ function InviteeList({
   showMemberActions: boolean
   emptyMessage: string
   onGraduateInvitee: (inviteeId: string) => void
+  onToggleFirstTimer: (inviteeId: string, wasFirstTimer: boolean) => void
 }) {
   return (
     <InviteeTable
@@ -178,6 +173,7 @@ function InviteeList({
       disabled={disabled}
       busy={busy}
       onGraduateInvitee={onGraduateInvitee}
+      onToggleFirstTimer={onToggleFirstTimer}
     />
   )
 }
@@ -191,18 +187,17 @@ export function AttendanceRollCallSheet({
   onChange,
   onInviteeValuesChange,
   busy,
+  busyAction = null,
   onSave,
   onSubmit,
   viewerRole = 'CellLeader',
-  pastorDemo = false,
+  timeZoneId = null,
 }: AttendanceRollCallSheetProps) {
   const api = useApi()
   const [tab, setTab] = useState<RollCallTab>('members')
   const [addInviteeOpen, setAddInviteeOpen] = useState(false)
   const submission = scopeSubmission(detail, scopeNodeId)
-  const { editable, message: blockMessage } = rollCallState(detail, scopeNodeId, undefined, {
-    pastorDemo,
-  })
+  const { editable, message: blockMessage } = rollCallState(detail, scopeNodeId, undefined, timeZoneId)
   const disabled = !editable
 
   const entries = useMemo(
@@ -215,8 +210,8 @@ export function AttendanceRollCallSheet({
     [entries],
   )
 
-  const firstTimerRows = useMemo(
-    () => inviteeValues.filter((row) => row.wasFirstTimer),
+  const firstTimerCount = useMemo(
+    () => inviteeValues.filter((row) => row.wasFirstTimer).length,
     [inviteeValues],
   )
 
@@ -293,11 +288,7 @@ export function AttendanceRollCallSheet({
         invitedByMemberName: invitee.invitedByMemberName,
       },
     ])
-    if (invitee.isFirstTimer) {
-      setTab('firstTimers')
-    } else {
-      setTab('invitees')
-    }
+    setTab('invitees')
   }
 
   async function onGraduateInvitee(inviteeId: string) {
@@ -311,8 +302,11 @@ export function AttendanceRollCallSheet({
 
   const tabs: { id: RollCallTab; label: string; count: number }[] = [
     { id: 'members', label: 'Members', count: entries.length },
-    { id: 'invitees', label: 'Invitees', count: inviteeValues.length },
-    { id: 'firstTimers', label: 'First timers', count: firstTimerRows.length },
+    {
+      id: 'invitees',
+      label: 'Invitees',
+      count: inviteeValues.length,
+    },
   ]
 
   const meetingDateLabel = new Date(`${detail.meetingDate}T00:00:00`).toLocaleDateString(undefined, {
@@ -356,15 +350,35 @@ export function AttendanceRollCallSheet({
             <p className="text-sm text-muted-foreground">
               {markedCount} of {entries.length} members marked
               {markedCount > 0 ? ` · ${presentCount} present` : ''}
+              {firstTimerCount > 0 ? ` · ${firstTimerCount} first timer${firstTimerCount === 1 ? '' : 's'}` : ''}
             </p>
           )}
         </div>
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
-          <Button type="button" variant="outline" disabled={disabled || busy} onClick={onSave}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-md"
+            disabled={disabled || busy}
+            loading={busyAction === 'save'}
+            loadingLabel="Saving…"
+            onClick={onSave}
+          >
+            <Save className="size-3.5" />
             Save draft
           </Button>
-          <Button type="button" disabled={!canSubmit || busy} onClick={onSubmit}>
+          <Button
+            type="button"
+            size="sm"
+            className="rounded-md"
+            disabled={!canSubmit || busy}
+            loading={busyAction === 'submit'}
+            loadingLabel="Submitting…"
+            onClick={onSubmit}
+          >
+            <Send className="size-3.5" />
             Submit for approval
           </Button>
         </div>
@@ -396,16 +410,16 @@ export function AttendanceRollCallSheet({
           ))}
         </div>
 
-        {(tab === 'invitees' || tab === 'firstTimers') && (
+        {tab === 'invitees' && (
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="shrink-0"
+            className="shrink-0 rounded-md"
             disabled={disabled || busy}
             onClick={() => setAddInviteeOpen(true)}
           >
-            <Plus className="mr-1.5 size-4" />
+            <Plus className="mr-1.5 size-3.5" />
             Add invitee
           </Button>
         )}
@@ -432,19 +446,16 @@ export function AttendanceRollCallSheet({
           disabled={disabled}
           busy={busy}
           showMemberActions
-          emptyMessage="No invitees yet. Adding someone marks them present for this service."
+          emptyMessage="No invitees yet. Add someone and mark whether they are a first timer."
           onGraduateInvitee={(inviteeId) => void onGraduateInvitee(inviteeId)}
+          onToggleFirstTimer={(inviteeId, wasFirstTimer) =>
+            onInviteeValuesChange((current) =>
+              current.map((row) =>
+                row.inviteeId === inviteeId ? { ...row, wasFirstTimer } : row,
+              ),
+            )
+          }
         />
-      )}
-
-      {tab === 'firstTimers' && (
-        <div className="space-y-4">
-          <FirstTimerMetrics rows={firstTimerRows} />
-          <InviteeTable
-            rows={firstTimerRows}
-            emptyMessage="No first timers yet. Add an invitee and mark them as a first timer."
-          />
-        </div>
       )}
     </div>
   )
