@@ -1,5 +1,7 @@
 using KairosPayHub.Api.Auth;
+using KairosPayHub.Api.Authorization;
 using KairosPayHub.Api.Data;
+using KairosPayHub.Api.Domain.Structure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +11,7 @@ namespace KairosPayHub.Api.Controllers;
 [ApiController]
 [Route("api/me")]
 [Authorize]
-public class MeController(CurrentActor current, KairosDbContext db) : ControllerBase
+public class MeController(CurrentActor current, KairosDbContext db, AbilityResolver abilities) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -60,10 +62,11 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
             defaultCurrency = church?.DefaultCurrency;
         }
 
-        if (actor.StructureRole == Domain.Structure.ChurchRole.Pastor
+        if (actor.StructureRole == ChurchRole.Pastor
             && churchId is not null
             && !hasStructureTemplate)
         {
+            var pending = abilities.Resolve(actor.StructureRole);
             return Ok(new
             {
                 onboarded = false,
@@ -78,6 +81,9 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
                 defaultCurrency,
                 onboardingStep = "structure",
                 role = actor.StructureRole?.ToString() ?? actor.Role.ToString(),
+                abilities = pending.Abilities,
+                abilityRules = pending.Rules,
+                leadershipProfile = pending.Profile.ToString(),
             });
         }
 
@@ -85,6 +91,7 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
 
         Guid? scopeNodeId = null;
         string? scopeUnitName = null;
+        StructureLayerType? scopeLayerKind = null;
         object rollCallScopes = Array.Empty<object>();
         if (actor.StructureRole is not null
             && actor.StructureChurchId != default
@@ -101,10 +108,14 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
             if (scopedNodeId is Guid nodeId)
             {
                 scopeNodeId = nodeId;
-                scopeUnitName = await db.StructureNodes.AsNoTracking()
-                    .Where(n => n.Id == nodeId && n.ChurchId == actor.StructureChurchId)
-                    .Select(n => n.Name)
+                var nodeInfo = await (
+                    from n in db.StructureNodes.AsNoTracking()
+                    join layer in db.StructureLayers.AsNoTracking() on n.LayerId equals layer.Id
+                    where n.Id == nodeId && n.ChurchId == actor.StructureChurchId
+                    select new { n.Name, layer.StandardType })
                     .FirstOrDefaultAsync(ct);
+                scopeUnitName = nodeInfo?.Name;
+                scopeLayerKind = nodeInfo?.StandardType;
             }
 
             rollCallScopes = await (
@@ -113,12 +124,14 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
                     on assignment.ScopeNodeId equals node.Id
                 where assignment.ChurchId == actor.StructureChurchId
                     && assignment.AuthUserId == authUserId
-                    && assignment.Role == Domain.Structure.ChurchRole.CellLeader
+                    && assignment.Role == ChurchRole.CellLeader
                     && assignment.ScopeNodeId != null
                 orderby node.Name
                 select new { scopeNodeId = node.Id, scopeUnitName = node.Name })
                 .ToListAsync(ct);
         }
+
+        var resolved = abilities.Resolve(actor.StructureRole, scopeLayerKind);
 
         return Ok(new
         {
@@ -137,6 +150,9 @@ public class MeController(CurrentActor current, KairosDbContext db) : Controller
             legacyChurchId = actor.ChurchId,
             email = current.Email,
             name = current.Name,
+            abilities = resolved.Abilities,
+            abilityRules = resolved.Rules,
+            leadershipProfile = resolved.Profile.ToString(),
         });
     }
 }

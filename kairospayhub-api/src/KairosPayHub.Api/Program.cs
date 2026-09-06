@@ -68,6 +68,7 @@ builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ChurchReadCache>();
 builder.Services.AddScoped<CurrentActor>();
+builder.Services.AddSingleton<KairosPayHub.Api.Authorization.AbilityResolver>();
 builder.Services.AddScoped<ChurchService>();
 builder.Services.AddScoped<StructureLeaderAccountService>();
 builder.Services.AddScoped<StructureService>();
