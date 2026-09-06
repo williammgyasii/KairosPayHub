@@ -245,9 +245,53 @@ public class NotificationService(
             NotificationKind.ContributionPendingApproval,
             "Contribution awaiting approval",
             body,
-            LinkPath: $"givings/{program.Id}?tab=pending",
+            LinkPath: $"givings/{program.Id}?tab=awaiting",
             programId: program.Id,
             relatedEntityId: contribution.Id,
+            ct);
+    }
+
+    public async Task NotifyContributionBatchPendingAsync(
+        Guid batchId,
+        IReadOnlyList<Contribution> contributions,
+        GivingProgram program,
+        string? enteredByName,
+        string? enteredByScopeUnitName,
+        CancellationToken ct = default)
+    {
+        if (contributions.Count == 0)
+            return;
+
+        var first = contributions[0];
+        var recipients = await ContributionApprovalRecipientAuthUserIdsAsync(
+            program.ChurchId,
+            first.EnteredByRole,
+            first.MemberParentNodeId,
+            ct);
+
+        if (recipients.Count == 0)
+            return;
+
+        var totalAmount = contributions.Sum(c => c.Amount);
+        var currency = first.Currency;
+        var body = BuildContributionBatchPendingBody(
+            contributions.Count,
+            totalAmount,
+            currency,
+            program,
+            enteredByName,
+            enteredByScopeUnitName,
+            first);
+
+        await CreateManyAsync(
+            program.ChurchId,
+            recipients,
+            NotificationKind.ContributionPendingApproval,
+            "Batch awaiting approval",
+            body,
+            LinkPath: $"givings/{program.Id}?tab=awaiting",
+            programId: program.Id,
+            relatedEntityId: batchId,
             ct);
     }
 
@@ -263,6 +307,44 @@ public class NotificationService(
             $"{memberName} · {contribution.Amount:N2} {contribution.Currency} on \"{program.Title}\"",
         };
 
+        AppendEntererAndRemittance(parts, contribution, enteredByName, enteredByScopeUnitName);
+
+        if (!string.IsNullOrWhiteSpace(contribution.Notes))
+            parts.Add($"Notes: {contribution.Notes.Trim()}");
+
+        parts.Add("Review payment proof on the Awaiting approval tab");
+        return string.Join(". ", parts) + ".";
+    }
+
+    private static string BuildContributionBatchPendingBody(
+        int memberCount,
+        decimal totalAmount,
+        string currency,
+        GivingProgram program,
+        string? enteredByName,
+        string? enteredByScopeUnitName,
+        Contribution sample)
+    {
+        var parts = new List<string>
+        {
+            $"Batch of {memberCount} contributions · {totalAmount:N2} {currency} total on \"{program.Title}\"",
+        };
+
+        AppendEntererAndRemittance(parts, sample, enteredByName, enteredByScopeUnitName);
+
+        if (!string.IsNullOrWhiteSpace(sample.Notes))
+            parts.Add($"Notes: {sample.Notes.Trim()}");
+
+        parts.Add("Review the batch on the Awaiting approval tab");
+        return string.Join(". ", parts) + ".";
+    }
+
+    private static void AppendEntererAndRemittance(
+        List<string> parts,
+        Contribution contribution,
+        string? enteredByName,
+        string? enteredByScopeUnitName)
+    {
         var entererParts = new List<string>();
         if (!string.IsNullOrWhiteSpace(enteredByName))
             entererParts.Add(enteredByName.Trim());
@@ -288,12 +370,6 @@ public class NotificationService(
                 parts.Add("Marked as sent to pastor");
             }
         }
-
-        if (!string.IsNullOrWhiteSpace(contribution.Notes))
-            parts.Add($"Notes: {contribution.Notes.Trim()}");
-
-        parts.Add("Review payment proof on the Pending tab");
-        return string.Join(". ", parts) + ".";
     }
 
     public async Task NotifyContributionReviewedAsync(

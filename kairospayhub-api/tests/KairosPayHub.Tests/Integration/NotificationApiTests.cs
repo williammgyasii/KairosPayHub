@@ -426,4 +426,117 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
             "GivingCampaignOpened",
             fellowshipNotifications.GetProperty("notifications")[0].GetProperty("kind").GetString());
     }
+
+    [Fact]
+    public async Task Batch_contribution_create_notifies_once()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Batch Notify Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Fellowship",
+                email = "jane.batch@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob Cell",
+                email = "bob.batch@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberA = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Member A",
+            parentNodeId = cellId,
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var memberB = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Member B",
+            parentNodeId = cellId,
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "bob.batch@example.com");
+        var fellowshipLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.batch@example.com");
+
+        var programId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody Batch",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var cellClient = ClientForAuthUser(
+            cellLeader.AuthUserId!.Value,
+            "bob.batch@example.com",
+            "Bob Cell");
+        var fellowshipClient = ClientForAuthUser(
+            fellowshipLeader.AuthUserId!.Value,
+            "jane.batch@example.com",
+            "Jane Fellowship");
+
+        var create = await cellClient.PostAsJsonAsync($"/api/giving/programs/{programId}/contributions/batch", new
+        {
+            dateSent = "2026-08-01T00:00:00Z",
+            attachmentKey = "giving/test/receipt.jpg",
+            notes = "Sunday collection",
+            items = new[]
+            {
+                new { memberId = memberA, amount = 50m },
+                new { memberId = memberB, amount = 75m },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+        var body = await create.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(2, body.GetProperty("contributions").GetArrayLength());
+        var batchId = body.GetProperty("batchId").GetGuid();
+        Assert.NotEqual(Guid.Empty, batchId);
+
+        var fellowshipNotifications = await fellowshipClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        var pending = fellowshipNotifications.GetProperty("notifications").EnumerateArray()
+            .Where(n => n.GetProperty("kind").GetString() == "ContributionPendingApproval")
+            .ToList();
+        Assert.Single(pending);
+        Assert.Equal("Batch awaiting approval", pending[0].GetProperty("title").GetString());
+        Assert.Contains("Batch of 2", pending[0].GetProperty("body").GetString());
+        Assert.Equal($"givings/{programId}?tab=awaiting", pending[0].GetProperty("linkPath").GetString());
+
+        var programs = await fellowshipClient.GetFromJsonAsync<JsonElement>("/api/giving/programs");
+        var program = programs.GetProperty("programs").EnumerateArray()
+            .First(p => p.GetProperty("id").GetGuid() == programId);
+        Assert.Equal(2, program.GetProperty("awaitingMyApprovalCount").GetInt32());
+    }
 }

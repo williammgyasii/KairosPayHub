@@ -142,7 +142,8 @@ public record GivingProgramDto(
     bool HasChildren,
     bool AcceptsContributions,
     int DirectContributionCount,
-    decimal DirectContributionTotalAmount);
+    decimal DirectContributionTotalAmount,
+    int AwaitingMyApprovalCount);
 
 public record GivingProgramListResponse(IReadOnlyList<GivingProgramDto> Programs);
 
@@ -157,6 +158,20 @@ public record CreateContributionRequest(
     string? RemittanceMedium = null,
     string? RemittanceMediumOther = null,
     Guid? BatchId = null);
+
+public record CreateContributionBatchItemRequest(Guid MemberId, decimal Amount);
+
+public record CreateContributionBatchRequest(
+    DateTimeOffset DateSent,
+    string AttachmentKey,
+    IReadOnlyList<CreateContributionBatchItemRequest> Items,
+    string? Currency = null,
+    string? Notes = null,
+    bool? SentToPastor = null,
+    string? RemittanceMedium = null,
+    string? RemittanceMediumOther = null);
+
+public record ContributionBatchDto(Guid BatchId, IReadOnlyList<ContributionDto> Contributions);
 
 public record RejectContributionRequest(string? Reason);
 
@@ -207,6 +222,13 @@ public record ContributionListResponse(
     int PageSize,
     ContributionListSummary Summary);
 
+public record MemberGivingCampaignDto(
+    Guid ProgramId,
+    string Title,
+    Guid? ParentProgramId,
+    decimal ApprovedAmount,
+    int ApprovedCount);
+
 public record MemberGivingTotalDto(
     int Rank,
     Guid MemberId,
@@ -216,7 +238,8 @@ public record MemberGivingTotalDto(
     int ApprovedCount,
     int PendingCount,
     decimal PendingTotal,
-    DateTimeOffset? LastDateSent);
+    DateTimeOffset? LastDateSent,
+    IReadOnlyList<MemberGivingCampaignDto> Campaigns);
 
 public record MemberGivingTotalsSummary(
     decimal ApprovedTotalAmount,

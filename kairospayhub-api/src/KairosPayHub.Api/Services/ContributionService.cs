@@ -13,7 +13,8 @@ public class ContributionService(
     KairosDbContext db,
     GivingScopeService scope,
     NotificationService notifications,
-    IObjectStorage storage)
+    IObjectStorage storage,
+    ChurchReadCache readCache)
 {
     private static readonly HashSet<string> AllowedAttachmentTypes =
     [
@@ -144,6 +145,133 @@ public class ContributionService(
 
         db.Contributions.Add(contribution);
         await db.SaveChangesAsync(ct);
+        readCache.InvalidateGivingDashboard(churchId);
+
+        // Batch rows are notified once via CreateBatchAsync (or a dedicated batch notify).
+        if (input.BatchId is null)
+        {
+            var enterers = await GivingProgramCreatorResolver.ResolveForProgramsAsync(
+                db,
+                churchId,
+                [(authUserId, actor.StructureRole)],
+                ct);
+            enterers.TryGetValue(authUserId, out var enterer);
+
+            await notifications.NotifyContributionPendingAsync(
+                contribution,
+                program,
+                member.Name,
+                enterer?.Name,
+                enterer?.ScopeUnitName,
+                ct);
+        }
+
+        return await ToDtoAsync(contribution, ct);
+    }
+
+    public async Task<ContributionBatchDto> CreateBatchAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid programId,
+        CreateContributionBatchInput input,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+        if (input.Items is null || input.Items.Count < 2)
+            throw new BadRequestException("A batch requires at least two contributions");
+
+        if (string.IsNullOrWhiteSpace(input.AttachmentKey))
+            throw new BadRequestException("Attachment is required");
+
+        var program = await db.GivingPrograms.SingleOrDefaultAsync(
+            p => p.Id == programId && p.ChurchId == churchId, ct)
+            ?? throw new ForbiddenException("Program not found");
+
+        if (program.ApprovalStatus != ProgramApprovalStatus.Approved)
+            throw new BadRequestException("Contributions can only be logged on approved programs");
+
+        if (program.Status == ProgramStatus.Scheduled)
+            throw new BadRequestException("This campaign is not live yet");
+
+        if (program.LogOpensAt is not null && program.LogOpensAt > DateTimeOffset.UtcNow)
+            throw new BadRequestException("Logging is not open for this sub-campaign yet");
+
+        var memberIds = input.Items.Select(i => i.MemberId).Distinct().ToList();
+        if (memberIds.Count != input.Items.Count)
+            throw new BadRequestException("Each batch line must be a different member");
+
+        var members = await db.ChurchMembers
+            .Where(m => memberIds.Contains(m.Id) && m.ChurchId == churchId)
+            .ToListAsync(ct);
+        if (members.Count != memberIds.Count)
+            throw new BadRequestException("Member not found");
+
+        var membersById = members.ToDictionary(m => m.Id);
+        foreach (var item in input.Items)
+        {
+            if (item.Amount <= 0)
+                throw new BadRequestException("Amount must be greater than zero");
+
+            var member = membersById[item.MemberId];
+            if (!await scope.CanEnterContributionAsync(actor, authUserId, program, member, ct))
+                throw new ForbiddenException("You cannot log contributions for this member");
+        }
+
+        var churchCurrency = await db.StructureChurches.AsNoTracking()
+            .Where(c => c.Id == churchId)
+            .Select(c => c.DefaultCurrency)
+            .FirstAsync(ct);
+
+        var currency = string.IsNullOrWhiteSpace(input.Currency)
+            ? churchCurrency
+            : input.Currency.Trim();
+        var notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim();
+        var remittanceMedium = ParseRemittanceMedium(input.RemittanceMedium);
+        var remittanceOther = string.IsNullOrWhiteSpace(input.RemittanceMediumOther)
+            ? null
+            : input.RemittanceMediumOther.Trim();
+        var attachmentKey = input.AttachmentKey.Trim();
+        var batchId = Guid.NewGuid();
+
+        var created = new List<Contribution>(input.Items.Count);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        try
+        {
+            foreach (var item in input.Items)
+            {
+                var member = membersById[item.MemberId];
+                var contribution = new Contribution
+                {
+                    ProgramId = program.Id,
+                    MemberId = member.Id,
+                    Amount = item.Amount,
+                    Currency = currency,
+                    DateSent = input.DateSent,
+                    AttachmentKey = attachmentKey,
+                    Notes = notes,
+                    EnteredByAuthUserId = authUserId,
+                    EnteredByRole = actor.StructureRole,
+                    MemberParentNodeId = member.ParentNodeId,
+                    Status = ContributionStatus.PendingApproval,
+                    SentToPastor = input.SentToPastor,
+                    RemittanceMedium = remittanceMedium,
+                    RemittanceMediumOther = remittanceOther,
+                    BatchId = batchId,
+                };
+                db.Contributions.Add(contribution);
+                created.Add(contribution);
+            }
+
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
+
+        readCache.InvalidateGivingDashboard(churchId);
 
         var enterers = await GivingProgramCreatorResolver.ResolveForProgramsAsync(
             db,
@@ -152,15 +280,16 @@ public class ContributionService(
             ct);
         enterers.TryGetValue(authUserId, out var enterer);
 
-        await notifications.NotifyContributionPendingAsync(
-            contribution,
+        await notifications.NotifyContributionBatchPendingAsync(
+            batchId,
+            created,
             program,
-            member.Name,
             enterer?.Name,
             enterer?.ScopeUnitName,
             ct);
 
-        return await ToDtoAsync(contribution, ct);
+        var dtos = await MapToDtosAsync(created, ct);
+        return new ContributionBatchDto(batchId, dtos);
     }
 
     private static RemittanceMedium? ParseRemittanceMedium(string? value)
@@ -303,7 +432,7 @@ public class ContributionService(
         var churchId = RequireStructureChurch(actor);
 
         page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, 500);
 
         var baseQuery = db.Contributions.AsNoTracking()
             .Where(c => c.Program!.ChurchId == churchId);
@@ -392,6 +521,11 @@ public class ContributionService(
             .Take(pageSize)
             .ToListAsync(ct);
 
+        var campaignsByMember = await LoadMemberApprovedCampaignsAsync(
+            baseQuery,
+            rows.Select(row => row.MemberId).ToList(),
+            ct);
+
         var members = rows.Select(row => new MemberGivingTotalDto(
             rankMap.GetValueOrDefault(row.MemberId, 0),
             row.MemberId,
@@ -401,9 +535,63 @@ public class ContributionService(
             row.ApprovedCount,
             row.PendingCount,
             row.PendingTotal,
-            row.LastDateSent)).ToList();
+            row.LastDateSent,
+            campaignsByMember.GetValueOrDefault(row.MemberId, []))).ToList();
 
         return new MemberGivingTotalsResponse(members, totalCount, page, pageSize, summary);
+    }
+
+    private async Task<Dictionary<Guid, IReadOnlyList<MemberGivingCampaignDto>>> LoadMemberApprovedCampaignsAsync(
+        IQueryable<Contribution> scopedContributions,
+        IReadOnlyList<Guid> memberIds,
+        CancellationToken ct)
+    {
+        if (memberIds.Count == 0)
+            return new Dictionary<Guid, IReadOnlyList<MemberGivingCampaignDto>>();
+
+        var aggregates = await scopedContributions
+            .Where(c =>
+                memberIds.Contains(c.MemberId)
+                && c.Status == ContributionStatus.Approved)
+            .GroupBy(c => new { c.MemberId, c.ProgramId })
+            .Select(g => new
+            {
+                g.Key.MemberId,
+                g.Key.ProgramId,
+                ApprovedAmount = g.Sum(c => c.Amount),
+                ApprovedCount = g.Count(),
+            })
+            .ToListAsync(ct);
+
+        if (aggregates.Count == 0)
+            return memberIds.ToDictionary(
+                id => id,
+                _ => (IReadOnlyList<MemberGivingCampaignDto>)[]);
+
+        var programIds = aggregates.Select(row => row.ProgramId).Distinct().ToList();
+        var programs = await db.GivingPrograms.AsNoTracking()
+            .Where(p => programIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.Title, p.ParentProgramId })
+            .ToListAsync(ct);
+        var programMap = programs.ToDictionary(p => p.Id);
+
+        return aggregates
+            .GroupBy(row => row.MemberId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<MemberGivingCampaignDto>)group
+                    .Select(row =>
+                    {
+                        var program = programMap[row.ProgramId];
+                        return new MemberGivingCampaignDto(
+                            row.ProgramId,
+                            program.Title,
+                            program.ParentProgramId,
+                            row.ApprovedAmount,
+                            row.ApprovedCount);
+                    })
+                    .OrderBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
     }
 
     private sealed class MemberTotalProjection
@@ -628,6 +816,7 @@ public class ContributionService(
         contribution.ApprovedAt = DateTimeOffset.UtcNow;
         contribution.RejectedReason = null;
         await db.SaveChangesAsync(ct);
+        readCache.InvalidateGivingDashboard(program.ChurchId);
 
         var memberName = await db.ChurchMembers.AsNoTracking()
             .Where(m => m.Id == contribution.MemberId)
@@ -665,6 +854,7 @@ public class ContributionService(
         contribution.ApprovedAt = DateTimeOffset.UtcNow;
         contribution.RejectedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         await db.SaveChangesAsync(ct);
+        readCache.InvalidateGivingDashboard(program.ChurchId);
 
         var memberName = await db.ChurchMembers.AsNoTracking()
             .Where(m => m.Id == contribution.MemberId)
@@ -987,3 +1177,15 @@ public record CreateContributionInput(
     string? RemittanceMedium = null,
     string? RemittanceMediumOther = null,
     Guid? BatchId = null);
+
+public record CreateContributionBatchItemInput(Guid MemberId, decimal Amount);
+
+public record CreateContributionBatchInput(
+    DateTimeOffset DateSent,
+    string AttachmentKey,
+    IReadOnlyList<CreateContributionBatchItemInput> Items,
+    string? Currency = null,
+    string? Notes = null,
+    bool? SentToPastor = null,
+    string? RemittanceMedium = null,
+    string? RemittanceMediumOther = null);

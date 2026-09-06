@@ -749,6 +749,145 @@ public class ContributionApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal("Mercy Asante", totals.GetProperty("members")[1].GetProperty("memberName").GetString());
     }
 
+    [Fact]
+    public async Task Member_totals_include_approved_main_and_sub_campaigns_exclude_pending()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Campaign Totals Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var fellowshipLayerId = await GetLayerIdAsync(pastor, "Fellowship");
+        var cellLayerId = await GetLayerIdAsync(pastor, "Cell");
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            name = "Alpha",
+            newLeader = new
+            {
+                name = "Alpha Lead",
+                email = "alpha.campaigns@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1990-01-01",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Kojo Mensah",
+            parentNodeId = cellId,
+            email = "kojo.campaigns@example.com",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "alpha.campaigns@example.com");
+        Assert.NotNull(cellLeader.AuthUserId);
+        var cellClient = ClientForAuthUser(
+            cellLeader.AuthUserId!.Value,
+            "alpha.campaigns@example.com",
+            "Alpha Lead");
+
+        var rootId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var subId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            parentProgramId = rootId,
+            title = "January Rhapsody",
+            periodLabel = "January 2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var pendingOnlyId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "SundayService",
+            title = "Pending Only Campaign",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        async Task ApproveAsync(Guid programId, Guid contributionId)
+        {
+            var approve = await pastor.PostAsync(
+                $"/api/giving/programs/{programId}/contributions/{contributionId}/approve",
+                null);
+            Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
+        }
+
+        var onRoot = await cellClient.PostAsJsonAsync($"/api/giving/programs/{rootId}/contributions", new
+        {
+            memberId,
+            amount = 50m,
+            currency = "GHS",
+            dateSent = "2026-08-01T00:00:00Z",
+            attachmentKey = "giving/test/root.jpg",
+        });
+        Assert.Equal(HttpStatusCode.OK, onRoot.StatusCode);
+        await ApproveAsync(rootId, (await onRoot.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
+
+        var onSub = await cellClient.PostAsJsonAsync($"/api/giving/programs/{subId}/contributions", new
+        {
+            memberId,
+            amount = 75m,
+            currency = "GHS",
+            dateSent = "2026-08-10T00:00:00Z",
+            attachmentKey = "giving/test/sub.jpg",
+        });
+        Assert.Equal(HttpStatusCode.OK, onSub.StatusCode);
+        await ApproveAsync(subId, (await onSub.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
+
+        var onPending = await cellClient.PostAsJsonAsync($"/api/giving/programs/{pendingOnlyId}/contributions", new
+        {
+            memberId,
+            amount = 200m,
+            currency = "GHS",
+            dateSent = "2026-08-15T00:00:00Z",
+            attachmentKey = "giving/test/pending.jpg",
+        });
+        Assert.Equal(HttpStatusCode.OK, onPending.StatusCode);
+
+        var totals = await pastor.GetFromJsonAsync<JsonElement>("/api/giving/member-totals?sortBy=approvedTotal&sortDir=desc");
+        Assert.Equal(1, totals.GetProperty("totalCount").GetInt32());
+        var member = totals.GetProperty("members")[0];
+        Assert.Equal("Kojo Mensah", member.GetProperty("memberName").GetString());
+        Assert.Equal(125m, member.GetProperty("approvedTotal").GetDecimal());
+
+        var campaigns = member.GetProperty("campaigns").EnumerateArray().ToList();
+        Assert.Equal(2, campaigns.Count);
+        Assert.Contains(campaigns, c => c.GetProperty("title").GetString() == "Rhapsody 2026"
+            && c.GetProperty("approvedAmount").GetDecimal() == 50m
+            && c.GetProperty("approvedCount").GetInt32() == 1
+            && c.GetProperty("programId").GetGuid() == rootId
+            && c.GetProperty("parentProgramId").ValueKind == JsonValueKind.Null);
+        Assert.Contains(campaigns, c => c.GetProperty("title").GetString() == "January Rhapsody"
+            && c.GetProperty("approvedAmount").GetDecimal() == 75m
+            && c.GetProperty("approvedCount").GetInt32() == 1
+            && c.GetProperty("programId").GetGuid() == subId
+            && c.GetProperty("parentProgramId").GetGuid() == rootId);
+        Assert.DoesNotContain(campaigns, c => c.GetProperty("title").GetString() == "Pending Only Campaign");
+    }
+
     private static async Task<Guid> GetLayerIdAsync(HttpClient client, string standardType)
     {
         var template = await client.GetFromJsonAsync<JsonElement>("/api/structure/template");

@@ -357,6 +357,35 @@ public class GivingController(
         return Ok(contribution);
     }
 
+    [HttpPost("programs/{programId:guid}/contributions/batch")]
+    public async Task<IActionResult> CreateContributionBatch(
+        Guid programId,
+        [FromBody] CreateContributionBatchRequest request,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var batch = await contributions.CreateBatchAsync(
+            actor,
+            authUserId,
+            programId,
+            new CreateContributionBatchInput(
+                request.DateSent,
+                request.AttachmentKey,
+                request.Items
+                    .Select(i => new CreateContributionBatchItemInput(i.MemberId, i.Amount))
+                    .ToList(),
+                request.Currency,
+                request.Notes,
+                request.SentToPastor,
+                request.RemittanceMedium,
+                request.RemittanceMediumOther),
+            ct);
+        return Ok(batch);
+    }
+
     [HttpPost("programs/{programId:guid}/contributions/{contributionId:guid}/approve")]
     public async Task<IActionResult> ApproveContribution(
         Guid programId,
