@@ -23,16 +23,19 @@ The overall givings member table SHALL support sorting by approved total, member
 - **WHEN** an authorized actor opens Overall givings with no prior sort preference
 - **THEN** rows are ordered by last given date descending (nulls last)
 
-### Requirement: Campaigns column shows count, chips, and expand detail
-The overall givings table SHALL show a campaigns column with a count of campaigns and truncated title chips for each member row. Expanding a row SHALL reveal the full campaign list with approved amount (and count) per campaign, including main and sub campaigns.
+### Requirement: Campaigns shown as spreadsheet amount columns
+The overall givings table SHALL show one column per campaign (main and sub) that appears in the loaded member totals, with each cell displaying that member’s approved amount for that campaign (or empty when none). The table MUST NOT use an accordion/expand row for campaign detail.
 
-#### Scenario: Chips and count for multiple campaigns
-- **WHEN** a member has approved gifts on three campaigns
-- **THEN** the campaigns cell shows count 3 and chips for those campaign titles (truncating visually when needed)
+#### Scenario: Member amounts across campaign columns
+- **WHEN** a member has approved gifts on a main campaign and a sub-campaign
+- **THEN** the table shows separate columns for each campaign with the member’s approved amounts in those cells
 
-#### Scenario: Expand shows full campaign breakdown
-- **WHEN** the actor expands that member’s row
-- **THEN** the expanded panel lists each campaign with its approved amount for that member
+### Requirement: Sticky header and identity columns
+The overall givings table SHALL keep the header row fixed while scrolling vertically, and SHALL keep the Rank, Member, and Approved total columns fixed while scrolling horizontally.
+
+#### Scenario: Horizontal scroll keeps identity and total visible
+- **WHEN** the actor scrolls the table horizontally past campaign columns
+- **THEN** Rank, Member, and Approved total remain visible on the left
 
 ### Requirement: Structure columns follow church template layers
 The overall givings table SHALL offer one structure column per layer defined on the church structure template (using that church’s layer labels). Layers the church does not use MUST NOT appear as columns. Each cell SHALL show the member’s unit name at that layer when known from the structure tree and member parent node.
@@ -59,3 +62,11 @@ The overall givings table SHALL support filter rules (field, operator, value) fo
 #### Scenario: Filter by member name contains
 - **WHEN** the actor adds a name contains rule for a substring
 - **THEN** only members whose names match that rule remain visible
+
+### Requirement: Amount filters by campaign or approved total
+The overall givings table SHALL support amount filters scoped to approved total or a specific campaign, with comparison operators (less than, at most, equals, at least, greater than). Missing campaign amounts SHALL be treated as zero for comparisons.
+
+#### Scenario: Campaign amount less than threshold
+- **WHEN** the actor filters a campaign to amounts less than 40
+- **AND** one member gave 20 on that campaign and another gave 50
+- **THEN** only the member with 20 remains visible
