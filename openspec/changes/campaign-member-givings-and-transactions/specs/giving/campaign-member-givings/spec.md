@@ -25,3 +25,11 @@ Amount columns on campaign Member givings SHALL reflect programs in the current 
 - **WHEN** members have approved gifts on this campaign’s January sub-campaign and on an unrelated Sunday campaign
 - **AND** the actor views Member givings for this campaign
 - **THEN** January appears as a column and the unrelated Sunday campaign does not
+
+### Requirement: Cell leaders can open campaign member givings
+Cell leaders SHALL have access to the campaign Member givings surface. Rows remain limited to members in their structure scope (as enforced by the member-totals API).
+
+#### Scenario: Cell leader opens member givings
+- **WHEN** a Cell Leader opens a campaign they can access
+- **THEN** they see the Member givings tab
+- **AND** member rows are limited to their cell scope
