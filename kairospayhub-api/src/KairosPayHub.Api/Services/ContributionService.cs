@@ -974,10 +974,16 @@ public class ContributionService(
         return await MapToDtosAsync(rows, ct);
     }
 
-    public async Task<IReadOnlyList<ContributionDto>> ListForMemberAsync(
+    public async Task<ContributionListResponse> ListForMemberAsync(
         Actor actor,
         Guid authUserId,
         Guid memberId,
+        int page = 1,
+        int pageSize = 25,
+        string? sortBy = null,
+        string? sortDir = null,
+        ContributionStatus? status = null,
+        string? search = null,
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
@@ -988,12 +994,25 @@ public class ContributionService(
         if (!await scope.CanViewMemberContributionsAsync(actor, authUserId, member, ct))
             throw new ForbiddenException("You cannot view this member's giving");
 
-        var rows = await db.Contributions.AsNoTracking()
-            .Where(c => c.MemberId == memberId)
-            .OrderByDescending(c => c.CreatedAt)
-            .ToListAsync(ct);
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
 
-        return await MapToDtosAsync(rows, ct);
+        var baseQuery = db.Contributions.AsNoTracking()
+            .Where(c => c.MemberId == memberId);
+
+        return await QueryContributionsAsync(
+            baseQuery,
+            churchId,
+            actor,
+            page,
+            pageSize,
+            sortBy ?? "dateSent",
+            sortDir ?? "desc",
+            status,
+            search,
+            awaitingMyApproval: false,
+            batchId: null,
+            ct);
     }
 
     private async Task<Contribution> LoadContributionAsync(

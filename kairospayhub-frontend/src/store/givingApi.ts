@@ -86,6 +86,18 @@ export const givingApi = baseApi.injectEndpoints({
         normalizeContributionListResult(response),
       providesTags: ['Contributions'],
     }),
+    listMemberContributions: builder.query<
+      ContributionListResult,
+      { memberId: string; query?: ContributionListQuery }
+    >({
+      query: ({ memberId, query = {} }) =>
+        `/api/giving/members/${memberId}/contributions${contributionQueryString(query)}`,
+      transformResponse: (response: Partial<ContributionListResult>) =>
+        normalizeContributionListResult(response),
+      providesTags: (_result, _error, { memberId }) => [
+        { type: 'Contributions', id: `member:${memberId}` },
+      ],
+    }),
     createGivingProgram: builder.mutation<GivingProgram, CreateGivingProgramInput>({
       query: (body) => ({
         url: '/api/giving/programs',
@@ -218,6 +230,7 @@ export const {
   useGetProgramRollupQuery,
   useListProgramContributionsQuery,
   useListContributionsQuery,
+  useListMemberContributionsQuery,
   useCreateGivingProgramMutation,
   useCloseGivingProgramMutation,
   useReopenGivingProgramMutation,

@@ -521,11 +521,23 @@ export async function listMyContributions(api: ApiClient) {
   return normalizeContributionListResult(res).contributions
 }
 
-export async function listMemberContributions(api: ApiClient, memberId: string) {
+export async function listMemberContributions(
+  api: ApiClient,
+  memberId: string,
+  query: ContributionListQuery = {},
+) {
+  const params = new URLSearchParams()
+  if (query.page != null) params.set('page', String(query.page))
+  if (query.pageSize != null) params.set('pageSize', String(query.pageSize))
+  if (query.sortBy) params.set('sortBy', query.sortBy)
+  if (query.sortDir) params.set('sortDir', query.sortDir)
+  if (query.status) params.set('status', query.status)
+  if (query.search) params.set('search', query.search)
+  const qs = params.toString()
   const res = await api.get<Partial<ContributionListResult>>(
-    `/api/giving/members/${memberId}/contributions`,
+    `/api/giving/members/${memberId}/contributions${qs ? `?${qs}` : ''}`,
   )
-  return normalizeContributionListResult(res).contributions
+  return normalizeContributionListResult(res)
 }
 
 export async function uploadGivingAttachment(file: File) {

@@ -63,15 +63,39 @@ The system SHALL expose an authenticated API to list a member’s attendance his
 - **WHEN** an actor requests attendance history for a member outside their church
 - **THEN** the API responds with not found or forbidden
 
-### Requirement: Member givings page lists contributions
+### Requirement: Member givings page lists contributions in a table
 
-The member givings page SHALL list the member’s contributions (campaign, amount, date, status) using the existing member contributions API, with breadcrumbs and a responsive layout.
+The member givings page SHALL show the member’s contributions in a TanStack table using the existing member contributions API, with breadcrumbs and a responsive layout that scrolls horizontally on narrow viewports when needed.
 
-#### Scenario: Givings page shows contribution rows
+#### Scenario: Givings page shows contribution table rows
 
 - **WHEN** a member has approved contributions
 - **AND** an authorized actor opens the member givings page
-- **THEN** those contributions are listed with campaign and amount
+- **THEN** those contributions appear as table rows with campaign and amount columns
+
+### Requirement: Member contributions support server-side sort, filter, and pagination
+
+`GET /api/giving/members/{memberId}/contributions` SHALL accept `page`, `pageSize`, `sortBy`, `sortDir`, `status`, and `search`, and SHALL return a paginated contribution list with summary totals. The member givings table SHALL drive sorting and filtering through those query parameters (not client-only filtering of a full dump).
+
+#### Scenario: Status filter returns only matching rows
+
+- **WHEN** a member has both Approved and PendingApproval contributions
+- **AND** an authorized actor requests that member’s contributions with `status=Approved`
+- **THEN** every returned item has status Approved
+- **AND** totalCount reflects only approved contributions
+
+#### Scenario: Sort by amount changes order
+
+- **WHEN** a member has contributions of different amounts
+- **AND** an authorized actor requests that member’s contributions sorted by amount ascending
+- **THEN** returned items are ordered by amount ascending
+
+#### Scenario: Table sorting and filters update the query
+
+- **WHEN** an actor opens a member givings page with multiple contributions
+- **AND** sorts by Amount or filters by status
+- **THEN** the table reflects the server response for that sort/filter
+
 
 ### Requirement: Member can be fetched by id for deep links
 

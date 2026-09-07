@@ -17,3 +17,9 @@
 
 - [x] 4.1 Playwright e2e: login → membership → open profile/attendance/givings; assert no page overflow on mobile
 - [x] 4.2 Run API integration tests for new endpoints; restart local servers
+
+## 5. Member givings server-side table
+
+- [x] 5.1 Extend `GET /api/giving/members/{id}/contributions` with page/sort/filter; API integration tests
+- [x] 5.2 TanStack member givings table with RTK Query + search/status/sort/pagination
+- [x] 5.3 Playwright + restart local servers

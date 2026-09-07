@@ -449,14 +449,32 @@ public class GivingController(
     }
 
     [HttpGet("members/{memberId:guid}/contributions")]
-    public async Task<IActionResult> ListMemberContributions(Guid memberId, CancellationToken ct)
+    public async Task<IActionResult> ListMemberContributions(
+        Guid memberId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDir = null,
+        [FromQuery] ContributionStatus? status = null,
+        [FromQuery] string? search = null,
+        CancellationToken ct = default)
     {
         if (!Guid.TryParse(current.Sub, out var authUserId))
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        var list = await contributions.ListForMemberAsync(actor, authUserId, memberId, ct);
-        return Ok(WrapContributionList(list));
+        var list = await contributions.ListForMemberAsync(
+            actor,
+            authUserId,
+            memberId,
+            page,
+            pageSize,
+            sortBy,
+            sortDir,
+            status,
+            search,
+            ct);
+        return Ok(list);
     }
 
     private static ContributionListResponse WrapContributionList(IReadOnlyList<ContributionDto> list)

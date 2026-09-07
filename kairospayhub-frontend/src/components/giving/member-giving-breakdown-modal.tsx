@@ -103,10 +103,15 @@ export function MemberGivingBreakdownModal({
     setLoading(true)
     setError(null)
     try {
-      const rows = await listMemberContributions(api, memberId)
-      const approved = rows
-        .filter((row) => row.status === 'Approved' && programIds.has(row.programId))
-        .sort((a, b) => new Date(b.dateSent).getTime() - new Date(a.dateSent).getTime())
+      const result = await listMemberContributions(api, memberId, {
+        page: 1,
+        pageSize: 100,
+        status: 'Approved',
+        sortBy: 'dateSent',
+        sortDir: 'desc',
+      })
+      const approved = result.contributions
+        .filter((row) => programIds.has(row.programId))
       setContributions(approved)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load breakdown')

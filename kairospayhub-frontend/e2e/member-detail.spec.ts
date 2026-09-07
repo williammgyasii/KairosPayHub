@@ -135,6 +135,79 @@ test.describe('member detail pages', () => {
       page.getByText(/No attendance records yet .* in this meeting type/i),
     ).toBeVisible()
   })
+
+  test('givings page uses server-side table sort/filter', async ({ page, request }) => {
+    const email = process.env.PLAYWRIGHT_EMAIL
+    const password = process.env.PLAYWRIGHT_PASSWORD
+    expect(email && password).toBeTruthy()
+
+    const apiBase = process.env.PLAYWRIGHT_API_URL ?? 'http://localhost:5192'
+    const login = await request.post(`${apiBase}/auth/login`, {
+      data: { email, password },
+    })
+    expect(login.ok(), await login.text()).toBeTruthy()
+    const token = (await login.json()).accessToken as string
+
+    const members = await request.get(`${apiBase}/api/structure/members?page=1&pageSize=25`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    expect(members.ok()).toBeTruthy()
+    const list = await members.json()
+
+    let memberId: string | null = null
+    for (const item of list.items ?? []) {
+      const contrib = await request.get(
+        `${apiBase}/api/giving/members/${item.id}/contributions?page=1&pageSize=5&sortBy=amount&sortDir=desc`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      if (!contrib.ok()) continue
+      const body = await contrib.json()
+      expect(body).toHaveProperty('contributions')
+      expect(body).toHaveProperty('totalCount')
+      expect(body).toHaveProperty('summary')
+      if ((body.contributions?.length ?? 0) > 0) {
+        memberId = item.id
+        break
+      }
+    }
+    expect(memberId, 'expected at least one member with contributions').toBeTruthy()
+
+    const sorted = await request.get(
+      `${apiBase}/api/giving/members/${memberId}/contributions?page=1&pageSize=10&sortBy=amount&sortDir=asc`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+    expect(sorted.ok(), await sorted.text()).toBeTruthy()
+    const sortedBody = await sorted.json()
+    const amounts = (sortedBody.contributions as { amount: number }[]).map((c) => c.amount)
+    const sortedAsc = [...amounts].sort((a, b) => a - b)
+    expect(amounts).toEqual(sortedAsc)
+
+    await page.goto('/login')
+    await page.getByLabel('Email').fill(email!)
+    await page.getByLabel('Password').fill(password!)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 })
+    await settleDashboard(page)
+
+    await page.goto(`/roster/members/${memberId}/givings`)
+    await settleDashboard(page)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30_000 })
+
+    await expect(page.getByLabel('Search contributions')).toBeVisible()
+    await expect(page.getByLabel('Filter by status')).toBeVisible()
+
+    const table = page.getByTestId('member-givings-table')
+    await expect(table).toBeVisible({ timeout: 30_000 })
+    await expect(table.getByRole('columnheader', { name: 'Date' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: 'Campaign' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: 'Amount' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: 'Status' })).toBeVisible()
+    await expect(table.locator('tbody tr').first()).toBeVisible()
+
+    await page.getByLabel('Filter by status').selectOption('Approved')
+    await settleDashboard(page)
+    await expect(table).toBeVisible()
+  })
 })
 
 for (const viewport of VIEWPORT_NAMES) {
