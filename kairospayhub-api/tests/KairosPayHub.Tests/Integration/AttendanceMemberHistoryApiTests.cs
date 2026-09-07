@@ -47,11 +47,20 @@ public class AttendanceMemberHistoryApiTests(PostgresFixture fx) : IAsyncLifetim
             var first = await db.AttendanceOccurrences
                 .Include(o => o.MeetingType)
                 .SingleAsync(o => o.Id == seed.OccurrenceId);
+            // Avoid colliding with auto-generated weeks-ahead occurrences (+7/+14/…).
+            var usedDates = await db.AttendanceOccurrences
+                .Where(o => o.MeetingTypeId == first.MeetingTypeId)
+                .Select(o => o.MeetingDate)
+                .ToListAsync();
+            var secondDate = first.MeetingDate.AddDays(-14);
+            while (usedDates.Contains(secondDate))
+                secondDate = secondDate.AddDays(-7);
+
             var second = new AttendanceOccurrence
             {
                 ChurchId = first.ChurchId,
                 MeetingTypeId = first.MeetingTypeId,
-                MeetingDate = first.MeetingDate.AddDays(7),
+                MeetingDate = secondDate,
                 SubmissionOpensAt = DateTimeOffset.UtcNow.AddHours(-2),
                 SubmissionDeadlineAt = DateTimeOffset.UtcNow.AddHours(2),
                 Status = AttendanceOccurrenceStatus.Open,
