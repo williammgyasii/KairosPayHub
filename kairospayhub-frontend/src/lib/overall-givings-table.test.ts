@@ -10,11 +10,16 @@ import {
   CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY,
   collectCampaignColumns,
   createOverallAmountFilterRule,
+  defaultOverallGivingsColumnVisibility,
   memberGivingMatchesVisibleSearch,
   memberGivingToFilterRow,
   OVERALL_GIVINGS_COLUMNS_STORAGE_KEY,
   overallGivingsColumnsStorageKey,
   rowMatchesOverallAmountFilter,
+  stickyColumnIdsForTier,
+  stickyColumnLeft,
+  stickyColumnWidth,
+  stickyTierForWidth,
 } from '@/lib/overall-givings-table'
 
 function treeWithoutPfcc(): StructureTree {
@@ -334,5 +339,65 @@ describe('overallGivingsColumnsStorageKey', () => {
     expect(overallGivingsColumnsStorageKey('church')).toBe(OVERALL_GIVINGS_COLUMNS_STORAGE_KEY)
     expect(overallGivingsColumnsStorageKey('campaign')).toBe(CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY)
     expect(OVERALL_GIVINGS_COLUMNS_STORAGE_KEY).not.toBe(CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY)
+  })
+
+  it('uses v3 storage keys for denser defaults migration', () => {
+    expect(OVERALL_GIVINGS_COLUMNS_STORAGE_KEY).toContain('v3')
+    expect(CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY).toContain('v3')
+  })
+})
+
+describe('sticky tiers', () => {
+  it('uses member-only sticky below md', () => {
+    expect(stickyTierForWidth(400)).toBe('member')
+    expect(stickyColumnIdsForTier('member')).toEqual(['memberName'])
+    expect(stickyColumnLeft('memberName', 'member')).toBe(0)
+    expect(stickyColumnLeft('rank', 'member')).toBeNull()
+    expect(stickyColumnLeft('approvedTotal', 'member')).toBeNull()
+  })
+
+  it('sticks rank + member on md', () => {
+    expect(stickyTierForWidth(800)).toBe('rank-member')
+    expect(stickyColumnLeft('rank', 'rank-member')).toBe(0)
+    expect(stickyColumnLeft('memberName', 'rank-member')).toBe(stickyColumnWidth('rank', 'rank-member'))
+    expect(stickyColumnLeft('approvedTotal', 'rank-member')).toBeNull()
+  })
+
+  it('sticks rank + member + total on lg', () => {
+    expect(stickyTierForWidth(1280)).toBe('full')
+    expect(stickyColumnLeft('approvedTotal', 'full')).toBe(
+      (stickyColumnWidth('rank', 'full') ?? 0) + (stickyColumnWidth('memberName', 'full') ?? 0),
+    )
+  })
+})
+
+describe('defaultOverallGivingsColumnVisibility', () => {
+  it('hides campaign amount columns by default', () => {
+    const structure = buildOverallGivingsStructureColumns(treeWithoutPfcc())
+    const campaigns = [
+      {
+        id: campaignColumnId('root'),
+        programId: 'root',
+        title: 'Rhapsody',
+        parentProgramId: null,
+        isSubCampaign: false,
+      },
+      {
+        id: campaignColumnId('sub'),
+        programId: 'sub',
+        title: 'January',
+        parentProgramId: 'root',
+        isSubCampaign: true,
+      },
+    ]
+    const visibility = defaultOverallGivingsColumnVisibility(structure, campaigns)
+    expect(visibility.rank).toBe(true)
+    expect(visibility.memberName).toBe(true)
+    expect(visibility.approvedTotal).toBe(true)
+    expect(visibility.lastDateSent).toBe(true)
+    expect(visibility[campaignColumnId('root')]).toBe(false)
+    expect(visibility[campaignColumnId('sub')]).toBe(false)
+    expect(visibility['structure:fellowship']).toBe(true)
+    expect(visibility['structure:cell']).toBe(true)
   })
 })

@@ -56,17 +56,37 @@ import {
   memberGivingMatchesVisibleSearch,
   memberGivingToFilterRow,
   persistOverallGivingsColumnVisibility,
+  stickyColumnIdsForTier,
   stickyColumnLeft,
   stickyColumnWidth,
+  stickyTierForWidth,
   structureLayersForFilters,
   structureUnitForLayer,
   type OverallAmountFilterOperator,
   type OverallAmountFilterRule,
+  type OverallGivingsStickyTier,
   type MemberGivingsScopeMode,
 } from '@/lib/overall-givings-table'
 import { cn } from '@/lib/utils'
 
 type SortColumn = NonNullable<MemberGivingTotalsQuery['sortBy']>
+
+function useOverallGivingsStickyTier(): OverallGivingsStickyTier {
+  const [tier, setTier] = useState<OverallGivingsStickyTier>(() =>
+    typeof window === 'undefined' ? 'full' : stickyTierForWidth(window.innerWidth),
+  )
+
+  useEffect(() => {
+    function sync() {
+      setTier(stickyTierForWidth(window.innerWidth))
+    }
+    sync()
+    window.addEventListener('resize', sync)
+    return () => window.removeEventListener('resize', sync)
+  }, [])
+
+  return tier
+}
 
 const cellClass =
   'border border-border px-3 py-2.5 align-middle text-sm whitespace-nowrap'
@@ -95,6 +115,7 @@ export function MemberGivingRankingsTable({
   programId: lockedProgramId,
   scopeMode = 'church',
 }: MemberGivingRankingsTableProps) {
+  const stickyTier = useOverallGivingsStickyTier()
   const isCampaignScope = scopeMode === 'campaign' && Boolean(lockedProgramId)
   const structureColumns = useMemo(() => buildOverallGivingsStructureColumns(tree), [tree])
   const structureLayers = useMemo(() => structureLayersForFilters(tree), [tree])
@@ -472,9 +493,10 @@ export function MemberGivingRankingsTable({
     .filter((column) => column.id !== 'actions')
 
   function stickyClasses(columnId: string, kind: 'th' | 'td', rowTone?: 'even' | 'odd') {
-    const left = stickyColumnLeft(columnId)
+    const left = stickyColumnLeft(columnId, stickyTier)
     if (left == null) return 'relative z-0'
-    const isLastSticky = columnId === 'approvedTotal'
+    const stickyIds = stickyColumnIdsForTier(stickyTier)
+    const isLastSticky = columnId === stickyIds[stickyIds.length - 1]
     return cn(
       // Opaque fill + clip so horizontally scrolled cells cannot show through.
       'sticky overflow-hidden border-border bg-clip-padding',
@@ -492,8 +514,8 @@ export function MemberGivingRankingsTable({
   }
 
   function stickyStyle(columnId: string): CSSProperties | undefined {
-    const left = stickyColumnLeft(columnId)
-    const width = stickyColumnWidth(columnId)
+    const left = stickyColumnLeft(columnId, stickyTier)
+    const width = stickyColumnWidth(columnId, stickyTier)
     if (left == null || width == null) return undefined
     return {
       left,
@@ -596,7 +618,7 @@ export function MemberGivingRankingsTable({
 
   return (
     <>
-      <div className="space-y-3">
+      <div className="min-w-0 max-w-full space-y-3">
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           <MemberTableToolbar
             className="border-b-0"
@@ -778,7 +800,7 @@ export function MemberGivingRankingsTable({
                       )}
                     >
                       {row.getVisibleCells().map((cell) => {
-                        const isSticky = stickyColumnLeft(cell.column.id) != null
+                        const isSticky = stickyColumnLeft(cell.column.id, stickyTier) != null
                         const rowTone = index % 2 === 0 ? 'even' : 'odd'
                         return (
                         <td

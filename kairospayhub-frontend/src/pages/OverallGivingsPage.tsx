@@ -43,7 +43,7 @@ export function OverallGivingsPage() {
           { label: 'Overall givings' },
         ]}
         title="Overall givings"
-        description="Approved member totals and rankings across campaigns. Pending payments appear under Transactions for approval."
+        description="Approved member totals across campaigns. Use Columns to show per-campaign amounts. Pending payments appear under Transactions."
       />
 
       {error && <p className="text-sm text-destructive">{error}</p>}

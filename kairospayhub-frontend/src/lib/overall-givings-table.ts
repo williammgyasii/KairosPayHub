@@ -3,8 +3,8 @@ import type { StructureLayer, StructureTree } from '@/api/structure'
 import type { StructureMemberRow, StructureSegment } from '@/lib/structure-table-rows'
 import { getLayers, memberStructureSegments } from '@/lib/structure-tree'
 
-export const OVERALL_GIVINGS_COLUMNS_STORAGE_KEY = 'overall-givings-columns-v2'
-export const CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY = 'campaign-givings-columns-v2'
+export const OVERALL_GIVINGS_COLUMNS_STORAGE_KEY = 'overall-givings-columns-v3'
+export const CAMPAIGN_GIVINGS_COLUMNS_STORAGE_KEY = 'campaign-givings-columns-v3'
 export const OVERALL_GIVINGS_FILTER_FETCH_CAP = 500
 
 export type MemberGivingsScopeMode = 'church' | 'campaign'
@@ -18,24 +18,50 @@ export const OVERALL_GIVINGS_STICKY_RANK_WIDTH = 56
 export const OVERALL_GIVINGS_STICKY_MEMBER_WIDTH = 180
 export const OVERALL_GIVINGS_STICKY_TOTAL_WIDTH = 132
 
+/** Viewport sticky policy for overall/campaign givings tables. */
+export type OverallGivingsStickyTier = 'member' | 'rank-member' | 'full'
+
 export const OVERALL_GIVINGS_STICKY_COLUMN_IDS = [
   'rank',
   'memberName',
   'approvedTotal',
 ] as const
 
-export function stickyColumnLeft(columnId: string): number | null {
-  if (columnId === 'rank') return 0
-  if (columnId === 'memberName') return OVERALL_GIVINGS_STICKY_RANK_WIDTH
-  if (columnId === 'approvedTotal') {
-    return OVERALL_GIVINGS_STICKY_RANK_WIDTH + OVERALL_GIVINGS_STICKY_MEMBER_WIDTH
-  }
-  return null
+export function stickyTierForWidth(width: number): OverallGivingsStickyTier {
+  if (width < 768) return 'member'
+  if (width < 1024) return 'rank-member'
+  return 'full'
 }
 
-export function stickyColumnWidth(columnId: string): number | null {
+export function stickyColumnIdsForTier(tier: OverallGivingsStickyTier): string[] {
+  if (tier === 'member') return ['memberName']
+  if (tier === 'rank-member') return ['rank', 'memberName']
+  return ['rank', 'memberName', 'approvedTotal']
+}
+
+export function stickyColumnLeft(
+  columnId: string,
+  tier: OverallGivingsStickyTier = 'full',
+): number | null {
+  const ids = stickyColumnIdsForTier(tier)
+  const index = ids.indexOf(columnId)
+  if (index < 0) return null
+  let left = 0
+  for (let i = 0; i < index; i++) {
+    left += stickyColumnWidth(ids[i]!, tier) ?? 0
+  }
+  return left
+}
+
+export function stickyColumnWidth(
+  columnId: string,
+  tier: OverallGivingsStickyTier = 'full',
+): number | null {
+  if (!stickyColumnIdsForTier(tier).includes(columnId)) return null
   if (columnId === 'rank') return OVERALL_GIVINGS_STICKY_RANK_WIDTH
-  if (columnId === 'memberName') return OVERALL_GIVINGS_STICKY_MEMBER_WIDTH
+  if (columnId === 'memberName') {
+    return tier === 'member' ? 160 : OVERALL_GIVINGS_STICKY_MEMBER_WIDTH
+  }
   if (columnId === 'approvedTotal') return OVERALL_GIVINGS_STICKY_TOTAL_WIDTH
   return null
 }
@@ -136,7 +162,7 @@ export function defaultOverallGivingsColumnVisibility(
     visibility[column.id] = true
   }
   for (const column of campaignColumns) {
-    visibility[column.id] = true
+    visibility[column.id] = false
   }
   return visibility
 }
