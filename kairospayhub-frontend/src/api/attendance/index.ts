@@ -356,3 +356,52 @@ export function rejectOccurrenceScope(
     { reason: reason ?? null },
   )
 }
+
+export type MemberAttendanceHistoryItem = {
+  entryId: string
+  occurrenceId: string
+  meetingDate: string
+  meetingTypeId: string
+  meetingTypeTitle: string
+  status: string
+  scopeNodeId: string
+  scopeUnitName: string | null
+}
+
+export type MemberAttendanceHistorySummary = {
+  presentCount: number
+  absentCount: number
+  recordedCount: number
+}
+
+export type MemberAttendanceMeetingTypeSummary = {
+  meetingTypeId: string
+  title: string
+  presentCount: number
+  absentCount: number
+  recordedCount: number
+}
+
+export type MemberAttendanceHistoryResponse = {
+  items: MemberAttendanceHistoryItem[]
+  summary: MemberAttendanceHistorySummary
+  meetingTypes: MemberAttendanceMeetingTypeSummary[]
+  meetingTypeId: string | null
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+export function getMemberAttendanceHistory(
+  api: ApiClient,
+  memberId: string,
+  page = 1,
+  pageSize = 25,
+  meetingTypeId?: string | null,
+) {
+  const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+  if (meetingTypeId) qs.set('meetingTypeId', meetingTypeId)
+  return api.get<MemberAttendanceHistoryResponse>(
+    `/api/attendance/members/${memberId}/history?${qs}`,
+  )
+}

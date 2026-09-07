@@ -192,6 +192,16 @@ public class StructureController(CurrentActor current, StructureService structur
             ct));
     }
 
+    [HttpGet("members/{memberId:guid}")]
+    public async Task<IActionResult> GetMember(Guid memberId, CancellationToken ct)
+    {
+        var actor = await current.RequireAsync(ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized(new { error = "Invalid token subject" });
+
+        return Ok(await structure.GetMemberAsync(actor, authUserId, memberId, ct));
+    }
+
     [HttpPatch("members/{memberId:guid}")]
     public async Task<IActionResult> UpdateMember(
         Guid memberId,

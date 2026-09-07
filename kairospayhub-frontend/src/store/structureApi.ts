@@ -1,4 +1,4 @@
-import type { StructureTree } from '@/api/structure'
+import type { StructureMember, StructureTree } from '@/api/structure'
 import { baseApi } from '@/store/baseApi'
 
 export type StructureTreeQueryArg = {
@@ -14,10 +14,18 @@ export const structureApi = baseApi.injectEndpoints({
       },
       providesTags: ['Structure'],
     }),
+    getStructureMember: builder.query<StructureMember, string>({
+      query: (memberId) => `/api/structure/members/${memberId}`,
+      providesTags: (_result, _error, memberId) => [{ type: 'Structure', id: memberId }],
+    }),
   }),
 })
 
-export const { useGetStructureTreeQuery, useLazyGetStructureTreeQuery } = structureApi
+export const {
+  useGetStructureTreeQuery,
+  useLazyGetStructureTreeQuery,
+  useGetStructureMemberQuery,
+} = structureApi
 
 export function invalidateStructureTags() {
   return structureApi.util.invalidateTags(['Structure'])

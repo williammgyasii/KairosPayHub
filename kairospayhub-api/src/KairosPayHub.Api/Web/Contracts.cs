@@ -53,6 +53,37 @@ public record StructureMemberListResponse(
     int Page,
     int PageSize);
 
+public record MemberAttendanceHistoryItemDto(
+    Guid EntryId,
+    Guid OccurrenceId,
+    DateOnly MeetingDate,
+    Guid MeetingTypeId,
+    string MeetingTypeTitle,
+    string Status,
+    Guid ScopeNodeId,
+    string? ScopeUnitName);
+
+public record MemberAttendanceHistorySummaryDto(
+    int PresentCount,
+    int AbsentCount,
+    int RecordedCount);
+
+public record MemberAttendanceMeetingTypeSummaryDto(
+    Guid MeetingTypeId,
+    string Title,
+    int PresentCount,
+    int AbsentCount,
+    int RecordedCount);
+
+public record MemberAttendanceHistoryResponse(
+    IReadOnlyList<MemberAttendanceHistoryItemDto> Items,
+    MemberAttendanceHistorySummaryDto Summary,
+    IReadOnlyList<MemberAttendanceMeetingTypeSummaryDto> MeetingTypes,
+    Guid? MeetingTypeId,
+    int TotalCount,
+    int Page,
+    int PageSize);
+
 public record StructureTreeDto(
     Guid ChurchId,
     string ChurchName,

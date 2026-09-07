@@ -8,6 +8,7 @@ import type {
   AttendanceOccurrenceRollupQuery,
   AttendanceOccurrenceSummary,
   AttendanceScopeRollCallReview,
+  MemberAttendanceHistoryResponse,
 } from '@/api/attendance'
 import { baseApi } from '@/store/baseApi'
 
@@ -81,6 +82,22 @@ export const attendanceApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['AttendanceApprovalQueue', 'AttendanceRollup', 'AttendanceRollCallReview'],
     }),
+    getMemberAttendanceHistory: builder.query<
+      MemberAttendanceHistoryResponse,
+      { memberId: string; page?: number; pageSize?: number; meetingTypeId?: string | null }
+    >({
+      query: ({ memberId, page = 1, pageSize = 25, meetingTypeId }) => {
+        const qs = new URLSearchParams({
+          page: String(page),
+          pageSize: String(pageSize),
+        })
+        if (meetingTypeId) qs.set('meetingTypeId', meetingTypeId)
+        return `/api/attendance/members/${memberId}/history?${qs}`
+      },
+      providesTags: (_result, _error, { memberId, meetingTypeId }) => [
+        { type: 'AttendanceMemberHistory', id: `${memberId}:${meetingTypeId ?? 'all'}` },
+      ],
+    }),
   }),
 })
 
@@ -93,6 +110,7 @@ export const {
   useListMySubmissionsQuery,
   useGetScopeRollCallReviewQuery,
   useApproveOccurrenceScopeMutation,
+  useGetMemberAttendanceHistoryQuery,
 } = attendanceApi
 
 export function invalidateAttendanceApprovalQueue() {

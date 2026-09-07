@@ -78,29 +78,34 @@ export type StructureNodeRow = {
   memberCount: number
 }
 
+export function buildMemberRow(
+  tree: StructureTree,
+  m: StructureTree['members'][number],
+): StructureMemberRow {
+  const structure = memberStructureSegments(tree, m.parentNodeId)
+  const path = structure.map((s) => s.nodeName).join(' / ') || '—'
+  return {
+    id: m.id,
+    member: m.name,
+    email: m.email ?? '',
+    phone: m.phone ?? '',
+    dateOfBirth: m.dateOfBirth ?? '',
+    residence: m.residence ?? '',
+    occupationStatus: m.occupationStatus ?? '',
+    schoolOrWorkplace: m.schoolOrWorkplace ?? '',
+    age: formatMemberAge(m.dateOfBirth, m.age),
+    role: formatMemberPosition(m.position),
+    path,
+    parentNodeId: m.parentNodeId,
+    position: (m.position as MemberPosition) || 'Member',
+    responsiveness: m.responsiveness ?? 3,
+    structure,
+  }
+}
+
 export function buildMemberRows(tree: StructureTree): StructureMemberRow[] {
   return tree.members
-    .map((m) => {
-      const structure = memberStructureSegments(tree, m.parentNodeId)
-      const path = structure.map((s) => s.nodeName).join(' / ') || '—'
-      return {
-        id: m.id,
-        member: m.name,
-        email: m.email ?? '',
-        phone: m.phone ?? '',
-        dateOfBirth: m.dateOfBirth ?? '',
-        residence: m.residence ?? '',
-        occupationStatus: m.occupationStatus ?? '',
-        schoolOrWorkplace: m.schoolOrWorkplace ?? '',
-        age: formatMemberAge(m.dateOfBirth, m.age),
-        role: formatMemberPosition(m.position),
-        path,
-        parentNodeId: m.parentNodeId,
-        position: (m.position as MemberPosition) || 'Member',
-        responsiveness: m.responsiveness ?? 3,
-        structure,
-      }
-    })
+    .map((m) => buildMemberRow(tree, m))
     .sort((a, b) => a.member.localeCompare(b.member))
 }
 

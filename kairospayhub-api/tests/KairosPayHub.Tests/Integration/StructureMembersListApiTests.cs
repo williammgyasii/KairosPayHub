@@ -75,6 +75,36 @@ public class StructureMembersListApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetMember_returns_member_by_id()
+    {
+        var client = PastorClient();
+        var cellId = await SeedFlatCellAsync(client, memberCount: 0);
+        var created = await client.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Deep Link Member",
+            parentNodeId = cellId,
+            email = "deeplink@example.com",
+        });
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        var memberId = (await created.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("id").GetGuid();
+
+        var member = await client.GetFromJsonAsync<JsonElement>($"/api/structure/members/{memberId}");
+        Assert.Equal(memberId, member.GetProperty("id").GetGuid());
+        Assert.Equal("Deep Link Member", member.GetProperty("name").GetString());
+        Assert.Equal("deeplink@example.com", member.GetProperty("email").GetString());
+    }
+
+    [Fact]
+    public async Task GetMember_returns_forbidden_for_unknown_id()
+    {
+        var client = PastorClient();
+        await SeedFlatCellAsync(client, memberCount: 0);
+        var resp = await client.GetAsync($"/api/structure/members/{Guid.NewGuid()}");
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task ListMembers_search_filters_by_name_email_or_phone()
     {
         var client = PastorClient();

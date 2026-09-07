@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type {
   StructureMemberListParams,
   StructureMemberListResponse,
@@ -9,11 +9,13 @@ import type {
 import { buildMembersQuery } from '@/api/structure'
 import { useApi } from '@/api/core'
 import { MemberFormSheet, type MemberSheetState } from '@/components/structure/member-form-sheet'
-import { MemberDetailSheet, type MemberDetailTab } from '@/components/structure/member-detail-sheet'
 import { MemberDeleteModal } from '@/components/structure/member-delete-modal'
 import { resolveMemberWizardMode } from '@/components/structure/member-wizard-steps'
 import { MemberTableToolbar } from '@/components/structure/member-table-toolbar'
-import { StructureMemberTable } from '@/components/structure/structure-member-table'
+import {
+  StructureMemberTable,
+  type MemberViewDestination,
+} from '@/components/structure/structure-member-table'
 import {
   applyMemberFilterRules,
   type MemberFilterField,
@@ -84,14 +86,11 @@ export function MembershipView({
   scopeParentNodeId = null,
 }: MembershipViewProps) {
   const api = useApi()
+  const navigate = useNavigate()
   const [wizardOpenInternal, setWizardOpenInternal] = useState(false)
   const wizardOpen = wizardOpenProp ?? wizardOpenInternal
   const setWizardOpen = onWizardOpenChange ?? setWizardOpenInternal
   const [sheet, setSheet] = useState<MemberSheetState | null>(null)
-  const [detailMember, setDetailMember] = useState<ReturnType<typeof buildMemberRows>[number] | null>(
-    null,
-  )
-  const [detailTab, setDetailTab] = useState<MemberDetailTab>('overview')
   const [deleteMember, setDeleteMember] = useState<ReturnType<typeof buildMemberRows>[number] | null>(
     null,
   )
@@ -202,7 +201,7 @@ export function MembershipView({
   }
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="min-w-0 max-w-full space-y-4 overflow-x-clip">
       {(error || listError) && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error ?? listError}
@@ -261,11 +260,20 @@ export function MembershipView({
             />
           )
         }
-        onView={(member, tab = 'overview') => {
-          setDetailTab(tab)
-          setDetailMember(member)
+        onView={(member, destination: MemberViewDestination = 'profile') => {
+          const suffix =
+            destination === 'attendance'
+              ? '/attendance'
+              : destination === 'givings'
+                ? '/givings'
+                : ''
+          navigate(`/roster/members/${member.id}${suffix}`)
         }}
-        onEdit={readOnly ? undefined : (member) => setSheet({ mode: 'edit', member })}
+        onEdit={
+          readOnly
+            ? undefined
+            : (member) => navigate(`/roster/members/${member.id}/edit`)
+        }
         onDelete={readOnly ? undefined : (member) => setDeleteMember(member)}
       />
 
@@ -277,21 +285,6 @@ export function MembershipView({
           submit={submitAndRefresh}
           sheet={activeSheet}
           onClose={closeSheet}
-        />
-      )}
-
-      {detailMember && (
-        <MemberDetailSheet
-          member={detailMember}
-          tree={listTree}
-          open
-          initialTab={detailTab}
-          onOpenChange={(open) => !open && setDetailMember(null)}
-          onEdit={(member) => {
-            setDetailMember(null)
-            setSheet({ mode: 'edit', member })
-          }}
-          readOnly={readOnly}
         />
       )}
 

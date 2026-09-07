@@ -4,11 +4,13 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '@/api/core'
 import type { StructureTree } from '@/api/structure'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { MemberDetailSheet, type MemberDetailTab } from '@/components/structure/member-detail-sheet'
 import { MemberDeleteModal } from '@/components/structure/member-delete-modal'
 import { MemberFormSheet, type MemberSheetState } from '@/components/structure/member-form-sheet'
 import { MemberTableToolbar } from '@/components/structure/member-table-toolbar'
-import { StructureMemberTable } from '@/components/structure/structure-member-table'
+import {
+  StructureMemberTable,
+  type MemberViewDestination,
+} from '@/components/structure/structure-member-table'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
 import { StructureUnitNodeTable } from '@/components/structure/structure-unit-node-table'
 import {
@@ -116,8 +118,6 @@ export function RosterUnitView({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchField, setSearchField] = useState<MemberFilterField | 'all'>('all')
   const [memberSheet, setMemberSheet] = useState<MemberSheetState | null>(null)
-  const [detailMember, setDetailMember] = useState<StructureMemberRow | null>(null)
-  const [detailTab, setDetailTab] = useState<MemberDetailTab>('overview')
   const [deleteMember, setDeleteMember] = useState<StructureMemberRow | null>(null)
   const [nodeSheet, setNodeSheet] = useState<UnitNodeSheetState | null>(null)
   const [fellowshipWizardOpen, setFellowshipWizardOpen] = useState(false)
@@ -355,10 +355,19 @@ export function RosterUnitView({
           rows={filteredMemberRows}
           structureLayers={getLayers(tree)}
           emptyMessage={`No members under ${unit.name} yet.${membersReadOnly ? '' : ' Add cells first if needed, then click Add member.'}`}
-          onEdit={membersReadOnly ? undefined : (member) => setMemberSheet({ mode: 'edit', member })}
-          onView={(member, tab = 'overview') => {
-            setDetailTab(tab)
-            setDetailMember(member)
+          onEdit={
+            membersReadOnly
+              ? undefined
+              : (member) => navigate(`/roster/members/${member.id}/edit`)
+          }
+          onView={(member, destination: MemberViewDestination = 'profile') => {
+            const suffix =
+              destination === 'attendance'
+                ? '/attendance'
+                : destination === 'givings'
+                  ? '/givings'
+                  : ''
+            navigate(`/roster/members/${member.id}${suffix}`)
           }}
           onDelete={membersReadOnly ? undefined : (member) => setDeleteMember(member)}
           compactLayout
@@ -380,21 +389,6 @@ export function RosterUnitView({
               compact
             />
           }
-        />
-      )}
-
-      {detailMember && (
-        <MemberDetailSheet
-          member={detailMember}
-          tree={tree}
-          open
-          initialTab={detailTab}
-          onOpenChange={(open) => !open && setDetailMember(null)}
-          onEdit={(member) => {
-            setDetailMember(null)
-            setMemberSheet({ mode: 'edit', member })
-          }}
-          readOnly={membersReadOnly}
         />
       )}
 

@@ -47,6 +47,7 @@ export function MemberEditWizard({
   busy,
   submit,
   onClose,
+  presentation = 'modal',
 }: {
   tree: StructureTree
   unitNodeId?: string
@@ -54,6 +55,7 @@ export function MemberEditWizard({
   busy: boolean
   submit: (action: () => Promise<void>) => Promise<void>
   onClose: () => void
+  presentation?: 'modal' | 'page'
 }) {
   const api = useApi()
   const deepest = getDeepestLayer(tree)
@@ -173,20 +175,7 @@ export function MemberEditWizard({
     setStep((current) => current + 1)
   }
 
-  return (
-    <Modal
-      open
-      onOpenChange={(open) => !open && onClose()}
-      title="Edit member"
-      description={
-        cellLabel
-          ? `Update ${name.trim() || 'this member'} in ${cellLabel}.`
-          : fellowshipLabel
-            ? `Update ${name.trim() || 'this member'} in ${fellowshipLabel}.`
-            : 'Update profile details or move this person to another roster unit.'
-      }
-      size="xl"
-    >
+  const body = (
       <div className="space-y-5">
         <WizardStepper steps={steps} currentStep={step} />
         <WizardProgressBar value={progress} />
@@ -419,6 +408,41 @@ export function MemberEditWizard({
           busyLabel="Saving…"
         />
       </div>
+  )
+
+  if (presentation === 'page') {
+    return (
+      <section className="rounded-xl border border-border/60 bg-background p-5 sm:p-6">
+        <div className="mb-5 space-y-1">
+          <h2 className="text-section-title">Edit member</h2>
+          <p className="text-sm text-muted-foreground">
+            {cellLabel
+              ? `Update ${name.trim() || 'this member'} in ${cellLabel}.`
+              : fellowshipLabel
+                ? `Update ${name.trim() || 'this member'} in ${fellowshipLabel}.`
+                : 'Update profile details or move this person to another roster unit.'}
+          </p>
+        </div>
+        {body}
+      </section>
+    )
+  }
+
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title="Edit member"
+      description={
+        cellLabel
+          ? `Update ${name.trim() || 'this member'} in ${cellLabel}.`
+          : fellowshipLabel
+            ? `Update ${name.trim() || 'this member'} in ${fellowshipLabel}.`
+            : 'Update profile details or move this person to another roster unit.'
+      }
+      size="xl"
+    >
+      {body}
     </Modal>
   )
 }

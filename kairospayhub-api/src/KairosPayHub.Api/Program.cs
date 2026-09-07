@@ -81,6 +81,7 @@ builder.Services.AddScoped<AttendanceRollCallExtrasService>();
 builder.Services.AddScoped<AttendanceOccurrenceGenerator>();
 builder.Services.AddScoped<AttendanceScopeService>();
 builder.Services.AddScoped<AttendanceSubmissionService>();
+builder.Services.AddScoped<AttendanceMemberHistoryService>();
 builder.Services.AddScoped<ChurchAdministratorService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<INotificationPublisher, SignalRNotificationPublisher>();

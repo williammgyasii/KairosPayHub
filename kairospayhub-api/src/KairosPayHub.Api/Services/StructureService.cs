@@ -197,6 +197,29 @@ public class StructureService(
             pageSize);
     }
 
+    public async Task<StructureMemberDto> GetMemberAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid memberId,
+        CancellationToken ct = default)
+    {
+        var churchId = RequireStructureChurch(actor);
+        await givingScope.CanAccessStructureReadAsync(actor, authUserId, ct);
+
+        var member = await db.ChurchMembers.AsNoTracking()
+            .SingleOrDefaultAsync(m => m.Id == memberId && m.ChurchId == churchId, ct)
+            ?? throw new ForbiddenException("Member not found");
+
+        if (!givingScope.CanManageChurch(actor))
+        {
+            var visibleNodeIds = await givingScope.GetActorVisibleMemberNodeIdsAsync(actor, authUserId, ct);
+            if (!visibleNodeIds.Contains(member.ParentNodeId))
+                throw new ForbiddenException("Member not found");
+        }
+
+        return ToMemberDto(member);
+    }
+
     public async Task<StructureTemplateDto> SetTemplateAsync(
         Actor actor,
         string? name,

@@ -9,6 +9,12 @@ import { TransactionsPage } from './pages/TransactionsPage'
 import { ProgramDetailPage } from './pages/ProgramDetailPage'
 import { ProgramStructureContributionsPage } from './pages/ProgramStructureContributionsPage'
 import { MembershipPage, DashboardPage, RosterPage, RosterUnitPage, StructurePage } from './pages/DashboardPages'
+import {
+  MemberAttendancePage,
+  MemberEditPage,
+  MemberGivingsPage,
+  MemberProfilePage,
+} from './pages/MemberDetailPages'
 import { SettingsLayout } from './components/settings/settings-layout'
 import { SettingsBrandingPage } from './pages/SettingsBrandingPage'
 import { SettingsAccountPage } from './pages/SettingsAccountPage'
@@ -72,6 +78,38 @@ export default function App() {
           element={
             <ScopedLeaderRoute>
               <MembershipPage />
+            </ScopedLeaderRoute>
+          }
+        />
+        <Route
+          path="roster/members/:memberId"
+          element={
+            <ScopedLeaderRoute>
+              <MemberProfilePage />
+            </ScopedLeaderRoute>
+          }
+        />
+        <Route
+          path="roster/members/:memberId/attendance"
+          element={
+            <ScopedLeaderRoute>
+              <MemberAttendancePage />
+            </ScopedLeaderRoute>
+          }
+        />
+        <Route
+          path="roster/members/:memberId/givings"
+          element={
+            <ScopedLeaderRoute>
+              <MemberGivingsPage />
+            </ScopedLeaderRoute>
+          }
+        />
+        <Route
+          path="roster/members/:memberId/edit"
+          element={
+            <ScopedLeaderRoute>
+              <MemberEditPage />
             </ScopedLeaderRoute>
           }
         />

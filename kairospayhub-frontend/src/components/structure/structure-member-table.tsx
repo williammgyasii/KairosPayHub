@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   createColumnHelper,
   flexRender,
@@ -12,8 +12,11 @@ import {
 import { ArrowUpDown, Coins, Eye, FileText, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import type { StructureLayer } from '@/api/structure'
 import { formatOccupationStatus } from '@/lib/member-filters'
+import {
+  membershipStickyColumnLeft,
+  membershipStickyColumnWidth,
+} from '@/lib/membership-table-sticky'
 import type { StructureMemberRow } from '@/lib/structure-table-rows'
-import type { MemberDetailTab } from '@/components/structure/member-detail-sheet'
 import { ResponsivenessBadge } from '@/components/structure/responsiveness-badge'
 import { RoleBadge, StructureSegmentBadge } from '@/components/structure/structure-badges'
 import { Button } from '@/components/ui/button'
@@ -27,6 +30,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
+export type MemberViewDestination = 'profile' | 'attendance' | 'givings'
+
 interface StructureMemberTableProps {
   rows: StructureMemberRow[]
   structureLayers: Pick<StructureLayer, 'id' | 'displayName' | 'standardType'>[]
@@ -34,7 +39,7 @@ interface StructureMemberTableProps {
   description?: string
   emptyMessage?: string
   onEdit?: (member: StructureMemberRow) => void
-  onView?: (member: StructureMemberRow, tab?: MemberDetailTab) => void
+  onView?: (member: StructureMemberRow, destination?: MemberViewDestination) => void
   onDelete?: (member: StructureMemberRow) => void
   showSearch?: boolean
   extendedColumns?: boolean
@@ -76,8 +81,19 @@ export function StructureMemberTable({
 }: StructureMemberTableProps) {
   const [localSorting, setLocalSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window === 'undefined' ? 1024 : window.innerWidth,
+  )
   const sorting = sortingProp ?? localSorting
   const setSorting = onSortingChangeProp ?? setLocalSorting
+
+  useEffect(() => {
+    function onResize() {
+      setViewportWidth(window.innerWidth)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   const columns = useMemo(
     () =>
@@ -118,6 +134,33 @@ export function StructureMemberTable({
       ? `${rows.length} of ${totalCount}`
       : `${rows.length}`
 
+  function stickyClasses(columnId: string, kind: 'th' | 'td', rowTone?: 'even' | 'odd') {
+    const left = membershipStickyColumnLeft(columnId)
+    if (left == null) return 'relative z-0'
+    return cn(
+      'sticky overflow-hidden border-border bg-clip-padding border-r-2 border-r-border shadow-[6px_0_10px_-6px_rgba(15,23,42,0.35)] dark:shadow-[6px_0_10px_-6px_rgba(0,0,0,0.65)]',
+      kind === 'th' && 'z-[45] !bg-muted',
+      kind === 'td' && 'z-[35]',
+      kind === 'td' && (rowTone === 'odd' ? '!bg-muted' : '!bg-card'),
+      kind === 'td' &&
+        (rowTone === 'odd'
+          ? 'group-hover:!bg-sky-100 dark:group-hover:!bg-sky-950'
+          : 'group-hover:!bg-sky-50 dark:group-hover:!bg-sky-950'),
+    )
+  }
+
+  function stickyStyle(columnId: string): CSSProperties | undefined {
+    const left = membershipStickyColumnLeft(columnId)
+    const width = membershipStickyColumnWidth(columnId, viewportWidth)
+    if (left == null || width == null) return undefined
+    return {
+      left,
+      minWidth: width,
+      width,
+      backgroundClip: 'padding-box',
+    }
+  }
+
   return (
     <section
       className={cn(
@@ -155,8 +198,8 @@ export function StructureMemberTable({
         <table
           className={cn(
             'w-full text-sm',
-            !compactLayout && extendedColumns && 'min-w-[1200px]',
-            !compactLayout && !extendedColumns && 'min-w-[760px]',
+            viewportWidth >= 1024 && !compactLayout && extendedColumns && 'min-w-[1200px]',
+            viewportWidth >= 1024 && !compactLayout && !extendedColumns && 'min-w-[760px]',
           )}
         >
           <thead>
@@ -167,9 +210,11 @@ export function StructureMemberTable({
                     key={header.id}
                     className={cn(
                       'px-5 py-2.5 font-medium text-muted-foreground',
+                      stickyClasses(header.column.id, 'th'),
                       header.column.id === 'member' && 'min-w-[9rem]',
                       header.column.id === 'email' && 'w-[9rem] max-w-[9rem]',
                     )}
+                    style={stickyStyle(header.column.id)}
                   >
                     {header.isPlaceholder ? null : header.column.id === 'actions' ? null : (
                       <button
@@ -194,19 +239,25 @@ export function StructureMemberTable({
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row) => (
+              table.getRowModel().rows.map((row, rowIndex) => (
                 <tr
                   key={row.id}
-                  className="border-b border-border/40 last:border-0 hover:bg-muted/10"
+                  className="group border-b border-border/40 last:border-0 hover:bg-muted/10"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
                       className={cn(
                         'px-5 py-3 align-middle',
+                        stickyClasses(
+                          cell.column.id,
+                          'td',
+                          rowIndex % 2 === 1 ? 'odd' : 'even',
+                        ),
                         cell.column.id === 'member' && 'min-w-[9rem]',
                         cell.column.id === 'email' && 'w-[9rem] max-w-[9rem]',
                       )}
+                      style={stickyStyle(cell.column.id)}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
@@ -227,7 +278,7 @@ function createMemberColumns(
   structureLayers: Pick<StructureLayer, 'id' | 'displayName' | 'standardType'>[],
   actions: {
     onEdit?: (member: StructureMemberRow) => void
-    onView?: (member: StructureMemberRow, tab?: MemberDetailTab) => void
+    onView?: (member: StructureMemberRow, destination?: MemberViewDestination) => void
     onDelete?: (member: StructureMemberRow) => void
     readOnly?: boolean
   },
@@ -351,7 +402,7 @@ function MemberRowMenu({
 }: {
   member: StructureMemberRow
   onEdit?: (member: StructureMemberRow) => void
-  onView?: (member: StructureMemberRow, tab?: MemberDetailTab) => void
+  onView?: (member: StructureMemberRow, destination?: MemberViewDestination) => void
   onDelete?: (member: StructureMemberRow) => void
   readOnly?: boolean
 }) {
@@ -374,17 +425,17 @@ function MemberRowMenu({
       <DropdownMenuContent align="end" className="w-48">
         {onView && (
           <>
-            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'overview')}>
+            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'profile')}>
               <Eye className="size-4" />
               View profile
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'records')}>
+            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'attendance')}>
               <FileText className="size-4" />
-              View records
+              View attendance
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'giving')}>
+            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'givings')}>
               <Coins className="size-4" />
-              View giving
+              View givings
             </DropdownMenuItem>
           </>
         )}

@@ -20,6 +20,7 @@ export const baseApi = createApi({
     'AttendanceRollup',
     'AttendanceApprovalQueue',
     'AttendanceRollCallReview',
+    'AttendanceMemberHistory',
   ],
   keepUnusedDataFor: 300,
   endpoints: () => ({}),

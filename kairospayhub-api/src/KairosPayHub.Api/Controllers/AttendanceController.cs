@@ -15,8 +15,31 @@ public class AttendanceController(
     CurrentActor current,
     AttendanceMeetingTypeService meetingTypes,
     AttendanceSubmissionService submissions,
-    AttendanceRollCallExtrasService rollCallExtras) : ControllerBase
+    AttendanceRollCallExtrasService rollCallExtras,
+    AttendanceMemberHistoryService memberHistory) : ControllerBase
 {
+    [HttpGet("members/{memberId:guid}/history")]
+    public async Task<IActionResult> GetMemberHistory(
+        Guid memberId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] Guid? meetingTypeId = null,
+        CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        return Ok(await memberHistory.GetHistoryAsync(
+            actor,
+            authUserId,
+            memberId,
+            page,
+            pageSize,
+            meetingTypeId,
+            ct));
+    }
+
     [HttpGet("meeting-types")]
     public async Task<IActionResult> ListMeetingTypes(CancellationToken ct)
     {
