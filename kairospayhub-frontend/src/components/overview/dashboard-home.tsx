@@ -60,10 +60,10 @@ function DashboardWelcome({
   return (
     <section className="rounded-xl border border-border/60 bg-muted/20 px-4 py-4 sm:px-5 sm:py-5">
       <p className="text-xs font-medium text-muted-foreground">{today}</p>
-      <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
+      <h2 className="text-section-title mt-1">
         {earlySetup ? `Welcome, ${firstName}` : `Welcome back, ${firstName}`}
       </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
+      <p className="text-muted-body mt-2 max-w-2xl">{subtitle}</p>
     </section>
   )
 }
@@ -149,14 +149,10 @@ function MetricTiles({ tree }: { tree: StructureTree }) {
             className="rounded-xl border border-border/60 bg-background px-3 py-3 sm:px-4 sm:py-3.5"
           >
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
-                {metric.label}
-              </p>
+              <p className="text-eyebrow">{metric.label}</p>
               <Icon className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden />
             </div>
-            <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight sm:text-2xl">
-              {metric.value}
-            </p>
+            <p className="text-section-title mt-2 tabular-nums">{metric.value}</p>
           </div>
         )
       })}

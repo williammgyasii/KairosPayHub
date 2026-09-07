@@ -77,7 +77,7 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-body text-foreground antialiased;
     margin: 0;
     min-height: 100vh;
   }
@@ -95,6 +95,31 @@
     --rdp-accent-color: oklch(0.62 0.17 264);
     --rdp-accent-background-color: oklch(0.28 0.04 264);
   }
+}
+
+/* Dashboard type scale — prefer these over one-off text-[10px]/text-[11px] in shell chrome */
+@utility text-page-title {
+  @apply text-2xl font-semibold tracking-tight sm:text-3xl;
+}
+
+@utility text-page-title-hero {
+  @apply text-3xl font-semibold tracking-tight sm:text-4xl lg:text-[2.75rem] lg:leading-tight;
+}
+
+@utility text-section-title {
+  @apply text-xl font-semibold tracking-tight sm:text-2xl;
+}
+
+@utility text-body {
+  @apply text-sm leading-relaxed;
+}
+
+@utility text-muted-body {
+  @apply text-sm leading-relaxed text-muted-foreground;
+}
+
+@utility text-eyebrow {
+  @apply text-xs font-medium uppercase tracking-wide text-muted-foreground;
 }
 
 @layer utilities {

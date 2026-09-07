@@ -18,7 +18,7 @@ export function OverallGivingsMetrics({ summary }: { summary: OverallGivingsSumm
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-[7rem] flex-1 rounded-lg border border-border/60 bg-background px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-eyebrow">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">{value}</p>
     </div>
   )

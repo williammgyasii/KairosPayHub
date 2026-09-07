@@ -85,7 +85,7 @@ function MetricPill({
         highlight && 'border-amber-300/70 bg-amber-50/60 dark:bg-amber-950/25',
       )}
     >
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="text-eyebrow">
         {label}
       </p>
       <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">{value}</p>

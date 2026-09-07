@@ -29,28 +29,28 @@ export function DashboardPageHeader({
   className,
 }: DashboardPageHeaderProps) {
   return (
-    <header className={cn('space-y-3', className)}>
+    <header className={cn('min-w-0 space-y-3', className)}>
       {breadcrumbs.length > 0 && (
-        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5">
+        <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-1.5">
           {breadcrumbs.map((crumb, index) => {
             const isLast = index === breadcrumbs.length - 1
 
             return (
-              <span key={`${crumb.label}-${index}`} className="inline-flex items-center gap-1.5">
+              <span key={`${crumb.label}-${index}`} className="inline-flex min-w-0 max-w-full items-center gap-1.5">
                 {index > 0 && (
                   <ChevronRight className="size-3 shrink-0 text-muted-foreground/40" aria-hidden />
                 )}
                 {crumb.to && !isLast ? (
                   <Link
                     to={crumb.to}
-                    className="text-xs font-medium text-muted-foreground/70 transition-colors hover:text-foreground"
+                    className="truncate text-xs font-medium text-muted-foreground/70 transition-colors hover:text-foreground"
                   >
                     {crumb.label}
                   </Link>
                 ) : (
                   <span
                     className={cn(
-                      'text-xs font-medium',
+                      'truncate text-xs font-medium',
                       isLast ? 'text-muted-foreground' : 'text-muted-foreground/70',
                     )}
                     aria-current={isLast ? 'page' : undefined}
@@ -64,15 +64,13 @@ export function DashboardPageHeader({
         </nav>
       )}
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 max-w-3xl space-y-2">
           <h1
             className={cn(
-              'min-w-0 font-semibold tracking-tight text-foreground',
+              'min-w-0 text-foreground',
               onBack && 'flex items-center gap-1',
-              titleSize === 'hero'
-                ? 'text-3xl sm:text-4xl lg:text-[2.75rem] lg:leading-tight'
-                : 'text-2xl sm:text-3xl',
+              titleSize === 'hero' ? 'text-page-title-hero' : 'text-page-title',
             )}
           >
             {onBack && (
@@ -89,12 +87,10 @@ export function DashboardPageHeader({
             )}
             <span className="block truncate">{title}</span>
           </h1>
-          {description && (
-            <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
-          )}
+          {description && <p className="text-muted-body break-words">{description}</p>}
         </div>
 
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
     </header>
   )

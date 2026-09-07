@@ -67,7 +67,7 @@ function GivingKpi({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+        <p className="text-eyebrow">
           {label}
         </p>
         <Icon className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden />

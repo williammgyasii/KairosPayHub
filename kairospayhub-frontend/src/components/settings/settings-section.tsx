@@ -65,7 +65,7 @@ export function SettingsField({
 }) {
   return (
     <div className={cn('min-w-0 space-y-1.5', className)}>
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <dt className="text-eyebrow">
         {label}
       </dt>
       <dd className="text-sm font-medium text-foreground">{children ?? value ?? '—'}</dd>

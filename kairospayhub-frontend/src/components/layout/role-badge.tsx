@@ -110,7 +110,7 @@ export function RoleBadge({ me, className, compact = false }: RoleBadgeProps) {
         <Icon className="size-4" aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-tight text-foreground">{info.title}</p>
+        <p className="truncate text-body font-medium leading-tight text-foreground">{info.title}</p>
         {info.subtitle ? (
           <p className="truncate text-xs leading-tight text-muted-foreground">{info.subtitle}</p>
         ) : null}

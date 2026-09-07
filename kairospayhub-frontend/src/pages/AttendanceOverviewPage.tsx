@@ -151,7 +151,7 @@ function OverviewMetrics({
       <div className="flex flex-wrap items-start gap-x-5 gap-y-3 sm:gap-x-8">
         {stats.map((stat) => (
           <div key={stat.id} className="min-w-[5rem]">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="text-eyebrow">
               {stat.label}
             </p>
             <p
@@ -779,7 +779,7 @@ export function AttendanceOverviewPage() {
                         {group.groupLabel ? (
                           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b bg-muted/30 px-4 py-2.5">
                             <div>
-                              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                              <p className="text-eyebrow">
                                 {group.parentLayerName || parentColumnLabel}
                               </p>
                               <p className="text-sm font-semibold">{group.groupLabel}</p>
