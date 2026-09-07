@@ -52,19 +52,19 @@ export function MemberGivingHistorySheet({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
           <div className="grid grid-cols-3 gap-3 rounded-xl border border-border/60 bg-muted/10 p-3 text-sm">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-eyebrow">
                 Payments
               </p>
               <p className="mt-1 font-semibold tabular-nums">{member.contributionCount}</p>
             </div>
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-eyebrow">
                 Approved
               </p>
               <p className="mt-1 font-semibold tabular-nums">{formatAmount(member.approvedTotal)}</p>
             </div>
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-eyebrow">
                 Pending
               </p>
               <p className="mt-1 font-semibold tabular-nums">{member.pendingCount}</p>

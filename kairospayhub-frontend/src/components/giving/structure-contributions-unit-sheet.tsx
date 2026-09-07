@@ -446,7 +446,7 @@ function MetricTile({
     >
       <div className="flex items-center gap-1.5">
         {Icon && <Icon className="size-3.5 text-muted-foreground" />}
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-eyebrow">{label}</p>
       </div>
       <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
     </div>

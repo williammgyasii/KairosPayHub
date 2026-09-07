@@ -198,8 +198,8 @@ export function GivingTransactionsLedger({
       <div className="overflow-hidden rounded-xl border border-border/60">
         {error && <p className="border-b border-border/60 px-4 py-3 text-sm text-destructive">{error}</p>}
 
-        <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-collapse text-sm">
+        <div className="grid w-full min-w-0 overflow-x-auto overscroll-x-contain">
+            <table className="w-full min-w-[920px] border-collapse text-sm lg:min-w-[1180px]">
               <thead className="sticky top-0 z-10">
                 <tr>
                   {SORT_COLUMNS.map((column) => (

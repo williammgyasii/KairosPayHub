@@ -263,7 +263,7 @@ export function ProgramDetailView({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="grid w-full min-w-0 gap-5">
       <DashboardPageHeader
         breadcrumbs={[
           { label: 'Dashboard', to: '/' },
@@ -302,32 +302,32 @@ export function ProgramDetailView({
 
       <ProgramDetailTabs tabs={tabs} activeId={tab} onChange={setTab} />
 
-      <div className={tab === 'dashboard' ? undefined : 'hidden'}>
-        <ProgramDashboard
-          program={program}
-          contributions={contributions}
-          rollup={rollup}
-          children={children}
-          tree={tree}
-          pending={myPendingContributions}
-          allPending={pendingContributions}
-          acceptsContributions={acceptsContributions}
-          isPastor={churchManager}
-          isFellowshipLeader={isFellowshipLeader}
-          isPfccManager={isPfccManager}
-          viewerRole={me.role}
-          structureOptions={structureOptions}
-          onTabChange={setTab}
-          busy={busy}
-          onApproveContribution={handleApprove}
-          onRejectContribution={(contributionId, programId) => {
-            void handleReject(contributionId, programId, null)
-          }}
-        />
-      </div>
+      <div className="grid w-full min-w-0 gap-5">
+        {tab === 'dashboard' ? (
+          <ProgramDashboard
+            program={program}
+            contributions={contributions}
+            rollup={rollup}
+            children={children}
+            tree={tree}
+            pending={myPendingContributions}
+            allPending={pendingContributions}
+            acceptsContributions={acceptsContributions}
+            isPastor={churchManager}
+            isFellowshipLeader={isFellowshipLeader}
+            isPfccManager={isPfccManager}
+            viewerRole={me.role}
+            structureOptions={structureOptions}
+            onTabChange={setTab}
+            busy={busy}
+            onApproveContribution={handleApprove}
+            onRejectContribution={(contributionId, programId) => {
+              void handleReject(contributionId, programId, null)
+            }}
+          />
+        ) : null}
 
-      {showSubGivings && (
-        <div className={tab === 'subgivings' ? undefined : 'hidden'}>
+        {tab === 'subgivings' && showSubGivings ? (
           <SubGivingsPanel
             meRole={me.role}
             children={children}
@@ -339,11 +339,9 @@ export function ProgramDetailView({
                 : undefined
             }
           />
-        </div>
-      )}
+        ) : null}
 
-      {canSeeMemberGivings && (
-        <div className={tab === 'member-givings' ? undefined : 'hidden'}>
+        {tab === 'member-givings' && canSeeMemberGivings ? (
           <MemberGivingRankingsTable
             api={api}
             campaigns={campaignTreePrograms}
@@ -352,104 +350,101 @@ export function ProgramDetailView({
             programId={program.id}
             scopeMode="campaign"
           />
-        </div>
-      )}
+        ) : null}
 
-      {canSeeTransactions && (
-        <div className={tab === 'transactions' || tab === 'awaiting' || tab === 'pending' ? undefined : 'hidden'}>
-          <div className="mb-4 border-b border-border/60">
-            <div className="-mb-px flex flex-wrap gap-1">
-              {(
-                [
-                  { id: 'all', label: 'All' },
-                  { id: 'pending', label: 'Pending' },
-                  { id: 'approved', label: 'Approved' },
-                ] as const
-              ).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setTxStatus(item.id)}
-                  className={cn(
-                    'border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors',
-                    txStatus === item.id
-                      ? 'border-primary text-foreground'
-                      : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
+        {canSeeTransactions &&
+        (tab === 'transactions' || tab === 'awaiting' || tab === 'pending') ? (
+          <div className="min-w-0 max-w-full">
+            <div className="mb-4 min-w-0 border-b border-border/60">
+              <div className="-mb-px flex flex-wrap gap-1">
+                {(
+                  [
+                    { id: 'all', label: 'All' },
+                    { id: 'pending', label: 'Pending' },
+                    { id: 'approved', label: 'Approved' },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTxStatus(item.id)}
+                    className={cn(
+                      'border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors',
+                      txStatus === item.id
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className={txStatus === 'all' ? undefined : 'hidden'}>
-            <GivingTransactionsLedger
-              api={api}
-              campaigns={campaignTreePrograms}
-              tree={tree}
-              viewerRole={me.role}
-              lockedProgramId={program.id}
-            />
-          </div>
+            {txStatus === 'all' ? (
+              <GivingTransactionsLedger
+                api={api}
+                campaigns={campaignTreePrograms}
+                tree={tree}
+                viewerRole={me.role}
+                lockedProgramId={program.id}
+              />
+            ) : null}
 
-          <div className={txStatus === 'pending' ? undefined : 'hidden'}>
-            <ContributionsApprovalTable
-              api={api}
-              tree={tree}
-              parentProgram={program}
-              childPrograms={children}
-              mode="pending"
-              viewerRole={me.role}
-              canAct={awaitingMyApprovalCount > 0 || churchManager}
-              canApproveSubGivings={churchManager}
-              busy={busy}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              onApproveSubGiving={handleApproveSubGiving}
-              onRejectSubGiving={handleRejectSubGiving}
-              onSummaryChange={() => void onRefresh()}
-            />
-          </div>
+            {txStatus === 'pending' ? (
+              <ContributionsApprovalTable
+                api={api}
+                tree={tree}
+                parentProgram={program}
+                childPrograms={children}
+                mode="pending"
+                viewerRole={me.role}
+                canAct={awaitingMyApprovalCount > 0 || churchManager}
+                canApproveSubGivings={churchManager}
+                busy={busy}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                onApproveSubGiving={handleApproveSubGiving}
+                onRejectSubGiving={handleRejectSubGiving}
+                onSummaryChange={() => void onRefresh()}
+              />
+            ) : null}
 
-          <div className={txStatus === 'approved' ? undefined : 'hidden'}>
-            <ContributionsApprovalTable
-              api={api}
-              tree={tree}
-              parentProgram={program}
-              childPrograms={children}
-              mode="approved"
-              viewerRole={me.role}
-              busy={busy}
-              onApprove={async () => {}}
-              onReject={async () => {}}
-              onSummaryChange={() => void onRefresh()}
-            />
+            {txStatus === 'approved' ? (
+              <ContributionsApprovalTable
+                api={api}
+                tree={tree}
+                parentProgram={program}
+                childPrograms={children}
+                mode="approved"
+                viewerRole={me.role}
+                busy={busy}
+                onApprove={async () => {}}
+                onReject={async () => {}}
+                onSummaryChange={() => void onRefresh()}
+              />
+            ) : null}
           </div>
-        </div>
-      )}
+        ) : null}
 
-      {!canSeeMemberGivings && (
-        <>
-          <div className={tab === 'contributions' ? undefined : 'hidden'}>
-            <ContributionsStructureTable
-              programId={program.id}
-              contributions={approvedContributions}
-              tree={tree}
-              structureOptions={structureOptions}
-              viewerRole={me.role}
-            />
-          </div>
+        {!canSeeMemberGivings && tab === 'contributions' ? (
+          <ContributionsStructureTable
+            programId={program.id}
+            contributions={approvedContributions}
+            tree={tree}
+            structureOptions={structureOptions}
+            viewerRole={me.role}
+          />
+        ) : null}
 
-          <div className={tab === 'history' ? undefined : 'hidden'}>
-            <ContributionsHistoryTable
-              contributions={approvedContributions}
-              tree={tree}
-              viewerRole={me.role}
-            />
-          </div>
-        </>
-      )}
+        {!canSeeMemberGivings && tab === 'history' ? (
+          <ContributionsHistoryTable
+            contributions={approvedContributions}
+            tree={tree}
+            viewerRole={me.role}
+          />
+        ) : null}
+      </div>
 
       {logOpen && canLogContributions ? (
         <Modal

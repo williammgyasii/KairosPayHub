@@ -15,8 +15,11 @@ interface ProgramDetailTabsProps {
 
 export function ProgramDetailTabs({ tabs, activeId, onChange }: ProgramDetailTabsProps) {
   return (
-    <div className="border-b border-border/60">
-      <nav aria-label="Campaign sections" className="-mb-px flex gap-1 overflow-x-auto">
+    <div className="grid w-full min-w-0 border-b border-border/60">
+      <nav
+        aria-label="Campaign sections"
+        className="-mb-px flex gap-1 overflow-x-auto overscroll-x-contain pb-px [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         {tabs.map((tab) => {
           const active = tab.id === activeId
           return (

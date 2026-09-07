@@ -14,6 +14,13 @@ dist-ssr
 
 # Local env (public VITE config lives in .env.example)
 .env
+.env.e2e.local
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/e2e/.auth/
 
 # Editor directories and files
 .vscode/*

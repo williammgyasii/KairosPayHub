@@ -243,8 +243,9 @@ export function RecentActivityTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[920px] border-collapse text-xs">
+    <div className="grid w-full min-w-0 overflow-x-auto overscroll-x-contain">
+      {/* No min-width on small screens — prevents page-level horizontal overflow. */}
+      <table className="w-full border-collapse text-xs md:min-w-[720px] lg:min-w-[920px]">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id} className="border-b border-border/60 bg-muted/20 text-left">

@@ -194,10 +194,10 @@ export function ProgramDashboard({
   ])
 
   return (
-    <div className="space-y-5">
+    <div className="grid w-full min-w-0 gap-5">
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-eyebrow">
             Approved total
           </p>
           <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl">
@@ -357,9 +357,9 @@ export function ProgramDashboard({
         </aside>
       </div>
 
-      <section className="overflow-hidden rounded-xl border border-border/60 bg-background">
+      <section className="min-w-0 rounded-xl border border-border/60 bg-background">
         <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-sm font-semibold tracking-tight">Recent activity</h2>
             <p className="text-xs text-muted-foreground">
               Latest logs — pending amounts are not part of approved totals yet
@@ -417,7 +417,7 @@ function Kpi({
   const body = (
     <>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="text-eyebrow">
           {label}
         </p>
         <Icon className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden />

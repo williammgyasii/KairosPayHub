@@ -204,8 +204,8 @@ export function SubGivingsPanel({
               : 'No sub givings in your scope yet.'}
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[940px] text-sm">
+          <div className="grid w-full min-w-0 overflow-x-auto overscroll-x-contain">
+            <table className="w-full min-w-[720px] text-sm md:min-w-[940px]">
               <thead>
                 <tr className="border-b border-border/60 bg-muted/20">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
