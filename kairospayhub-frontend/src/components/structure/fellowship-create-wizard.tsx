@@ -76,8 +76,10 @@ export function FellowshipCreateWizard({
     phoneLocal: '',
     dateOfBirth: '',
     residence: '',
+    state: '',
     occupationStatus: '',
     schoolOrWorkplace: '',
+    workplace: '',
   })
   const [cellName, setCellName] = useState('')
   const [leaderIsCellLeader, setLeaderIsCellLeader] = useState(true)

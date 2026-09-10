@@ -82,8 +82,10 @@ export function CellCreateWizard({
     phoneLocal: '',
     dateOfBirth: '',
     residence: '',
+    state: '',
     occupationStatus: '',
     schoolOrWorkplace: '',
+    workplace: '',
   })
   const [stepError, setStepError] = useState<string | null>(null)
 

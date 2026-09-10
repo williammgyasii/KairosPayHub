@@ -175,8 +175,10 @@ function UnitNodeForm({
     phoneLocal: '',
     dateOfBirth: '',
     residence: '',
+    state: '',
     occupationStatus: '',
     schoolOrWorkplace: '',
+    workplace: '',
   })
   const [initialCellName, setInitialCellName] = useState('')
 
@@ -199,8 +201,10 @@ function UnitNodeForm({
       phoneLocal: '',
       dateOfBirth: '',
       residence: '',
+      state: '',
       occupationStatus: '',
       schoolOrWorkplace: '',
+      workplace: '',
     })
     setInitialCellName('')
   }, [row, defaultParentId])
@@ -251,6 +255,8 @@ function UnitNodeForm({
                           phone: profile.phone,
                           dateOfBirth: profile.dateOfBirth,
                           residence: profile.residence,
+                          state: profile.state,
+                          workplace: profile.workplace,
                           occupationStatus: profile.occupationStatus,
                           schoolOrWorkplace: profile.schoolOrWorkplace,
                           initialCellName: !isDeepest ? initialCellName || null : null,

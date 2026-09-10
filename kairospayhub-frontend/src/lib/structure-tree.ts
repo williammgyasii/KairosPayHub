@@ -588,11 +588,15 @@ const MEMBER_POSITION_LABELS: Record<string, string> = {
 }
 
 export function formatFellowshipName(raw: string): string {
-  return formatLayerUnitName(raw, 'Fellowship')
+  return formatUnitName(raw, 'Fellowship')
 }
 
 export function formatCellName(raw: string): string {
-  return formatLayerUnitName(raw, 'Cell')
+  return formatUnitName(raw, 'Cell')
+}
+
+export function formatUnitName(raw: string, suffixWord: string): string {
+  return formatLayerUnitName(raw, suffixWord)
 }
 
 function formatLayerUnitName(raw: string, suffixWord: string): string {

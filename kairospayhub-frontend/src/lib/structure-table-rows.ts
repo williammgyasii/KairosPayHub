@@ -47,8 +47,10 @@ export type StructureMemberRow = {
   phone: string
   dateOfBirth: string
   residence: string
+  state?: string
   occupationStatus: string
   schoolOrWorkplace: string
+  workplace?: string
   age: string
   role: string
   path: string
@@ -91,8 +93,10 @@ export function buildMemberRow(
     phone: m.phone ?? '',
     dateOfBirth: m.dateOfBirth ?? '',
     residence: m.residence ?? '',
+    state: m.state ?? '',
     occupationStatus: m.occupationStatus ?? '',
     schoolOrWorkplace: m.schoolOrWorkplace ?? '',
+    workplace: m.workplace ?? '',
     age: formatMemberAge(m.dateOfBirth, m.age),
     role: formatMemberPosition(m.position),
     path,

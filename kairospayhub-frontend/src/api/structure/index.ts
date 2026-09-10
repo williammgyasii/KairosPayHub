@@ -43,7 +43,7 @@ export const MEMBER_OCCUPATION_OPTIONS: { value: MemberOccupationStatus; label: 
   { value: 'Student', label: 'Student' },
   { value: 'Working', label: 'Working' },
   { value: 'StudentAndWorking', label: 'Student & working' },
-  { value: 'Unemployed', label: 'Unemployed' },
+  { value: 'Unemployed', label: 'Not working / Unemployed' },
   { value: 'Other', label: 'Other' },
 ]
 
@@ -56,8 +56,10 @@ export type StructureMember = {
   age: number | null
   dateOfBirth: string | null
   residence: string | null
+  state: string | null
   occupationStatus: MemberOccupationStatus | string | null
   schoolOrWorkplace: string | null
+  workplace: string | null
   position: MemberPosition | string
   responsiveness: number
 }
