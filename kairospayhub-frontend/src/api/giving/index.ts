@@ -38,6 +38,7 @@ export type GivingProgram = {
   totalApprovedAmount: number
   hasChildren: boolean
   acceptsContributions: boolean
+  receiveGivingsOnMain?: boolean
   directContributionCount: number
   directContributionTotalAmount: number
   awaitingMyApprovalCount?: number
@@ -180,6 +181,16 @@ export type GivingDashboard = {
   scopedApprovedTotal?: number
 }
 
+export type CreateFirstSubCampaignInput = {
+  title: string
+  periodLabel?: string
+  eventDate?: string
+  logOpensAt?: string
+  scopeKind?: ProgramScopeKind | string
+  scopeNodeId?: string | null
+  scopeNodeIds?: string[]
+}
+
 export type CreateGivingProgramInput = {
   givingType?: GivingType | string
   customTypeLabel?: string
@@ -195,6 +206,14 @@ export type CreateGivingProgramInput = {
   scopeNodeId?: string | null
   scopeNodeIds?: string[]
   parentProgramId?: string | null
+  receiveGivingsOnMain?: boolean
+  firstSubCampaign?: CreateFirstSubCampaignInput
+}
+
+export type UpdateGivingProgramSettingsInput = {
+  receiveGivingsOnMain: boolean
+  moveDirectToProgramId?: string | null
+  createSubThenMove?: CreateFirstSubCampaignInput
 }
 
 export type BatchSubCampaignInput = {
@@ -310,6 +329,14 @@ export async function getProgram(api: ApiClient, programId: string) {
 
 export async function createProgram(api: ApiClient, input: CreateGivingProgramInput) {
   return api.post<GivingProgram>('/api/giving/programs', input)
+}
+
+export async function updateProgramSettings(
+  api: ApiClient,
+  programId: string,
+  input: UpdateGivingProgramSettingsInput,
+) {
+  return api.patch<GivingProgram>(`/api/giving/programs/${programId}/settings`, input)
 }
 
 export async function closeProgram(api: ApiClient, programId: string) {

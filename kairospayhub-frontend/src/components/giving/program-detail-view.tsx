@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { HandCoins, Plus } from 'lucide-react'
+import { HandCoins, Plus, Settings } from 'lucide-react'
 import type { Me } from '@/api/auth'
 import type { ApiClient } from '@/api/core'
 import type { Contribution, ContributionListSummary, GivingProgram, GivingProgramRollup } from '@/api/giving'
@@ -18,10 +18,12 @@ import {
   givingScopePolicy,
   leadershipFromProfile,
 } from '@/lib/giving-scope-policy'
+import { receiveGivingsOnMainPolicy } from '@/lib/receive-givings-on-main-policy'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
 import { ContributionsApprovalTable } from '@/components/giving/contributions-approval-table'
 import { CreateSubPeriodWizard } from '@/components/giving/create-sub-period-wizard'
+import { CampaignSettingsModal } from '@/components/giving/campaign-settings-modal'
 import { LogContributionWizard } from '@/components/giving/log-contribution-wizard'
 import { ProgramDashboard, normalizeProgramDetailTab, type ProgramDetailTab } from '@/components/giving/program-dashboard'
 import { ProgramDetailTabs } from '@/components/giving/program-detail-tabs'
@@ -89,14 +91,20 @@ export function ProgramDetailView({
   const isFellowshipLeader = me.role === 'FellowshipLeader'
   const isPfccManager = me.role === 'PFCCManager'
   const acceptsContributions = program.acceptsContributions
+  const isRootProgram = !program.parentProgramId
+  const receivePolicy = receiveGivingsOnMainPolicy({
+    receiveGivingsOnMain: program.receiveGivingsOnMain ?? true,
+    isRoot: isRootProgram,
+    acceptsContributions,
+  })
+  // Pastors / church-wide leadership approve; they do not log (API also rejects).
   const canLogContributions =
-    (actorLeadership === 'leaf' ||
-      actorLeadership === 'intermediate' ||
-      actorLeadership === 'churchWide') &&
+    (actorLeadership === 'leaf' || actorLeadership === 'intermediate') &&
     program.status === 'Open' &&
-    acceptsContributions
+    receivePolicy.canLogOnProgram
   const [subGivingOpen, setSubGivingOpen] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [txStatus, setTxStatus] = useState<'pending' | 'approved' | 'all'>('all')
   const showSubGivings = program.hasChildren || !program.parentProgramId
   const structureOptions = useMemo(
@@ -301,6 +309,18 @@ export function ProgramDetailView({
               <Button type="button" size="sm" className="gap-1.5" onClick={() => setLogOpen(true)}>
                 <HandCoins className="size-4" />
                 Log giving
+              </Button>
+            )}
+            {churchManager && isRootProgram && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <Settings className="size-4" />
+                Settings
               </Button>
             )}
             {canCreateSubGivingRole && showSubGivings && !program.parentProgramId && (
@@ -512,6 +532,20 @@ export function ProgramDetailView({
           }
           actorLeadership={actorLeadership}
           onCreated={() => void onRefresh()}
+        />
+      ) : null}
+
+      {churchManager && isRootProgram ? (
+        <CampaignSettingsModal
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          program={program}
+          children={children}
+          api={api}
+          onSaved={() => {
+            void onRefresh()
+            if (onRefreshChildren) void onRefreshChildren()
+          }}
         />
       ) : null}
     </div>

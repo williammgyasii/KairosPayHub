@@ -23,7 +23,9 @@ public record CreateGivingProgramInput(
     string? CustomTypeLabel = null,
     DateOnly? EventDate = null,
     DateTimeOffset? LogOpensAt = null,
-    bool SuppressOpenNotification = false);
+    bool SuppressOpenNotification = false,
+    bool? ReceiveGivingsOnMain = null,
+    CreateFirstSubCampaignRequest? FirstSubCampaign = null);
 
 public class GivingProgramService(
     KairosDbContext db,
@@ -631,6 +633,16 @@ public class GivingProgramService(
             sortOrder += 1;
         }
 
+        var receiveOnMain = input.ParentProgramId is null
+            ? input.ReceiveGivingsOnMain ?? true
+            : true;
+
+        if (input.ParentProgramId is null && !receiveOnMain && input.FirstSubCampaign is null)
+        {
+            throw new BadRequestException(
+                "When receive givings on main is off, create at least one sub-campaign.");
+        }
+
         var now = DateTimeOffset.UtcNow;
         var goLiveAt = input.GoLiveAt;
         var initialStatus = ProgramStatus.Open;
@@ -655,6 +667,7 @@ public class GivingProgramService(
             ScopeKind = scopeKind,
             ScopeNodeId = resolvedScopeNodeId,
             Status = initialStatus,
+            ReceiveGivingsOnMain = receiveOnMain,
             ApprovalStatus = scope.CanManageChurch(actor)
                 ? ProgramApprovalStatus.Approved
                 : ProgramApprovalStatus.PendingPastorApproval,
@@ -681,6 +694,31 @@ public class GivingProgramService(
 
         await db.SaveChangesAsync(ct);
         readCache.InvalidateGivingDashboard(churchId);
+
+        if (parent is null && input.FirstSubCampaign is not null)
+        {
+            await CreateAsync(
+                actor,
+                createdByAuthUserId,
+                new CreateGivingProgramInput(
+                    givingType.ToString(),
+                    input.FirstSubCampaign.Title ?? string.Empty,
+                    input.FirstSubCampaign.PeriodLabel ?? string.Empty,
+                    input.FirstSubCampaign.ScopeKind ?? program.ScopeKind.ToString(),
+                    input.FirstSubCampaign.ScopeNodeId ?? program.ScopeNodeId,
+                    input.FirstSubCampaign.ScopeNodeIds,
+                    program.Id,
+                    MoveParentContributions: false,
+                    EventDate: input.FirstSubCampaign.EventDate,
+                    LogOpensAt: input.FirstSubCampaign.LogOpensAt,
+                    StartsOn: input.FirstSubCampaign.EventDate,
+                    EndsOn: input.FirstSubCampaign.EventDate,
+                    SuppressOpenNotification: true),
+                ct);
+            // Reload hasChildren via MapProgramToDtoAsync
+            program = await db.GivingPrograms.AsNoTracking()
+                .SingleAsync(p => p.Id == program.Id, ct);
+        }
 
         if (parent is not null && input.MoveParentContributions)
         {
@@ -1015,6 +1053,109 @@ public class GivingProgramService(
         await notifications.NotifySubGivingReviewedAsync(program, approved: false, ct);
 
         var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
+        return await MapProgramToDtoAsync(actor, authUserId, churchId, program, parentIdsWithChildren, ct);
+    }
+
+    public async Task<GivingProgramDto> UpdateSettingsAsync(
+        Actor actor,
+        Guid authUserId,
+        Guid programId,
+        UpdateGivingProgramSettingsRequest request,
+        CancellationToken ct = default)
+    {
+        if (!scope.CanManageChurch(actor))
+            throw new ForbiddenException("Only church managers can update campaign settings");
+
+        var churchId = RequireStructureChurch(actor);
+        var program = await db.GivingPrograms.SingleOrDefaultAsync(
+            p => p.Id == programId && p.ChurchId == churchId,
+            ct)
+            ?? throw new ForbiddenException("Program not found");
+
+        if (program.ParentProgramId is not null)
+            throw new BadRequestException("Only main campaigns have this setting");
+
+        if (request.ReceiveGivingsOnMain)
+        {
+            program.ReceiveGivingsOnMain = true;
+            await db.SaveChangesAsync(ct);
+            readCache.InvalidateGivingDashboard(churchId);
+            var parentsOn = await LoadParentIdsWithChildrenAsync(churchId, ct);
+            return await MapProgramToDtoAsync(actor, authUserId, churchId, program, parentsOn, ct);
+        }
+
+        var directCount = await db.Contributions.CountAsync(c => c.ProgramId == program.Id, ct);
+        Guid? moveTargetId = request.MoveDirectToProgramId;
+
+        if (directCount > 0)
+        {
+            if (moveTargetId is null && request.CreateSubThenMove is null)
+            {
+                throw new BadRequestException(
+                    "Turn off receive-givings on main requires moving direct contributions to a sub-campaign.");
+            }
+
+            if (request.CreateSubThenMove is not null)
+            {
+                var createdSub = await CreateAsync(
+                    actor,
+                    authUserId,
+                    new CreateGivingProgramInput(
+                        program.GivingType.ToString(),
+                        request.CreateSubThenMove.Title ?? string.Empty,
+                        request.CreateSubThenMove.PeriodLabel ?? string.Empty,
+                        request.CreateSubThenMove.ScopeKind ?? program.ScopeKind.ToString(),
+                        request.CreateSubThenMove.ScopeNodeId ?? program.ScopeNodeId,
+                        request.CreateSubThenMove.ScopeNodeIds,
+                        program.Id,
+                        MoveParentContributions: false,
+                        EventDate: request.CreateSubThenMove.EventDate,
+                        LogOpensAt: request.CreateSubThenMove.LogOpensAt,
+                        StartsOn: request.CreateSubThenMove.EventDate,
+                        EndsOn: request.CreateSubThenMove.EventDate,
+                        SuppressOpenNotification: true),
+                    ct);
+                moveTargetId = createdSub.Id;
+            }
+
+            var target = await db.GivingPrograms.AsNoTracking().SingleOrDefaultAsync(
+                p => p.Id == moveTargetId && p.ChurchId == churchId && p.ParentProgramId == program.Id,
+                ct)
+                ?? throw new BadRequestException("Move target must be a sub-campaign of this main campaign");
+
+            await db.Contributions
+                .Where(c => c.ProgramId == program.Id)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(c => c.ProgramId, target.Id),
+                    ct);
+        }
+        else if (request.CreateSubThenMove is not null)
+        {
+            await CreateAsync(
+                actor,
+                authUserId,
+                new CreateGivingProgramInput(
+                    program.GivingType.ToString(),
+                    request.CreateSubThenMove.Title ?? string.Empty,
+                    request.CreateSubThenMove.PeriodLabel ?? string.Empty,
+                    request.CreateSubThenMove.ScopeKind ?? program.ScopeKind.ToString(),
+                    request.CreateSubThenMove.ScopeNodeId ?? program.ScopeNodeId,
+                    request.CreateSubThenMove.ScopeNodeIds,
+                    program.Id,
+                    EventDate: request.CreateSubThenMove.EventDate,
+                    LogOpensAt: request.CreateSubThenMove.LogOpensAt,
+                    StartsOn: request.CreateSubThenMove.EventDate,
+                    EndsOn: request.CreateSubThenMove.EventDate,
+                    SuppressOpenNotification: true),
+                ct);
+        }
+
+        program.ReceiveGivingsOnMain = false;
+        await db.SaveChangesAsync(ct);
+        readCache.InvalidateGivingDashboard(churchId);
+
+        var parentIdsWithChildren = await LoadParentIdsWithChildrenAsync(churchId, ct);
+        program = await db.GivingPrograms.AsNoTracking().SingleAsync(p => p.Id == program.Id, ct);
         return await MapProgramToDtoAsync(actor, authUserId, churchId, program, parentIdsWithChildren, ct);
     }
 
@@ -1438,6 +1579,8 @@ public class GivingProgramService(
     {
         var hasChildren = parentIdsWithChildren.Contains(program.Id);
         var now = DateTimeOffset.UtcNow;
+        var accepts = CampaignScheduling.AcceptsContributionsNow(program, now)
+            && (program.ParentProgramId is not null || program.ReceiveGivingsOnMain);
         return new GivingProgramDto(
             program.Id,
             program.ParentProgramId,
@@ -1460,7 +1603,8 @@ public class GivingProgramService(
             program.CreatedAt,
             totalApprovedAmount,
             hasChildren,
-            CampaignScheduling.AcceptsContributionsNow(program, now),
+            accepts,
+            program.ParentProgramId is null ? program.ReceiveGivingsOnMain : true,
             directStats?.Count ?? 0,
             directStats?.Total ?? 0m,
             awaitingMyApprovalCount);

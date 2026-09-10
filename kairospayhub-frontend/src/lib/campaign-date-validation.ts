@@ -50,6 +50,45 @@ export function defaultCampaignEndDate(startValue: string): string {
   return formatCampaignDate(addMonths(start, 1))
 }
 
+export type CampaignDateRangePreset = 'endOfYear' | 'next3Months' | 'next6Months' | 'custom'
+
+export const CAMPAIGN_DATE_PRESETS: ReadonlyArray<{
+  id: CampaignDateRangePreset
+  label: string
+}> = [
+  { id: 'endOfYear', label: 'Until end of year' },
+  { id: 'next3Months', label: 'Next 3 months' },
+  { id: 'next6Months', label: 'Next 6 months' },
+  { id: 'custom', label: 'Custom dates' },
+]
+
+/** Resolves start/end for a preset. `custom` returns null (caller keeps current picks). */
+export function campaignDatesForPreset(
+  preset: CampaignDateRangePreset,
+  referenceDate: Date = todayStart(),
+): { startsOn: string; endsOn: string } | null {
+  if (preset === 'custom') return null
+
+  const start = startOfDay(referenceDate)
+  const startsOn = formatCampaignDate(start)
+
+  if (preset === 'next3Months') {
+    return { startsOn, endsOn: formatCampaignDate(addMonths(start, 3)) }
+  }
+  if (preset === 'next6Months') {
+    return { startsOn, endsOn: formatCampaignDate(addMonths(start, 6)) }
+  }
+
+  // endOfYear — Dec 31 of the current calendar year (or next year if already past)
+  let year = start.getFullYear()
+  let end = new Date(year, 11, 31)
+  if (isBefore(end, start)) {
+    year += 1
+    end = new Date(year, 11, 31)
+  }
+  return { startsOn, endsOn: formatCampaignDate(startOfDay(end)) }
+}
+
 export function validateRequiredFutureDate(
   value: string,
   label: string,

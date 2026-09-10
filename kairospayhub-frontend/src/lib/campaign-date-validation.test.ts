@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import {
+  campaignDatesForPreset,
   defaultCampaignEndDate,
   validateCampaignDates,
   validateCampaignEndsOn,
@@ -148,6 +149,24 @@ describe('campaign date validation', () => {
   describe('defaultCampaignEndDate', () => {
     it('defaults to one month after start', () => {
       expect(defaultCampaignEndDate('2026-09-15')).toBe('2026-10-15')
+    })
+  })
+
+  describe('campaignDatesForPreset', () => {
+    it('maps end-of-year and month presets from today', () => {
+      expect(campaignDatesForPreset('endOfYear')).toEqual({
+        startsOn: '2026-09-05',
+        endsOn: '2026-12-31',
+      })
+      expect(campaignDatesForPreset('next3Months')).toEqual({
+        startsOn: '2026-09-05',
+        endsOn: '2026-12-05',
+      })
+      expect(campaignDatesForPreset('next6Months')).toEqual({
+        startsOn: '2026-09-05',
+        endsOn: '2027-03-05',
+      })
+      expect(campaignDatesForPreset('custom')).toBeNull()
     })
   })
 })

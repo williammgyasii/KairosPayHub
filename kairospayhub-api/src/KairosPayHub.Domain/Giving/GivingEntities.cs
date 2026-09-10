@@ -71,6 +71,8 @@ public class GivingProgram
     public ProgramScopeKind ScopeKind { get; set; }
     public Guid? ScopeNodeId { get; set; }
     public ProgramStatus Status { get; set; } = ProgramStatus.Open;
+    /// <summary>Root only: when false, leaders log only on sub-campaigns.</summary>
+    public bool ReceiveGivingsOnMain { get; set; } = true;
     public ProgramApprovalStatus ApprovalStatus { get; set; } = ProgramApprovalStatus.Approved;
     public Domain.Structure.ChurchRole? CreatedByRole { get; set; }
     public Guid? ReviewedByAuthUserId { get; set; }

@@ -114,6 +114,10 @@ public class ContributionService(
         if (program.LogOpensAt is not null && program.LogOpensAt > DateTimeOffset.UtcNow)
             throw new BadRequestException("Logging is not open for this sub-campaign yet");
 
+        if (program.ParentProgramId is null && !program.ReceiveGivingsOnMain)
+            throw new BadRequestException(
+                "This main campaign does not receive givings; log on a sub-campaign instead");
+
         if (!await scope.CanEnterContributionAsync(actor, authUserId, program, member, ct))
             throw new ForbiddenException("You cannot log contributions for this member");
 
@@ -195,6 +199,10 @@ public class ContributionService(
 
         if (program.LogOpensAt is not null && program.LogOpensAt > DateTimeOffset.UtcNow)
             throw new BadRequestException("Logging is not open for this sub-campaign yet");
+
+        if (program.ParentProgramId is null && !program.ReceiveGivingsOnMain)
+            throw new BadRequestException(
+                "This main campaign does not receive givings; log on a sub-campaign instead");
 
         var memberIds = input.Items.Select(i => i.MemberId).Distinct().ToList();
         if (memberIds.Count != input.Items.Count)

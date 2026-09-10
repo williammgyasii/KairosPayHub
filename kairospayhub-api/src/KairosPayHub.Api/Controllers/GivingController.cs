@@ -86,8 +86,24 @@ public class GivingController(
                 request.GoLiveAt,
                 request.CustomTypeLabel,
                 request.EventDate,
-                request.LogOpensAt),
+                request.LogOpensAt,
+                ReceiveGivingsOnMain: request.ReceiveGivingsOnMain,
+                FirstSubCampaign: request.FirstSubCampaign),
             ct);
+        return Ok(program);
+    }
+
+    [HttpPatch("programs/{programId:guid}/settings")]
+    public async Task<IActionResult> UpdateProgramSettings(
+        Guid programId,
+        [FromBody] UpdateGivingProgramSettingsRequest request,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+
+        var actor = await current.RequireAsync(ct);
+        var program = await programs.UpdateSettingsAsync(actor, authUserId, programId, request, ct);
         return Ok(program);
     }
 

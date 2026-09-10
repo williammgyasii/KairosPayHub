@@ -830,6 +830,11 @@ namespace KairosPayHub.Api.Data.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<bool>("ReceiveGivingsOnMain")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("RejectionReason")
                         .HasColumnType("text");
 

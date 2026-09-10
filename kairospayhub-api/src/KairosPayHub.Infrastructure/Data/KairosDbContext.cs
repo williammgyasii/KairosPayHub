@@ -299,6 +299,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.ScopeKind).HasConversion<string>().IsRequired();
             e.Property(x => x.Status).HasConversion<string>().IsRequired();
             e.Property(x => x.ApprovalStatus).HasConversion<string>().IsRequired();
+            e.Property(x => x.ReceiveGivingsOnMain).HasDefaultValue(true);
             e.HasIndex(x => x.ChurchId);
             e.HasIndex(x => new { x.ChurchId, x.Status });
             e.HasIndex(x => new { x.ChurchId, x.ParentProgramId });

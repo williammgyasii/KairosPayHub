@@ -128,6 +128,15 @@ public record EvolveStructureTemplateResponse(
     StructureEvolvePreviewDto Preview,
     bool Applied);
 
+public record CreateFirstSubCampaignRequest(
+    string? Title,
+    string? PeriodLabel = null,
+    string? ScopeKind = null,
+    Guid? ScopeNodeId = null,
+    IReadOnlyList<Guid>? ScopeNodeIds = null,
+    DateOnly? EventDate = null,
+    DateTimeOffset? LogOpensAt = null);
+
 public record CreateGivingProgramRequest(
     string? GivingType,
     string? Title,
@@ -142,7 +151,14 @@ public record CreateGivingProgramRequest(
     DateTimeOffset? GoLiveAt = null,
     string? CustomTypeLabel = null,
     DateOnly? EventDate = null,
-    DateTimeOffset? LogOpensAt = null);
+    DateTimeOffset? LogOpensAt = null,
+    bool? ReceiveGivingsOnMain = null,
+    CreateFirstSubCampaignRequest? FirstSubCampaign = null);
+
+public record UpdateGivingProgramSettingsRequest(
+    bool ReceiveGivingsOnMain,
+    Guid? MoveDirectToProgramId = null,
+    CreateFirstSubCampaignRequest? CreateSubThenMove = null);
 
 public record BatchSubCampaignRequest(
     string Frequency,
@@ -185,6 +201,7 @@ public record GivingProgramDto(
     decimal TotalApprovedAmount,
     bool HasChildren,
     bool AcceptsContributions,
+    bool ReceiveGivingsOnMain,
     int DirectContributionCount,
     decimal DirectContributionTotalAmount,
     int AwaitingMyApprovalCount);
