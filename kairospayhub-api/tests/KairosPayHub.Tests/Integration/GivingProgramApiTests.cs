@@ -150,7 +150,7 @@ public class GivingProgramApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Fellowship_leader_cannot_create_sub_giving()
+    public async Task Fellowship_leader_can_create_sub_giving_in_their_scope()
     {
         var pastor = PastorClient();
         await OnboardAsync(pastor);
@@ -206,7 +206,7 @@ public class GivingProgramApiTests(PostgresFixture fx) : IAsyncLifetime
             "jane.sub@example.com",
             "Jane Leader");
 
-        var blocked = await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
+        var created = await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
         {
             parentProgramId = rootId,
             title = "January Rhapsody",
@@ -215,11 +215,11 @@ public class GivingProgramApiTests(PostgresFixture fx) : IAsyncLifetime
             scopeNodeId = fellowshipId,
         });
 
-        Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
     }
 
     [Fact]
-    public async Task Fellowship_leader_cannot_create_fellowship_scoped_program()
+    public async Task Fellowship_leader_can_create_fellowship_scoped_program()
     {
         var pastor = PastorClient();
         await OnboardAsync(pastor);
@@ -267,7 +267,7 @@ public class GivingProgramApiTests(PostgresFixture fx) : IAsyncLifetime
             "jane.fellowship-scoped@example.com",
             "Jane Leader");
 
-        var blocked = await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
+        var created = await fellowshipClient.PostAsJsonAsync("/api/giving/programs", new
         {
             givingType = "Rhapsody",
             title = "Titans Rhapsody",
@@ -276,7 +276,7 @@ public class GivingProgramApiTests(PostgresFixture fx) : IAsyncLifetime
             scopeNodeId = fellowshipId,
         });
 
-        Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
     }
 
     [Fact]

@@ -72,6 +72,6 @@ describe('RosterView add unit', () => {
 
     expect(screen.getByTestId('unit-create-wizard')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Add fellowship' })).toBeTruthy()
-    expect(screen.getByText('First cell')).toBeTruthy()
+    expect(screen.getByTitle('First cell')).toBeTruthy()
   })
 })

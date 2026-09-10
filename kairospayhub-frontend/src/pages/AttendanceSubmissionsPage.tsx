@@ -33,41 +33,16 @@ import {
   selectableOccurrences,
   upcomingRollCallLockMessage,
 } from '@/lib/attendance-ui'
-import { cn } from '@/lib/utils'
+import {
+  AttendanceEmptyState,
+  AttendanceStatusBanner,
+} from '@/components/attendance/attendance-submissions-parts'
 
 type EntryStatus = 'Present' | 'Absent' | 'Unrecorded'
 type WizardStep = 'pick' | 'mark'
 
 const selectClassName =
   'flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm'
-
-function StatusBanner({
-  tone,
-  message,
-}: {
-  tone: 'error' | 'success'
-  message: string
-}) {
-  return (
-    <p
-      className={cn(
-        'text-sm',
-        tone === 'error' ? 'text-destructive' : 'text-emerald-700',
-      )}
-    >
-      {message}
-    </p>
-  )
-}
-
-function EmptyState({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="space-y-1 py-8">
-      <p className="font-medium">{title}</p>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </div>
-  )
-}
 
 export function AttendanceSubmissionsPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
@@ -352,11 +327,11 @@ export function AttendanceSubmissionsPage() {
         ) : null}
       </div>
 
-      {error && <StatusBanner tone="error" message={error} />}
-      {message && <StatusBanner tone="success" message={message} />}
+      {error && <AttendanceStatusBanner tone="error" message={error} />}
+      {message && <AttendanceStatusBanner tone="success" message={message} />}
 
       {!canRollCall ? (
-        <EmptyState
+        <AttendanceEmptyState
           title={
             churchManager
               ? 'Pastors don’t mark attendance'
@@ -377,7 +352,7 @@ export function AttendanceSubmissionsPage() {
           <InlineSpinner /> Loading meetings…
         </p>
       ) : meetingTypes.length === 0 ? (
-        <EmptyState
+        <AttendanceEmptyState
           title="No meetings yet"
           description={
             churchManager
@@ -588,7 +563,7 @@ export function AttendanceSubmissionsPage() {
               onSubmit={() => void onSubmitRollCall()}
             />
           ) : (
-            <EmptyState
+            <AttendanceEmptyState
               title="Could not open this sheet"
               description="Go back and pick another meeting or date."
             />

@@ -14,7 +14,9 @@ namespace KairosPayHub.Api.Controllers;
 public class AttendanceController(
     CurrentActor current,
     AttendanceMeetingTypeService meetingTypes,
+    AttendanceOccurrenceQueryService occurrenceQueries,
     AttendanceSubmissionService submissions,
+    AttendanceApprovalService approvals,
     AttendanceRollCallExtrasService rollCallExtras,
     AttendanceMemberHistoryService memberHistory) : ControllerBase
 {
@@ -124,7 +126,7 @@ public class AttendanceController(
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        var detail = await submissions.GetOccurrenceAsync(actor, authUserId, occurrenceId, ct);
+        var detail = await occurrenceQueries.GetOccurrenceAsync(actor, authUserId, occurrenceId, ct);
         return Ok(detail);
     }
 
@@ -138,7 +140,7 @@ public class AttendanceController(
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        var review = await submissions.GetScopeRollCallReviewAsync(
+        var review = await occurrenceQueries.GetScopeRollCallReviewAsync(
             actor,
             authUserId,
             occurrenceId,
@@ -163,7 +165,7 @@ public class AttendanceController(
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        var rollup = await submissions.GetOccurrenceRollupAsync(
+        var rollup = await occurrenceQueries.GetOccurrenceRollupAsync(
             actor,
             authUserId,
             occurrenceId,
@@ -295,7 +297,7 @@ public class AttendanceController(
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        var queue = await submissions.ListApprovalQueueAsync(actor, authUserId, ct);
+        var queue = await approvals.ListApprovalQueueAsync(actor, authUserId, ct);
         return Ok(queue);
     }
 
@@ -306,7 +308,7 @@ public class AttendanceController(
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        var rows = await submissions.ListMySubmissionsAsync(actor, authUserId, ct);
+        var rows = await approvals.ListMySubmissionsAsync(actor, authUserId, ct);
         return Ok(rows);
     }
 
@@ -320,7 +322,7 @@ public class AttendanceController(
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        var result = await submissions.ApproveAsync(actor, authUserId, occurrenceId, scopeNodeId, ct);
+        var result = await approvals.ApproveAsync(actor, authUserId, occurrenceId, scopeNodeId, ct);
         return Ok(result);
     }
 
@@ -335,7 +337,7 @@ public class AttendanceController(
             throw new UnauthorizedAccessException("Token has no subject");
 
         var actor = await current.RequireAsync(ct);
-        await submissions.RejectAsync(
+        await approvals.RejectAsync(
             actor,
             authUserId,
             occurrenceId,

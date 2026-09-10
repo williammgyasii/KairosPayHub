@@ -51,7 +51,9 @@ export function memberProfileOverviewSections(
   countryCode?: string | null,
 ): MemberProfileOverviewSection[] {
   const address = profileAddressPolicy(countryCode)
-  const occupation = occupationFieldsPolicy(row.occupationStatus)
+  const occupation = occupationFieldsPolicy(
+    row.occupationStatus as import('@/api/structure').MemberOccupationStatus | '' | null,
+  )
   const personal: MemberProfileOverviewField[] = [
     { id: 'dob', label: 'Date of birth', value: formatDob(row.dateOfBirth) },
     { id: 'age', label: 'Age', value: row.age.trim() },

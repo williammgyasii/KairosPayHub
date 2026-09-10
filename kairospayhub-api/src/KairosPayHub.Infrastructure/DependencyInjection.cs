@@ -69,7 +69,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AttendanceRollCallExtrasService>();
         services.AddScoped<AttendanceOccurrenceGenerator>();
         services.AddScoped<AttendanceScopeService>();
+        services.AddScoped<AttendanceSubmissionSupport>();
+        services.AddScoped<AttendanceOccurrenceQueryService>();
         services.AddScoped<AttendanceSubmissionService>();
+        services.AddScoped<AttendanceApprovalService>();
         services.AddScoped<AttendanceMemberHistoryService>();
         services.AddScoped<ChurchAdministratorService>();
         services.AddScoped<NotificationEngine>();

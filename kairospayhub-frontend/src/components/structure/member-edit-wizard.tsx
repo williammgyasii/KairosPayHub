@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { CircleHelp } from 'lucide-react'
 import { useApi } from '@/api/core'
+import type { StructureTree } from '@/api/structure'
 import { MEMBER_POSITION_OPTIONS, type MemberPosition } from '@/api/structure'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import {
@@ -28,7 +29,7 @@ export function MemberEditWizard({
   onClose,
   presentation = 'modal',
 }: {
-  tree: { nodes: Parameters<typeof nodeById>[0]['nodes'] }
+  tree: StructureTree
   unitNodeId?: string
   member: StructureMemberRow
   busy: boolean
