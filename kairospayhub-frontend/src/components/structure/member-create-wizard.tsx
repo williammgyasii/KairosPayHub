@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CircleHelp, GraduationCap, GitBranch, Grid3X3, UserRound } from 'lucide-react'
+import { useOutletContext } from 'react-router-dom'
+import { CircleHelp } from 'lucide-react'
 import { useApi } from '@/api/core'
 import {
   MEMBER_POSITION_OPTIONS,
   type MemberPosition,
   type StructureTree,
 } from '@/api/structure'
+import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import {
   EmailAvailabilityField,
   isEmailAvailabilityBlocking,
@@ -21,15 +23,12 @@ import { SearchPicker } from '@/components/structure/search-picker'
 import {
   WizardField,
   WizardFooter,
-  WizardIntro,
-  WizardProgressBar,
   WizardStepPanel,
   WizardStepper,
 } from '@/components/structure/wizard-shell'
 import { Input } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { MEMBER_RESPONSIVENESS_OPTIONS } from '@/lib/member-responsiveness'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   defaultMemberPlacementForUnit,
   formatCellName,
@@ -39,7 +38,6 @@ import {
   placementOptionsForUnit,
   memberPlacementOptions,
 } from '@/lib/structure-tree'
-import { cn } from '@/lib/utils'
 import {
   buildCreateStepPlan,
   resolveMemberWizardMode,
@@ -60,6 +58,7 @@ export function MemberCreateWizard({
   onClose: () => void
 }) {
   const api = useApi()
+  const { me } = useOutletContext<DashboardOutletContext>()
   const deepest = getDeepestLayer(tree)
   const unit = unitNodeId ? nodeById(tree, unitNodeId) : undefined
   const wizardMode = resolveMemberWizardMode(tree, unitNodeId)
@@ -88,12 +87,12 @@ export function MemberCreateWizard({
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [stepError, setStepError] = useState<string | null>(null)
-  const [isNewMember, setIsNewMember] = useState(true)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [profile, setProfile] = useState<MemberProfileFormValues>(() => memberProfileInitialValues())
+  const [profile, setProfile] = useState<MemberProfileFormValues>(() =>
+    memberProfileInitialValues({ countryCode: me.countryCode }),
+  )
   const [position, setPosition] = useState<MemberPosition>('Member')
-  const [responsiveness, setResponsiveness] = useState(3)
   const [parentNodeId, setParentNodeId] = useState(createDefaultParent)
 
   const needsCellStep = isFellowshipContext && placements.length > 1
@@ -105,15 +104,16 @@ export function MemberCreateWizard({
   }, [isCellContext, isFellowshipContext, unit, placements, parentNodeId])
 
   const stepPlan = useMemo(
-    () => buildCreateStepPlan(wizardMode, isNewMember, needsCellStep),
-    [wizardMode, isNewMember, needsCellStep],
+    () => buildCreateStepPlan(wizardMode, needsCellStep),
+    [wizardMode, needsCellStep],
   )
   const steps = stepPlan.labels
   const stepKinds = stepPlan.kinds
   const currentKind = stepKinds[step] ?? 'details'
-  const progress = ((step + 1) / steps.length) * 100
   const isLastStep = step === steps.length - 1
   const emailAvailability = useEmailAvailability(email, 'roster')
+  const emailEntered = email.trim().length > 0
+  const emailLooksValid = !emailEntered || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 
   useEffect(() => {
     setParentNodeId(createDefaultParent)
@@ -154,16 +154,19 @@ export function MemberCreateWizard({
         setStepError('Enter the member’s full name.')
         return false
       }
-      if (!email.trim()) {
-        setStepError('Email is required for newsletters and church updates.')
-        return false
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      if (emailEntered && !emailLooksValid) {
         setStepError('Enter a valid email address.')
         return false
       }
-      if (isEmailAvailabilityBlocking(email, emailAvailability)) {
+      if (emailEntered && isEmailAvailabilityBlocking(email, emailAvailability)) {
         setStepError(emailAvailability.message ?? 'This email is already in use.')
+        return false
+      }
+      return true
+    }
+    if (kind === 'personal') {
+      if (!profile.dateOfBirth.trim()) {
+        setStepError('Date of birth is required.')
         return false
       }
       return true
@@ -192,11 +195,11 @@ export function MemberCreateWizard({
         const profilePayload = memberProfilePayload(profile)
         await api.post('/api/structure/members', {
           name: name.trim(),
-          email: email.trim(),
+          email: email.trim() || null,
           ...profilePayload,
           position,
           parentNodeId: resolvedParentId,
-          responsiveness: isNewMember ? 3 : responsiveness,
+          responsiveness: 3,
         })
         onClose()
       })
@@ -208,26 +211,17 @@ export function MemberCreateWizard({
   }
 
   return (
+    <TooltipProvider>
     <Modal
       open
       onOpenChange={(open) => !open && onClose()}
       title="Add member"
-      description={
-        cellLabel
-          ? `Register someone in ${cellLabel}.`
-          : fellowshipLabel
-            ? `Register someone in ${fellowshipLabel}.`
-            : unitNodeId
-              ? `Register someone under a ${deepest?.displayName ?? 'cell'} in this unit.`
-              : `Register someone under a ${deepest?.displayName ?? 'roster unit'} in your structure.`
-      }
+      description={steps[step]}
+      titleAccessory={<WizardStepper variant="dots" steps={steps} currentStep={step} />}
       size="xl"
     >
       <div className="space-y-5">
-        <WizardStepper steps={steps} currentStep={step} />
-        <WizardProgressBar value={progress} />
-
-        <WizardStepPanel stepKey={`${step}-${isNewMember}`} direction={direction}>
+        <WizardStepPanel stepKey={`${step}`} direction={direction}>
           {stepError && (
             <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {stepError}
@@ -272,7 +266,6 @@ export function MemberCreateWizard({
                     setStepError(null)
                   }}
                   scope="roster"
-                  required
                   label="Email"
                   labelExtra={
                     <Tooltip>
@@ -286,61 +279,47 @@ export function MemberCreateWizard({
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-[240px] text-left leading-relaxed">
-                        Members don&apos;t receive login credentials. This email is used for
-                        newsletters and church updates.
+                        Optional for now. Members do not receive a login. You can add an email later
+                        for church updates.
                       </TooltipContent>
                     </Tooltip>
                   }
                 />
               </div>
 
-              <div className="space-y-2">
-                <p className="text-xs font-medium">Is this person new to the church?</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <NewMemberChoice
-                    selected={isNewMember}
-                    label="Yes, they're new"
-                    onSelect={() => {
-                      setIsNewMember(true)
-                      setStepError(null)
-                    }}
-                  />
-                  <NewMemberChoice
-                    selected={!isNewMember}
-                    label="No, returning member"
-                    onSelect={() => {
-                      setIsNewMember(false)
-                      setStepError(null)
-                    }}
-                  />
-                </div>
-                {isNewMember && (
-                  <p className="text-xs text-muted-foreground">
-                    New members skip the responsiveness rating — we&apos;ll assume a default score.
-                  </p>
-                )}
-              </div>
-
               <MemberProfileFields
                 phoneId="member-phone"
+                churchCountryCode={me.countryCode}
                 values={profile}
                 onChange={(patch) => setProfile((current) => ({ ...current, ...patch }))}
-                sections={['contact', 'personal']}
+                sections={['contact']}
+              />
+            </div>
+          )}
+
+          {currentKind === 'personal' && (
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Birthday is required so the church calendar and age stay in sync.
+              </p>
+              <MemberProfileFields
+                phoneId="member-phone"
+                churchCountryCode={me.countryCode}
+                values={profile}
+                onChange={(patch) => setProfile((current) => ({ ...current, ...patch }))}
+                sections={['personal']}
+                requirePhoneAndDob
               />
             </div>
           )}
 
           {currentKind === 'cell' && (
             <div className="space-y-4">
-              <WizardIntro
-                icon={Grid3X3}
-                title="Attach to cell"
-                description={
-                  fellowshipLabel
-                    ? `Choose which ${deepest?.displayName.toLowerCase() ?? 'cell'} in ${fellowshipLabel} this member belongs to.`
-                    : `Choose which ${deepest?.displayName.toLowerCase() ?? 'cell'} this member belongs to.`
-                }
-              />
+              <p className="text-xs text-muted-foreground">
+                {fellowshipLabel
+                  ? `Choose which ${deepest?.displayName.toLowerCase() ?? 'cell'} in ${fellowshipLabel} this member belongs to.`
+                  : `Choose which ${deepest?.displayName.toLowerCase() ?? 'cell'} this member belongs to.`}
+              </p>
 
               <WizardField
                 label={`${deepest?.displayName ?? 'Cell'}`}
@@ -364,45 +343,25 @@ export function MemberCreateWizard({
 
           {currentKind === 'placement' && (
             <div className="space-y-4">
-              <WizardIntro
-                icon={GitBranch}
-                title="Role & placement"
-                description={`Choose their role and which ${deepest?.displayName.toLowerCase() ?? 'unit'} they belong to.`}
-              />
+              <p className="text-xs text-muted-foreground">
+                Choose their role and which {deepest?.displayName.toLowerCase() ?? 'unit'} they
+                belong to.
+              </p>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <WizardField label="Role" id="member-role">
-                  <select
-                    id="member-role"
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                    value={position}
-                    onChange={(e) => setPosition(e.target.value as MemberPosition)}
-                  >
-                    {MEMBER_POSITION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </WizardField>
-
-                {!isNewMember && (
-                  <WizardField label="Responsiveness" id="member-responsiveness">
-                    <select
-                      id="member-responsiveness"
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={responsiveness}
-                      onChange={(e) => setResponsiveness(Number(e.target.value))}
-                    >
-                      {MEMBER_RESPONSIVENESS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.value} — {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </WizardField>
-                )}
-              </div>
+              <WizardField label="Role" id="member-role">
+                <select
+                  id="member-role"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={position}
+                  onChange={(e) => setPosition(e.target.value as MemberPosition)}
+                >
+                  {MEMBER_POSITION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </WizardField>
 
               <WizardField
                 label={`Placed under (${deepest?.displayName ?? 'unit'})`}
@@ -421,41 +380,15 @@ export function MemberCreateWizard({
             </div>
           )}
 
-          {currentKind === 'responsiveness' && (
-            <div className="space-y-4">
-              <WizardIntro
-                icon={UserRound}
-                title="Responsiveness"
-                description="How responsive is this returning member to follow-up and outreach?"
-              />
-
-              <WizardField label="Responsiveness level" id="member-responsiveness-cell" required>
-                <select
-                  id="member-responsiveness-cell"
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={responsiveness}
-                  onChange={(e) => setResponsiveness(Number(e.target.value))}
-                >
-                  {MEMBER_RESPONSIVENESS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.value} — {option.label}
-                    </option>
-                  ))}
-                </select>
-              </WizardField>
-            </div>
-          )}
-
           {currentKind === 'education' && (
             <div className="space-y-4">
-              <WizardIntro
-                icon={GraduationCap}
-                title="Work & study"
-                description="Optional details about school, work, or training."
-              />
+              <p className="text-xs text-muted-foreground">
+                Optional details about school, work, or training.
+              </p>
 
               <MemberProfileFields
                 phoneId="member-phone"
+                churchCountryCode={me.countryCode}
                 values={profile}
                 onChange={(patch) => setProfile((current) => ({ ...current, ...patch }))}
                 sections={['education']}
@@ -474,41 +407,19 @@ export function MemberCreateWizard({
           canProceed={
             currentKind === 'details'
               ? name.trim().length > 0 &&
-                email.trim().length > 0 &&
-                !isEmailAvailabilityBlocking(email, emailAvailability)
-              : currentKind === 'cell' || currentKind === 'placement'
-                ? Boolean(resolvedParentId)
-                : true
+                emailLooksValid &&
+                !(emailEntered && isEmailAvailabilityBlocking(email, emailAvailability))
+              : currentKind === 'personal'
+                ? profile.dateOfBirth.trim().length > 0
+                : currentKind === 'cell' || currentKind === 'placement'
+                  ? Boolean(resolvedParentId)
+                  : true
           }
           submitLabel="Add member"
           busyLabel="Adding…"
         />
       </div>
     </Modal>
-  )
-}
-
-function NewMemberChoice({
-  selected,
-  label,
-  onSelect,
-}: {
-  selected: boolean
-  label: string
-  onSelect: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition-colors',
-        selected
-          ? 'border-primary/40 bg-primary/5 text-foreground ring-1 ring-primary/10'
-          : 'border-border/60 bg-muted/10 text-muted-foreground hover:border-border hover:text-foreground',
-      )}
-    >
-      {label}
-    </button>
+    </TooltipProvider>
   )
 }

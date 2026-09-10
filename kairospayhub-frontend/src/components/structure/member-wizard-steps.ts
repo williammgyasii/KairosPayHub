@@ -1,7 +1,13 @@
 import type { StructureTree } from '@/api/structure'
 import { getDeepestLayer, layerById, nodeById } from '@/lib/structure-tree'
 
-export type MemberWizardStepKind = 'details' | 'cell' | 'placement' | 'responsiveness' | 'education'
+export type MemberWizardStepKind =
+  | 'details'
+  | 'personal'
+  | 'cell'
+  | 'placement'
+  | 'responsiveness'
+  | 'education'
 export type MemberWizardMode = 'cell' | 'fellowship' | 'roster'
 
 /** Where the member form was opened from — drives which wizard steps appear. */
@@ -38,17 +44,16 @@ export function membershipPageDescription(
     case 'fellowship':
       return `Add people under ${scopeLabel ?? 'your fellowship'}. Details first, then attach to a cell when needed, then work & study.`
     default:
-      return 'Register members church-wide — details, role & placement, and work & study. Email is for church updates, not login.'
+      return 'Register members church-wide — details, birthday, role & placement, and work & study. Email is optional until members have a login.'
   }
 }
 
 export function buildCreateStepPlan(
   mode: MemberWizardMode,
-  isNewMember: boolean,
   needsCellStep: boolean,
 ): { labels: readonly string[]; kinds: readonly MemberWizardStepKind[] } {
-  const labels: string[] = ['Details']
-  const kinds: MemberWizardStepKind[] = ['details']
+  const labels: string[] = ['Details', 'Personal']
+  const kinds: MemberWizardStepKind[] = ['details', 'personal']
 
   if (mode === 'fellowship' && needsCellStep) {
     labels.push('Attach to cell')
@@ -57,10 +62,6 @@ export function buildCreateStepPlan(
   if (mode === 'roster') {
     labels.push('Role & placement')
     kinds.push('placement')
-  }
-  if (!isNewMember && mode !== 'roster') {
-    labels.push('Responsiveness')
-    kinds.push('responsiveness')
   }
   labels.push('Work & study')
   kinds.push('education')
@@ -69,25 +70,8 @@ export function buildCreateStepPlan(
 }
 
 export function buildEditStepPlan(
-  mode: MemberWizardMode,
-  needsCellStep: boolean,
+  _mode?: MemberWizardMode,
+  _needsCellStep?: boolean,
 ): { labels: readonly string[]; kinds: readonly MemberWizardStepKind[] } {
-  const labels: string[] = ['Details']
-  const kinds: MemberWizardStepKind[] = ['details']
-
-  if (mode === 'fellowship' && needsCellStep) {
-    labels.push('Attach to cell')
-    kinds.push('cell')
-  }
-  if (mode === 'roster') {
-    labels.push('Role & placement')
-    kinds.push('placement')
-  } else {
-    labels.push('Responsiveness')
-    kinds.push('responsiveness')
-  }
-  labels.push('Work & study')
-  kinds.push('education')
-
-  return { labels, kinds }
+  return { labels: ['Details'], kinds: ['details'] }
 }

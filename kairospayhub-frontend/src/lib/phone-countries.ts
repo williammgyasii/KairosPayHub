@@ -96,6 +96,20 @@ export const PHONE_COUNTRIES: PhoneCountry[] = [
 
 export const DEFAULT_PHONE_COUNTRY = PHONE_COUNTRIES[0]
 
+export function phoneCountryForCode(code: string | null | undefined): PhoneCountry {
+  if (!code?.trim()) return DEFAULT_PHONE_COUNTRY
+  return (
+    PHONE_COUNTRIES.find((country) => country.code.toUpperCase() === code.trim().toUpperCase()) ??
+    DEFAULT_PHONE_COUNTRY
+  )
+}
+
+/** Church country first; the rest stay in the catalog order. */
+export function phoneCountriesPreferring(code: string | null | undefined): PhoneCountry[] {
+  const preferred = phoneCountryForCode(code)
+  return [preferred, ...PHONE_COUNTRIES.filter((country) => country.code !== preferred.code)]
+}
+
 export function phoneCountryForDialCode(dialCode: string): PhoneCountry {
   return PHONE_COUNTRIES.find((c) => c.dialCode === dialCode) ?? DEFAULT_PHONE_COUNTRY
 }

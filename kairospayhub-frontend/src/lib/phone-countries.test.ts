@@ -1,5 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { capLocalPhoneDigits, formatPhoneE164, isLocalPhoneComplete, parsePhoneE164 } from './phone-countries'
+import {
+  capLocalPhoneDigits,
+  formatPhoneE164,
+  isLocalPhoneComplete,
+  parsePhoneE164,
+  phoneCountriesPreferring,
+  phoneCountryForCode,
+} from './phone-countries'
+
+describe('phoneCountryForCode', () => {
+  it('maps a church ISO country to the matching dial code', () => {
+    expect(phoneCountryForCode('US').dialCode).toBe('1')
+    expect(phoneCountryForCode('GH').dialCode).toBe('233')
+  })
+
+  it('falls back to the default country when unknown', () => {
+    expect(phoneCountryForCode('ZZ').code).toBe('GH')
+    expect(phoneCountryForCode(null).code).toBe('GH')
+  })
+
+  it('lists the church country first without dropping the others', () => {
+    const ranked = phoneCountriesPreferring('US')
+    expect(ranked[0]?.code).toBe('US')
+    expect(ranked.map((country) => country.code)).toContain('GH')
+    expect(ranked).toHaveLength(phoneCountriesPreferring(null).length)
+  })
+})
 
 describe('capLocalPhoneDigits', () => {
   it('caps Ghana numbers at 10 digits with leading 0 or 9 without', () => {
