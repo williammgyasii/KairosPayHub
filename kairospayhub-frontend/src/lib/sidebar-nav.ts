@@ -34,8 +34,12 @@ function matchesRule(current: string, rule: NavPathRule): boolean {
 
 /** Declarative active-state rules keyed by sidebar `to` paths. */
 const NAV_PATH_RULES: Record<string, NavPathRule> = {
-  roster: { kind: 'section-home', root: '/roster', siblings: ['/roster/membership'] },
-  'roster/membership': { kind: 'exact', paths: ['/roster/membership', '/membership'] },
+  roster: { kind: 'section-home', root: '/roster', siblings: ['/roster/membership', '/roster/members'] },
+  'roster/membership': {
+    kind: 'prefix',
+    root: '/roster/members',
+    extra: ['/roster/membership', '/membership'],
+  },
   givings: {
     kind: 'section-home',
     root: '/givings',

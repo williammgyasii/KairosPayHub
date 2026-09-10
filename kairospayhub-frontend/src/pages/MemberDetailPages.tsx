@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
 import { Coins, FileText, LayoutGrid, Pencil } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { formatOccupationStatus } from '@/lib/member-filters'
+import { memberProfileOverviewSections } from '@/lib/member-profile-overview'
 import { buildMemberRow } from '@/lib/structure-table-rows'
 import { cn } from '@/lib/utils'
 import { MemberGivingTab } from '@/components/giving/member-giving-tab'
+import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { MemberEditWizard } from '@/components/structure/member-edit-wizard'
 import { ResponsivenessBadge } from '@/components/structure/responsiveness-badge'
-import { RoleBadge, StructureSegmentBadge } from '@/components/structure/structure-badges'
+import { RoleBadge } from '@/components/structure/structure-badges'
 import { StructureChain } from '@/components/structure/structure-chain'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -147,82 +148,88 @@ function MemberPageShell({
 
 export function MemberProfilePage() {
   const { tree, row } = useMemberPageContext()
+  const { me } = useOutletContext<DashboardOutletContext>()
   const navigate = useNavigate()
+  const sections = row ? memberProfileOverviewSections(row, me.countryCode) : []
 
   return (
     <MemberPageShell section="profile">
       {row && tree && (
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-6">
-            <section className="space-y-3">
-              <h2 className="text-section-title">Contact</h2>
-              <dl className="grid gap-3 sm:grid-cols-2">
-                <DetailItem label="Phone" value={row.phone || '—'} />
-                <DetailItem label="Email" value={row.email || '—'} />
-              </dl>
-            </section>
-            <section className="space-y-3">
-              <h2 className="text-section-title">Personal</h2>
-              <dl className="grid gap-3 sm:grid-cols-2">
-                <DetailItem label="Date of birth" value={row.dateOfBirth || '—'} />
-                <DetailItem label="Age" value={row.age || '—'} />
-                <DetailItem label="Residence" value={row.residence || '—'} />
-                <DetailItem
-                  label="Occupation"
-                  value={formatOccupationStatus(row.occupationStatus)}
-                />
-                <DetailItem label="School / workplace" value={row.schoolOrWorkplace || '—'} />
-                <DetailItem
-                  label="Responsiveness"
-                  value={<ResponsivenessBadge level={row.responsiveness} />}
-                />
-              </dl>
-            </section>
-          </div>
-
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(17rem,0.85fr)]">
           <div className="space-y-4">
-            <section className="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-4">
-              <h2 className="text-section-title">Structure</h2>
-              <StructureChain
-                animated={false}
-                size="sm"
-                items={[
-                  { label: tree.churchName, tone: 'church' },
-                  ...row.structure.map((segment) => ({
-                    id: segment.layerId,
-                    label: segment.nodeName,
-                    tone: 'layer' as const,
-                  })),
-                ]}
-              />
-              <div className="flex flex-wrap gap-2 pt-1">
-                {row.structure.map((segment) => (
-                  <StructureSegmentBadge key={segment.layerId} segment={segment} />
-                ))}
+            {sections.map((section) => (
+              <section
+                key={section.id}
+                className="rounded-xl border border-border/60 bg-background p-4 sm:p-5"
+              >
+                <h2 className="text-section-title">{section.title}</h2>
+                <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {section.fields.map((field) => (
+                    <ProfileFieldTile
+                      key={field.id}
+                      label={field.label}
+                      value={field.value}
+                      wide={field.wide}
+                    />
+                  ))}
+                  {section.id === 'work' && (
+                    <ProfileFieldTile
+                      label="Responsiveness"
+                      value={<ResponsivenessBadge level={row.responsiveness} />}
+                    />
+                  )}
+                </dl>
+              </section>
+            ))}
+          </div>
+
+          <aside className="space-y-4">
+            <section className="rounded-xl border border-border/60 bg-background p-4 sm:p-5">
+              <h2 className="text-section-title">Placement</h2>
+              <div className="mt-3">
+                <StructureChain
+                  animated={false}
+                  size="sm"
+                  items={[
+                    { label: tree.churchName, tone: 'church' },
+                    ...row.structure.map((segment) => ({
+                      id: segment.layerId,
+                      label: segment.nodeName,
+                      tone: 'layer' as const,
+                    })),
+                  ]}
+                />
               </div>
+              <dl className="mt-3 space-y-2">
+                {row.structure.map((segment) => (
+                  <div
+                    key={segment.layerId}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5"
+                  >
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {segment.layerName}
+                    </dt>
+                    <dd className="truncate text-sm font-medium text-foreground">{segment.nodeName}</dd>
+                  </div>
+                ))}
+              </dl>
             </section>
 
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              <Button
-                type="button"
-                variant="outline"
-                className="justify-start"
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <ProfileShortcut
+                icon={FileText}
+                label="Attendance"
+                description="History and roll-call status"
                 onClick={() => navigate(`${memberBasePath(row.id)}/attendance`)}
-              >
-                <FileText className="size-4" />
-                View attendance
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="justify-start"
+              />
+              <ProfileShortcut
+                icon={Coins}
+                label="Givings"
+                description="Contributions and totals"
                 onClick={() => navigate(`${memberBasePath(row.id)}/givings`)}
-              >
-                <Coins className="size-4" />
-                View givings
-              </Button>
-            </section>
-          </div>
+              />
+            </div>
+          </aside>
         </div>
       )}
     </MemberPageShell>
@@ -397,23 +404,74 @@ export function MemberEditPage() {
           try {
             await action()
             dispatch(invalidateStructureTags())
-            navigate(memberBasePath(memberId))
+            navigate('/roster/membership')
           } finally {
             setBusy(false)
           }
         }}
-        onClose={() => navigate(memberBasePath(memberId))}
+        onClose={() => navigate('/roster/membership')}
       />
     </MemberPageShell>
   )
 }
 
-function DetailItem({ label, value }: { label: string; value: ReactNode }) {
+function ProfileFieldTile({
+  label,
+  value,
+  wide,
+}: {
+  label: string
+  value: ReactNode
+  wide?: boolean
+}) {
+  const empty = typeof value === 'string' && !value.trim()
   return (
-    <div className="min-w-0">
-      <dt className="text-eyebrow text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-sm text-foreground">{value}</dd>
+    <div
+      className={cn(
+        'min-w-0 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5',
+        wide && 'sm:col-span-2',
+      )}
+    >
+      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          'mt-1 break-words text-sm font-medium',
+          empty ? 'font-normal italic text-muted-foreground' : 'text-foreground',
+        )}
+      >
+        {empty ? 'Not set' : value}
+      </dd>
     </div>
+  )
+}
+
+function ProfileShortcut({
+  icon: Icon,
+  label,
+  description,
+  onClick,
+}: {
+  icon: LucideIcon
+  label: string
+  description: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-start gap-3 rounded-xl border border-border/60 bg-background px-4 py-3.5 text-left transition-colors hover:border-primary/30 hover:bg-muted/20"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-muted/30">
+        <Icon className="size-4 text-foreground" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-foreground">{label}</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
+      </span>
+    </button>
   )
 }
 

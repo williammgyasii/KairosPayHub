@@ -1,44 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CircleHelp, GraduationCap, GitBranch, Grid3X3, UserRound } from 'lucide-react'
+import { useOutletContext } from 'react-router-dom'
+import { CircleHelp } from 'lucide-react'
 import { useApi } from '@/api/core'
-import {
-  MEMBER_POSITION_OPTIONS,
-  type MemberPosition,
-  type StructureTree,
-} from '@/api/structure'
+import { MEMBER_POSITION_OPTIONS, type MemberPosition } from '@/api/structure'
+import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import {
   MemberProfileFields,
   memberProfileInitialValues,
   memberProfilePayload,
   type MemberProfileFormValues,
 } from '@/components/structure/member-profile-fields'
-import {
-  buildEditStepPlan,
-  resolveMemberWizardMode,
-  type MemberWizardStepKind,
-} from '@/components/structure/member-wizard-steps'
-import { SearchPicker } from '@/components/structure/search-picker'
-import {
-  WizardField,
-  WizardFooter,
-  WizardIntro,
-  WizardProgressBar,
-  WizardStepPanel,
-  WizardStepper,
-} from '@/components/structure/wizard-shell'
+import { WizardField, WizardFooter } from '@/components/structure/wizard-shell'
 import { Input } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { memberRolePolicy } from '@/lib/member-role-policy'
 import { MEMBER_RESPONSIVENESS_OPTIONS } from '@/lib/member-responsiveness'
 import type { StructureMemberRow } from '@/lib/structure-table-rows'
-import {
-  formatCellName,
-  formatFellowshipName,
-  getDeepestLayer,
-  nodeById,
-  placementOptionsForUnit,
-  memberPlacementOptions,
-} from '@/lib/structure-tree'
+import { formatCellName, formatFellowshipName, nodeById } from '@/lib/structure-tree'
 
 export function MemberEditWizard({
   tree,
@@ -49,7 +28,7 @@ export function MemberEditWizard({
   onClose,
   presentation = 'modal',
 }: {
-  tree: StructureTree
+  tree: { nodes: Parameters<typeof nodeById>[0]['nodes'] }
   unitNodeId?: string
   member: StructureMemberRow
   busy: boolean
@@ -58,356 +37,187 @@ export function MemberEditWizard({
   presentation?: 'modal' | 'page'
 }) {
   const api = useApi()
-  const deepest = getDeepestLayer(tree)
+  const { me } = useOutletContext<DashboardOutletContext>()
   const unit = unitNodeId ? nodeById(tree, unitNodeId) : undefined
-  const wizardMode = resolveMemberWizardMode(tree, unitNodeId)
-  const isCellContext = wizardMode === 'cell'
-  const isFellowshipContext = wizardMode === 'fellowship'
-  const cellLabel = isCellContext && unit ? formatCellName(unit.name) : null
-  const fellowshipLabel =
-    isFellowshipContext && unit ? formatFellowshipName(unit.name) : null
+  const cellLabel = unit ? formatCellName(unit.name) : null
+  const fellowshipLabel = unit ? formatFellowshipName(unit.name) : null
 
-  const placements = unitNodeId
-    ? placementOptionsForUnit(tree, unitNodeId)
-    : memberPlacementOptions(tree)
-  const placementOptions = useMemo(
-    () =>
-      placements.map((placement) => ({
-        id: placement.id,
-        label: placement.label.split(' / ').pop() ?? placement.label,
-        hint: placement.label,
-      })),
-    [placements],
-  )
-
-  const [step, setStep] = useState(0)
-  const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [stepError, setStepError] = useState<string | null>(null)
   const [name, setName] = useState(member.member)
   const [email] = useState(member.email ?? '')
   const [profile, setProfile] = useState<MemberProfileFormValues>(() =>
-    memberProfileInitialValues(member),
+    memberProfileInitialValues({
+      ...member,
+      countryCode: me.countryCode,
+    }),
   )
   const [position, setPosition] = useState<MemberPosition>(member.position ?? 'Member')
   const [responsiveness, setResponsiveness] = useState(member.responsiveness ?? 3)
-  const [parentNodeId, setParentNodeId] = useState(member.parentNodeId)
 
-  const needsCellStep = isFellowshipContext && placements.length > 1
-
-  const resolvedParentId = useMemo(() => {
-    if (wizardMode === 'cell') return member.parentNodeId
-    if (isFellowshipContext && placements.length === 1) {
-      return placements[0]?.id ?? member.parentNodeId
-    }
-    return parentNodeId || member.parentNodeId
-  }, [wizardMode, isFellowshipContext, placements, parentNodeId, member.parentNodeId])
-
-  const stepPlan = useMemo(
-    () => buildEditStepPlan(wizardMode, needsCellStep),
-    [wizardMode, needsCellStep],
+  const rolePolicy = useMemo(
+    () =>
+      memberRolePolicy({
+        actorMemberId: me.memberId,
+        actorRole: me.role,
+        subjectMemberId: member.id,
+        subjectPosition: member.position ?? 'Member',
+      }),
+    [me, member.id, member.position],
   )
-  const steps = stepPlan.labels
-  const stepKinds = stepPlan.kinds
-  const currentKind = stepKinds[step] ?? 'details'
-  const progress = ((step + 1) / steps.length) * 100
-  const isLastStep = step === steps.length - 1
 
   useEffect(() => {
-    setStep(0)
     setName(member.member)
-    setProfile(memberProfileInitialValues(member))
+    setProfile(memberProfileInitialValues({ ...member, countryCode: me.countryCode }))
     setPosition(member.position ?? 'Member')
     setResponsiveness(member.responsiveness ?? 3)
-    setParentNodeId(member.parentNodeId)
     setStepError(null)
-  }, [member])
+  }, [member, me.countryCode])
 
-  useEffect(() => {
-    if (step >= steps.length) {
-      setStep(Math.max(0, steps.length - 1))
-    }
-  }, [step, steps.length])
-
-  function validateStep(kind: MemberWizardStepKind): boolean {
-    setStepError(null)
-    if (kind === 'details') {
-      if (!name.trim()) {
-        setStepError('Enter the member’s full name.')
-        return false
-      }
-      return true
-    }
-    if (kind === 'cell' || kind === 'placement') {
-      if (!resolvedParentId) {
-        setStepError(`Choose which ${deepest?.displayName.toLowerCase() ?? 'cell'} they belong to.`)
-        return false
-      }
-      return true
-    }
-    return true
-  }
-
-  function goBack() {
-    setStepError(null)
-    setDirection('back')
-    setStep((current) => Math.max(0, current - 1))
-  }
-
-  function goNext() {
-    if (!validateStep(currentKind)) return
-
-    if (isLastStep) {
-      void submit(async () => {
-        const profilePayload = memberProfilePayload(profile)
-        await api.patch(`/api/structure/members/${member.id}`, {
-          name: name.trim(),
-          ...profilePayload,
-          position,
-          parentNodeId: resolvedParentId,
-          responsiveness,
-        })
-        onClose()
-      })
+  function save() {
+    if (!name.trim()) {
+      setStepError('Enter the member’s full name.')
       return
     }
-
-    setDirection('forward')
-    setStep((current) => current + 1)
+    setStepError(null)
+    void submit(async () => {
+      const profilePayload = memberProfilePayload(profile)
+      await api.patch(`/api/structure/members/${member.id}`, {
+        name: name.trim(),
+        ...profilePayload,
+        position: rolePolicy.canEditPosition ? position : member.position,
+        parentNodeId: member.parentNodeId,
+        responsiveness,
+      })
+      onClose()
+    })
   }
 
   const body = (
-      <div className="space-y-5">
-        <WizardStepper steps={steps} currentStep={step} />
-        <WizardProgressBar value={progress} />
+    <div className="space-y-5">
+      {stepError && (
+        <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {stepError}
+        </p>
+      )}
 
-        <WizardStepPanel stepKey={step} direction={direction}>
-          {stepError && (
-            <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {stepError}
-            </p>
-          )}
+      <div className="space-y-4">
+        {(cellLabel || member.path) && (
+          <p className="text-sm text-muted-foreground">
+            Member of{' '}
+            <span className="font-medium text-foreground">
+              {cellLabel ?? fellowshipLabel ?? member.path}
+            </span>
+          </p>
+        )}
 
-          {currentKind === 'details' && (
-            <div className="space-y-4">
-              {cellLabel && (
-                <p className="text-sm text-muted-foreground">
-                  Member of{' '}
-                  <span className="font-medium text-foreground">{cellLabel}</span>
-                </p>
-              )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <WizardField label="Full name" id="member-name" required>
+            <Input
+              id="member-name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value)
+                setStepError(null)
+              }}
+              required
+              autoFocus
+            />
+          </WizardField>
 
-              {fellowshipLabel && (
-                <p className="text-sm text-muted-foreground">
-                  Member under{' '}
-                  <span className="font-medium text-foreground">{fellowshipLabel}</span>
-                </p>
-              )}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <WizardField label="Full name" id="member-name" required>
-                  <Input
-                    id="member-name"
-                    value={name}
-                    onChange={(e) => {
-                      setName(e.target.value)
-                      setStepError(null)
-                    }}
-                    required
-                    autoFocus
-                  />
-                </WizardField>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <label htmlFor="member-email" className="text-xs font-medium">
-                      Email
-                    </label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex text-muted-foreground transition-colors hover:text-foreground"
-                          aria-label="About member email"
-                        >
-                          <CircleHelp className="size-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[240px] text-left leading-relaxed">
-                        {email
-                          ? 'Email is used for newsletters and church updates. Login emails are managed separately for leaders.'
-                          : 'No email on file. Add one when creating a new member.'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Input
-                    id="member-email"
-                    type="email"
-                    value={email}
-                    readOnly
-                    className="bg-muted/40 text-muted-foreground"
-                  />
-                </div>
-              </div>
-
-              <MemberProfileFields
-                phoneId="member-phone"
-                values={profile}
-                onChange={(patch) => setProfile((current) => ({ ...current, ...patch }))}
-                sections={['contact', 'personal']}
-              />
-            </div>
-          )}
-
-          {currentKind === 'cell' && (
-            <div className="space-y-4">
-              <WizardIntro
-                icon={Grid3X3}
-                title="Attach to cell"
-                description={
-                  fellowshipLabel
-                    ? `Move this member to a different ${deepest?.displayName.toLowerCase() ?? 'cell'} in ${fellowshipLabel}.`
-                    : `Choose which ${deepest?.displayName.toLowerCase() ?? 'cell'} this member belongs to.`
-                }
-              />
-
-              <WizardField
-                label={`${deepest?.displayName ?? 'Cell'}`}
-                id="member-fellowship-cell"
-                required
-              >
-                <SearchPicker
-                  options={placementOptions}
-                  value={parentNodeId}
-                  onChange={(value) => {
-                    setParentNodeId(value)
-                    setStepError(null)
-                  }}
-                  placeholder={`Search ${deepest?.displayName.toLowerCase() ?? 'cells'}…`}
-                  emptyMessage="No cells match your search."
-                  required
-                />
-              </WizardField>
-            </div>
-          )}
-
-          {currentKind === 'placement' && (
-            <div className="space-y-4">
-              <WizardIntro
-                icon={GitBranch}
-                title="Role & placement"
-                description={`Update their role and which ${deepest?.displayName.toLowerCase() ?? 'unit'} they belong to.`}
-              />
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <WizardField label="Role" id="member-role">
-                  <select
-                    id="member-role"
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                    value={position}
-                    onChange={(e) => setPosition(e.target.value as MemberPosition)}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="member-email" className="text-xs font-medium">
+                Email
+              </label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label="About member email"
                   >
-                    {MEMBER_POSITION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </WizardField>
-
-                <WizardField label="Responsiveness" id="member-responsiveness">
-                  <select
-                    id="member-responsiveness"
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                    value={responsiveness}
-                    onChange={(e) => setResponsiveness(Number(e.target.value))}
-                  >
-                    {MEMBER_RESPONSIVENESS_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.value} — {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </WizardField>
-              </div>
-
-              <WizardField
-                label={`Placed under (${deepest?.displayName ?? 'unit'})`}
-                id="member-parent"
-                required
-              >
-                <SearchPicker
-                  options={placementOptions}
-                  value={parentNodeId}
-                  onChange={setParentNodeId}
-                  placeholder={`Search ${deepest?.displayName.toLowerCase() ?? 'units'}…`}
-                  emptyMessage="No roster units match your search."
-                  required
-                />
-              </WizardField>
+                    <CircleHelp className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[240px] text-left leading-relaxed">
+                  {email
+                    ? 'Email is used for newsletters and church updates. Login emails are managed separately for leaders.'
+                    : 'No email on file. Add one when creating a new member.'}
+                </TooltipContent>
+              </Tooltip>
             </div>
-          )}
+            <Input
+              id="member-email"
+              type="email"
+              value={email}
+              readOnly
+              className="bg-muted/40 text-muted-foreground"
+            />
+          </div>
+        </div>
 
-          {currentKind === 'responsiveness' && (
-            <div className="space-y-4">
-              <WizardIntro
-                icon={UserRound}
-                title="Responsiveness"
-                description="How responsive is this member to follow-up and outreach?"
-              />
-
-              <WizardField label="Responsiveness level" id="member-responsiveness-edit" required>
-                <select
-                  id="member-responsiveness-edit"
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={responsiveness}
-                  onChange={(e) => setResponsiveness(Number(e.target.value))}
-                >
-                  {MEMBER_RESPONSIVENESS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.value} — {option.label}
-                    </option>
-                  ))}
-                </select>
-              </WizardField>
-            </div>
-          )}
-
-          {currentKind === 'education' && (
-            <div className="space-y-4">
-              <WizardIntro
-                icon={GraduationCap}
-                title="Work & study"
-                description="Optional details about school, work, or training."
-              />
-
-              <MemberProfileFields
-                phoneId="member-phone"
-                values={profile}
-                onChange={(patch) => setProfile((current) => ({ ...current, ...patch }))}
-                sections={['education']}
-              />
-            </div>
-          )}
-        </WizardStepPanel>
-
-        <WizardFooter
-          step={step}
-          busy={busy}
-          onCancel={onClose}
-          onBack={goBack}
-          onNext={goNext}
-          isLastStep={isLastStep}
-          canProceed={
-            currentKind === 'details'
-              ? name.trim().length > 0
-              : currentKind === 'cell' || currentKind === 'placement'
-                ? Boolean(resolvedParentId)
-                : true
-          }
-          submitLabel="Save changes"
-          busyLabel="Saving…"
+        <MemberProfileFields
+          phoneId="member-phone"
+          churchCountryCode={me.countryCode}
+          values={profile}
+          onChange={(patch) => setProfile((current) => ({ ...current, ...patch }))}
+          sections={['contact', 'personal', 'education']}
         />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <WizardField label="Role" id="member-role">
+            <select
+              id="member-role"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:bg-muted/40 disabled:text-muted-foreground"
+              value={position}
+              disabled={!rolePolicy.canEditPosition}
+              onChange={(e) => setPosition(e.target.value as MemberPosition)}
+            >
+              {(rolePolicy.canEditPosition
+                ? MEMBER_POSITION_OPTIONS.filter((option) =>
+                    rolePolicy.assignablePositions.includes(option.value),
+                  )
+                : MEMBER_POSITION_OPTIONS.filter((option) => option.value === position)
+              ).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {!rolePolicy.canEditPosition && (
+              <p className="text-xs text-muted-foreground">Role follows the church structure.</p>
+            )}
+          </WizardField>
+
+          <WizardField label="Responsiveness" id="member-responsiveness">
+            <select
+              id="member-responsiveness"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={responsiveness}
+              onChange={(e) => setResponsiveness(Number(e.target.value))}
+            >
+              {MEMBER_RESPONSIVENESS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.value} — {option.label}
+                </option>
+              ))}
+            </select>
+          </WizardField>
+        </div>
       </div>
+
+      <WizardFooter
+        step={0}
+        busy={busy}
+        onCancel={onClose}
+        onBack={onClose}
+        onNext={save}
+        isLastStep
+        canProceed={name.trim().length > 0}
+        submitLabel="Save changes"
+        busyLabel="Saving…"
+      />
+    </div>
   )
 
   if (presentation === 'page') {
@@ -420,7 +230,7 @@ export function MemberEditWizard({
               ? `Update ${name.trim() || 'this member'} in ${cellLabel}.`
               : fellowshipLabel
                 ? `Update ${name.trim() || 'this member'} in ${fellowshipLabel}.`
-                : 'Update profile details or move this person to another roster unit.'}
+                : 'Update profile details for this person.'}
           </p>
         </div>
         {body}
@@ -438,7 +248,7 @@ export function MemberEditWizard({
           ? `Update ${name.trim() || 'this member'} in ${cellLabel}.`
           : fellowshipLabel
             ? `Update ${name.trim() || 'this member'} in ${fellowshipLabel}.`
-            : 'Update profile details or move this person to another roster unit.'
+            : 'Update profile details for this person.'
       }
       size="xl"
     >

@@ -14,6 +14,12 @@ describe('isSidebarNavItemActive', () => {
 
   it('does not highlight roster units on membership routes', () => {
     expect(isSidebarNavItemActive('/roster/membership', { to: 'roster', end: true })).toBe(false)
+    expect(
+      isSidebarNavItemActive('/roster/members/b2f93713-62e3-47f5-967b-bc72a90b6dd8/edit', {
+        to: 'roster',
+        end: true,
+      }),
+    ).toBe(false)
   })
 
   it('highlights membership on roster and legacy membership routes', () => {
@@ -21,6 +27,12 @@ describe('isSidebarNavItemActive', () => {
       true,
     )
     expect(isSidebarNavItemActive('/membership', { to: 'roster/membership', end: true })).toBe(true)
+    expect(
+      isSidebarNavItemActive('/roster/members/b2f93713-62e3-47f5-967b-bc72a90b6dd8/edit', {
+        to: 'roster/membership',
+        end: true,
+      }),
+    ).toBe(true)
   })
 
   it('highlights givings campaigns on list and campaign detail routes', () => {
