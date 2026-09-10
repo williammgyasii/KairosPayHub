@@ -12,6 +12,8 @@ import {
 interface RemittanceDestinationFieldProps {
   id?: string
   role: string
+  /** From givingScopePolicy.remittanceApproverLabel when available. */
+  approverLabel?: string
   value: RemittanceMedium | ''
   otherValue: string
   onChange: (value: RemittanceMedium | '') => void
@@ -23,6 +25,7 @@ interface RemittanceDestinationFieldProps {
 export function RemittanceDestinationField({
   id = 'remittance-medium',
   role,
+  approverLabel,
   value,
   otherValue,
   onChange,
@@ -30,7 +33,7 @@ export function RemittanceDestinationField({
   disabled = false,
   paymentModes = [],
 }: RemittanceDestinationFieldProps) {
-  const options = remittanceDestinationOptions(role, paymentModes)
+  const options = remittanceDestinationOptions(role, paymentModes, approverLabel)
   const selected = options.find((option) => option.value === value)
 
   return (
@@ -58,20 +61,24 @@ export function RemittanceDestinationField({
         )}
         {paymentModes.length === 0 && (
           <p className="text-[11px] text-muted-foreground">
-            PFCC managers will configure payment numbers in Settings soon.
+            Payment numbers will be configurable in Settings soon.
           </p>
         )}
       </WizardField>
 
       {value === 'Other' && (
-        <WizardField label={bulkRemittanceOtherLabel(role)} id={`${id}-other`} required>
+        <WizardField
+          label={bulkRemittanceOtherLabel(role, approverLabel)}
+          id={`${id}-other`}
+          required
+        >
           <Input
             id={`${id}-other`}
             value={otherValue}
             disabled={disabled}
             required
             onChange={(event) => onOtherChange(event.target.value)}
-            placeholder={bulkRemittanceOtherPlaceholder(role)}
+            placeholder={bulkRemittanceOtherPlaceholder(role, approverLabel)}
           />
         </WizardField>
       )}

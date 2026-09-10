@@ -45,7 +45,8 @@ export function SubGivingsPanel({
   onCreateClick,
 }: SubGivingsPanelProps) {
   const churchManager = canManageChurch(meRole)
-  const isScopedLeader = meRole === 'PFCCManager' || meRole === 'FellowshipLeader'
+  const isScopedLeader =
+    meRole === 'PFCCManager' || meRole === 'FellowshipLeader' || Boolean(onCreateClick)
 
   const rows = useMemo(() => sortSubGivings(children), [children])
 
@@ -190,7 +191,7 @@ export function SubGivingsPanel({
               {isScopedLeader ? ' · locked rows are pastor-defined' : ''}
             </p>
           </div>
-          {(churchManager || meRole === 'PFCCManager') && onCreateClick && (
+          {onCreateClick && (
             <Button type="button" size="sm" onClick={onCreateClick}>
               Add sub-giving
             </Button>

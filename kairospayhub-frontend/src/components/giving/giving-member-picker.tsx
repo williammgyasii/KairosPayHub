@@ -180,15 +180,13 @@ export function GivingMemberPicker({
 }
 
 function MemberStructureChips({ segments }: { segments: StructureSegment[] }) {
-  const visible = segments.filter((segment) => segment.standardType !== 'PFCC')
-
-  if (visible.length === 0) {
+  if (segments.length === 0) {
     return <span className="text-xs text-muted-foreground">—</span>
   }
 
   return (
     <div className="mt-1 flex min-w-0 items-center gap-0.5 overflow-hidden">
-      {visible.map((segment, index) => (
+      {segments.map((segment, index) => (
         <Fragment key={`${segment.layerId}-${segment.nodeName}`}>
           {index > 0 && (
             <ChevronRight className="size-3 shrink-0 text-muted-foreground/45" aria-hidden />

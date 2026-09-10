@@ -1,24 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Me } from '@/api/auth'
-import { canManageChurch } from '@/api/auth'
-import type { GivingType, ProgramScopeKind } from '@/api/giving'
+import type { GivingType } from '@/api/giving'
 import { createProgram } from '@/api/giving'
 import type { ApiClient } from '@/api/core'
 import type { StructureTree } from '@/api/structure'
-import {
-  GIVING_TYPE_OPTIONS,
-  nodePathLabel,
-  nodesForScopeKind,
-  scopeKindLabel,
-} from '@/lib/giving-ui'
+import { GIVING_TYPE_OPTIONS, nodePathLabel } from '@/lib/giving-ui'
 import { SearchPicker } from '@/components/structure/search-picker'
-import {
-  WizardField,
-  WizardFooter,
-  WizardProgressBar,
-  WizardStepPanel,
-  WizardStepper,
-} from '@/components/structure/wizard-shell'
+import { WizardField, WizardFooter } from '@/components/structure/wizard-shell'
 import { Modal } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -27,7 +15,10 @@ import {
   defaultCampaignEndDate,
   validateCampaignDates,
 } from '@/lib/campaign-date-validation'
-import { nodesBelowScopeRoot } from '@/lib/structure-tree'
+import {
+  givingScopePolicy,
+  leadershipFromProfile,
+} from '@/lib/giving-scope-policy'
 
 type CreateProgramWizardProps = {
   open: boolean
@@ -38,28 +29,10 @@ type CreateProgramWizardProps = {
   onCreated: () => void
 }
 
-const SCOPE_OPTIONS = {
-  pastor: ['ChurchWide'] as const,
-  fellowshipLeader: ['Fellowship', 'FellowshipGroup'] as const,
-  pfccManager: ['PFCC'] as const,
-  none: [] as const,
-}
+type ScopeSelection = 'churchWide' | string
 
 const selectClassName =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-
-function scopeOptionsForRole(
-  role: (Me & { onboarded: true })['role'],
-): readonly ProgramScopeKind[] {
-  if (role === 'Pastor') return SCOPE_OPTIONS.pastor
-  if (role === 'FellowshipLeader') return SCOPE_OPTIONS.fellowshipLeader
-  if (role === 'PFCCManager') return SCOPE_OPTIONS.pfccManager
-  return SCOPE_OPTIONS.none
-}
-
-function defaultEndDate(start: string) {
-  return defaultCampaignEndDate(start)
-}
 
 export function CreateProgramWizard({
   open,
@@ -69,21 +42,23 @@ export function CreateProgramWizard({
   tree,
   onCreated,
 }: CreateProgramWizardProps) {
-  const scopeOptions = scopeOptionsForRole(me.role)
-  const churchWideManager = canManageChurch(me.role)
-  const isPfccManager = me.role === 'PFCCManager'
-  const skipsScopeStep = isPfccManager && Boolean(me.scopeNodeId)
-  const defaultScopeKind = scopeOptions[0] ?? 'ChurchWide'
-  const steps =
-    churchWideManager || skipsScopeStep
-      ? (['Details', 'Review'] as const)
-      : (['Details', 'Scope', 'Review'] as const)
+  const actorLeadership = leadershipFromProfile(me.leadershipProfile, me.role)
+  const scopeRootNodeId = me.scopeNodeId ?? null
 
-  const [step, setStep] = useState(0)
-  const [direction, setDirection] = useState<'forward' | 'back'>('forward')
+  const policy = useMemo(
+    () =>
+      tree
+        ? givingScopePolicy({
+            tree,
+            actorLeadership,
+            actorScopeNodeId: scopeRootNodeId,
+          })
+        : null,
+    [tree, actorLeadership, scopeRootNodeId],
+  )
+
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
   const [title, setTitle] = useState('')
   const [givingType, setGivingType] = useState<GivingType>('SundayService')
   const [customTypeLabel, setCustomTypeLabel] = useState('')
@@ -91,40 +66,42 @@ export function CreateProgramWizard({
   const [endsOn, setEndsOn] = useState('')
   const [goLiveMode, setGoLiveMode] = useState<'today' | 'later'>('today')
   const [goLiveDate, setGoLiveDate] = useState('')
-  const [scopeKind, setScopeKind] = useState<ProgramScopeKind>(defaultScopeKind)
-  const [scopeNodeId, setScopeNodeId] = useState(
-    () => (isPfccManager ? me.scopeNodeId ?? '' : ''),
-  )
+  const [scopeSelection, setScopeSelection] = useState<ScopeSelection>('churchWide')
+  const [scopeNodeId, setScopeNodeId] = useState('')
   const [scopeNodeIds, setScopeNodeIds] = useState<string[]>([])
   const [datesTouched, setDatesTouched] = useState(false)
 
-  const scopeRootNodeId = me.scopeNodeId ?? null
-  const scopeStep = churchWideManager || skipsScopeStep ? -1 : 1
-  const reviewStep = steps.length - 1
+  useEffect(() => {
+    if (!open || !policy) return
+    setScopeSelection(
+      policy.allowChurchWide ? 'churchWide' : (policy.layers[0]?.layerId ?? 'churchWide'),
+    )
+    setScopeNodeId(
+      actorLeadership === 'intermediate' && scopeRootNodeId && policy.layers.length > 0
+        ? scopeRootNodeId
+        : '',
+    )
+    setScopeNodeIds([])
+    setDatesTouched(false)
+  }, [open, policy, actorLeadership, scopeRootNodeId])
 
-  const scopeNodes = useMemo(() => {
-    if (!tree || churchWideManager || skipsScopeStep) return []
-    let nodes = nodesForScopeKind(tree, scopeKind)
-    if (scopeRootNodeId) {
-      nodes = nodesBelowScopeRoot(tree, nodes, scopeRootNodeId)
-    }
-    return nodes
-  }, [tree, scopeKind, churchWideManager, skipsScopeStep, scopeRootNodeId])
+  const scopeUnits = useMemo(() => {
+    if (!policy || scopeSelection === 'churchWide') return []
+    return policy.unitsForLayer(scopeSelection)
+  }, [policy, scopeSelection])
+
+  const multiSelect = scopeUnits.length > 1 && scopeSelection !== 'churchWide'
+  const showScopePicker = Boolean(policy && !policy.allowChurchWide ? true : scopeSelection !== 'churchWide')
 
   const scopePickerOptions = useMemo(
     () =>
-      scopeNodes.map((node) => ({
-        id: node.id,
-        label: node.name,
-        hint: tree ? nodePathLabel(tree, node.id, scopeRootNodeId) : undefined,
+      scopeUnits.map((unit) => ({
+        id: unit.id,
+        label: unit.name,
+        hint: tree ? nodePathLabel(tree, unit.id, scopeRootNodeId) : undefined,
       })),
-    [scopeNodes, tree, scopeRootNodeId],
+    [scopeUnits, tree, scopeRootNodeId],
   )
-
-  const typeLabel =
-    givingType === 'Other'
-      ? customTypeLabel.trim() || 'Other'
-      : GIVING_TYPE_OPTIONS.find((o) => o.value === givingType)?.label ?? givingType
 
   const dateValidation = useMemo(
     () =>
@@ -144,44 +121,30 @@ export function CreateProgramWizard({
     (givingType !== 'Other' || customTypeLabel.trim().length > 0) &&
     dateValidation.isValid
 
-  const canProceed = useMemo(() => {
-    if (step === 0) return detailsValid
-    if (scopeStep >= 0 && step === scopeStep) {
-      if (scopeKind === 'FellowshipGroup') return scopeNodeIds.length > 0
-      if (scopeKind === 'Fellowship' || scopeKind === 'PFCC') return Boolean(scopeNodeId)
-    }
-    return true
-  }, [
-    step,
-    detailsValid,
-    scopeStep,
-    scopeKind,
-    scopeNodeId,
-    scopeNodeIds,
-  ])
+  const scopeValid = useMemo(() => {
+    if (!policy?.canCreateCampaign) return false
+    if (scopeSelection === 'churchWide') return Boolean(policy.allowChurchWide)
+    if (multiSelect) return scopeNodeIds.length > 0
+    return Boolean(scopeNodeId)
+  }, [policy, scopeSelection, multiSelect, scopeNodeId, scopeNodeIds])
 
-  function go(next: number) {
-    setDirection(next > step ? 'forward' : 'back')
-    setStep(next)
-  }
+  const canProceed = detailsValid && scopeValid
 
   function handleStartsOnChange(value: string) {
     setDatesTouched(true)
     setStartsOn(value)
-    if (!endsOn || (value && endsOn < value)) setEndsOn(defaultEndDate(value))
+    if (!endsOn || (value && endsOn < value)) setEndsOn(defaultCampaignEndDate(value))
   }
 
-  function handleEndsOnChange(value: string) {
-    setDatesTouched(true)
-    setEndsOn(value)
-  }
-
-  function handleGoLiveDateChange(value: string) {
-    setDatesTouched(true)
-    setGoLiveDate(value)
+  function toggleGroupNode(id: string) {
+    setScopeNodeIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
   }
 
   async function handleSubmit() {
+    setDatesTouched(true)
+    if (!canProceed) return
     setBusy(true)
     setError(null)
     try {
@@ -197,18 +160,11 @@ export function CreateProgramWizard({
         startsOn,
         endsOn,
         goLiveAt,
-        scopeKind: churchWideManager ? 'ChurchWide' : isPfccManager ? 'PFCC' : scopeKind,
-        scopeNodeId: churchWideManager
-          ? null
-          : isPfccManager
-            ? me.scopeNodeId ?? null
-            : scopeKind !== 'FellowshipGroup'
-              ? scopeNodeId || null
-              : null,
-        scopeNodeIds:
-          !churchWideManager && !isPfccManager && scopeKind === 'FellowshipGroup'
-            ? scopeNodeIds
-            : undefined,
+        ...(scopeSelection === 'churchWide'
+          ? { scopeKind: 'ChurchWide' as const, scopeNodeId: null }
+          : multiSelect
+            ? { scopeNodeId: null, scopeNodeIds }
+            : { scopeNodeId: scopeNodeId || null }),
       })
       onOpenChange(false)
       onCreated()
@@ -219,22 +175,6 @@ export function CreateProgramWizard({
     }
   }
 
-  function handleNext() {
-    if (step === 0) setDatesTouched(true)
-    if (step < steps.length - 1) {
-      if (step === 0 && !detailsValid) return
-      go(step + 1)
-      return
-    }
-    void handleSubmit()
-  }
-
-  function toggleGroupNode(id: string) {
-    setScopeNodeIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
-  }
-
   return (
     <Modal
       open={open}
@@ -243,247 +183,230 @@ export function CreateProgramWizard({
       description="Set up a giving campaign for your church."
       size="lg"
     >
-      <div className="space-y-5">
-        <WizardStepper steps={[...steps]} currentStep={step} />
-        <WizardProgressBar value={((step + 1) / steps.length) * 100} />
-
+      <div className="space-y-5" data-testid="create-program-form">
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <WizardStepPanel stepKey={step} direction={direction}>
-          {step === 0 && (
-            <div className="space-y-5">
-              <WizardField label="Campaign name" id="wizard-title" required>
-                <Input
-                  id="wizard-title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Sunday Services 2026"
-                  autoFocus
-                />
-              </WizardField>
+        <WizardField label="Campaign name" id="wizard-title" required>
+          <Input
+            id="wizard-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Sunday Services 2026"
+            autoFocus
+          />
+        </WizardField>
 
-              <WizardField label="Giving type" id="wizard-type" required>
-                <select
-                  id="wizard-type"
-                  value={givingType}
-                  onChange={(e) => setGivingType(e.target.value as GivingType)}
-                  className={selectClassName}
-                >
-                  {GIVING_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                  <option value="Other">Other</option>
-                </select>
-              </WizardField>
+        <WizardField label="Giving type" id="wizard-type" required>
+          <select
+            id="wizard-type"
+            value={givingType}
+            onChange={(e) => setGivingType(e.target.value as GivingType)}
+            className={selectClassName}
+          >
+            {GIVING_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="Other">Other</option>
+          </select>
+        </WizardField>
 
-              {givingType === 'Other' && (
-                <WizardField label="Custom type name" id="wizard-custom-type" required>
-                  <Input
-                    id="wizard-custom-type"
-                    value={customTypeLabel}
-                    onChange={(e) => setCustomTypeLabel(e.target.value)}
-                    placeholder="Building fund"
-                  />
-                </WizardField>
-              )}
+        {givingType === 'Other' && (
+          <WizardField label="Custom type name" id="wizard-custom-type" required>
+            <Input
+              id="wizard-custom-type"
+              value={customTypeLabel}
+              onChange={(e) => setCustomTypeLabel(e.target.value)}
+              placeholder="Building fund"
+            />
+          </WizardField>
+        )}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <WizardField
-                  label="Starts on"
-                  id="wizard-starts"
-                  required
-                  error={showDateErrors ? dateValidation.startsOn.error : null}
-                >
-                  <DatePicker
-                    id="wizard-starts"
-                    value={startsOn}
-                    onChange={handleStartsOnChange}
-                    disablePast
-                    placeholder="Pick start date"
-                    invalid={Boolean(showDateErrors && dateValidation.startsOn.error)}
-                  />
-                </WizardField>
-                <WizardField
-                  label="Ends on"
-                  id="wizard-ends"
-                  required
-                  error={showDateErrors ? dateValidation.endsOn.error : null}
-                >
-                  <DatePicker
-                    id="wizard-ends"
-                    value={endsOn}
-                    minDate={startsOn || undefined}
-                    disablePast
-                    onChange={handleEndsOnChange}
-                    placeholder="Pick end date"
-                    invalid={Boolean(showDateErrors && dateValidation.endsOn.error)}
-                  />
-                </WizardField>
-              </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <WizardField
+            label="Starts on"
+            id="wizard-starts"
+            required
+            error={showDateErrors ? dateValidation.startsOn.error : null}
+          >
+            <DatePicker
+              id="wizard-starts"
+              value={startsOn}
+              onChange={handleStartsOnChange}
+              disablePast
+              placeholder="Pick start date"
+              invalid={Boolean(showDateErrors && dateValidation.startsOn.error)}
+            />
+          </WizardField>
+          <WizardField
+            label="Ends on"
+            id="wizard-ends"
+            required
+            error={showDateErrors ? dateValidation.endsOn.error : null}
+          >
+            <DatePicker
+              id="wizard-ends"
+              value={endsOn}
+              minDate={startsOn || undefined}
+              disablePast
+              onChange={(value) => {
+                setDatesTouched(true)
+                setEndsOn(value)
+              }}
+              placeholder="Pick end date"
+              invalid={Boolean(showDateErrors && dateValidation.endsOn.error)}
+            />
+          </WizardField>
+        </div>
 
-              <div className="space-y-3">
-                <p className="text-xs font-medium">When should this go live?</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {(
-                    [
-                      ['today', 'Today', 'Leaders are notified right away.'],
-                      ['later', 'Later', 'Pick a date — leaders are alerted when it goes live.'],
-                    ] as const
-                  ).map(([mode, label, hint]) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      className={cn(
-                        'rounded-xl border px-4 py-3 text-left transition-colors',
-                        goLiveMode === mode
-                          ? 'border-primary bg-primary/10 ring-2 ring-primary/20 ring-offset-2 ring-offset-background'
-                          : 'border-border/60 hover:bg-muted/40',
-                      )}
-                      onClick={() => setGoLiveMode(mode)}
-                    >
-                      <p className="font-medium">{label}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-                    </button>
-                  ))}
-                </div>
-                {goLiveMode === 'later' && (
-                  <WizardField
-                    label="Go-live date"
-                    id="wizard-go-live"
-                    required
-                    error={showDateErrors ? dateValidation.goLiveDate.error : null}
-                  >
-                    <DatePicker
-                      id="wizard-go-live"
-                      value={goLiveDate}
-                      maxDate={endsOn || undefined}
-                      disablePast
-                      onChange={handleGoLiveDateChange}
-                      placeholder="Pick go-live date"
-                      invalid={Boolean(showDateErrors && dateValidation.goLiveDate.error)}
-                    />
-                  </WizardField>
+        <div className="space-y-3">
+          <p className="text-xs font-medium">When should this go live?</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(
+              [
+                ['today', 'Today', 'Leaders are notified right away.'],
+                ['later', 'Later', 'Pick a date — leaders are alerted when it goes live.'],
+              ] as const
+            ).map(([mode, label, hint]) => (
+              <button
+                key={mode}
+                type="button"
+                className={cn(
+                  'rounded-xl border px-4 py-3 text-left transition-colors',
+                  goLiveMode === mode
+                    ? 'border-primary bg-primary/10 ring-2 ring-primary/20 ring-offset-2 ring-offset-background'
+                    : 'border-border/60 hover:bg-muted/40',
                 )}
-              </div>
-            </div>
+                onClick={() => setGoLiveMode(mode)}
+              >
+                <p className="font-medium">{label}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+              </button>
+            ))}
+          </div>
+          {goLiveMode === 'later' && (
+            <WizardField
+              label="Go-live date"
+              id="wizard-go-live"
+              required
+              error={showDateErrors ? dateValidation.goLiveDate.error : null}
+            >
+              <DatePicker
+                id="wizard-go-live"
+                value={goLiveDate}
+                maxDate={endsOn || undefined}
+                disablePast
+                onChange={(value) => {
+                  setDatesTouched(true)
+                  setGoLiveDate(value)
+                }}
+                placeholder="Pick go-live date"
+                invalid={Boolean(showDateErrors && dateValidation.goLiveDate.error)}
+              />
+            </WizardField>
           )}
+        </div>
 
-          {scopeStep >= 0 && step === scopeStep && (
-            <div className="space-y-4">
-              {scopeOptions.length > 1 && (
-                <div className="flex flex-wrap gap-2">
-                  {scopeOptions.map((kind) => (
-                    <button
-                      key={kind}
-                      type="button"
-                      className={cn(
-                        'rounded-full border px-3 py-1 text-sm transition-colors',
-                        scopeKind === kind
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border hover:bg-muted/40',
-                      )}
-                      onClick={() => {
-                        setScopeKind(kind)
-                        setScopeNodeId('')
-                        setScopeNodeIds([])
-                      }}
+        <div className="space-y-3">
+          <p className="text-xs font-medium">Scope</p>
+          <div className="flex flex-wrap gap-2">
+            {policy?.allowChurchWide && (
+              <button
+                type="button"
+                className={cn(
+                  'rounded-full border px-3 py-1 text-sm transition-colors',
+                  scopeSelection === 'churchWide'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border hover:bg-muted/40',
+                )}
+                onClick={() => {
+                  setScopeSelection('churchWide')
+                  setScopeNodeId('')
+                  setScopeNodeIds([])
+                }}
+              >
+                {policy.churchWideLabel}
+              </button>
+            )}
+            {policy?.layers.map((layer) => (
+              <button
+                key={layer.layerId}
+                type="button"
+                className={cn(
+                  'rounded-full border px-3 py-1 text-sm transition-colors',
+                  scopeSelection === layer.layerId
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border hover:bg-muted/40',
+                )}
+                onClick={() => {
+                  setScopeSelection(layer.layerId)
+                  setScopeNodeId(
+                    actorLeadership === 'intermediate' && scopeRootNodeId ? scopeRootNodeId : '',
+                  )
+                  setScopeNodeIds([])
+                }}
+              >
+                {layer.label}
+              </button>
+            ))}
+          </div>
+
+          {!tree || !policy ? (
+            <p className="text-sm text-muted-foreground">
+              Load your structure first to pick a scope unit.
+            </p>
+          ) : !showScopePicker ? (
+            <p className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+              Church-wide — every unit can log under this campaign.
+            </p>
+          ) : multiSelect ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Select units</p>
+              <div className="max-h-52 overflow-y-auto rounded-lg border border-border/60">
+                {scopeUnits.map((unit) => {
+                  const checked = scopeNodeIds.includes(unit.id)
+                  return (
+                    <label
+                      key={unit.id}
+                      className="flex cursor-pointer items-start gap-3 border-b border-border/40 px-3 py-2.5 last:border-0 hover:bg-muted/30"
                     >
-                      {scopeKindLabel(kind)}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!tree ? (
-                <p className="text-sm text-muted-foreground">
-                  Load your structure first to pick a scope node.
-                </p>
-              ) : scopeKind === 'FellowshipGroup' ? (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium">Select fellowships</p>
-                  <div className="max-h-52 overflow-y-auto rounded-lg border border-border/60">
-                    {scopeNodes.map((node) => {
-                      const checked = scopeNodeIds.includes(node.id)
-                      return (
-                        <label
-                          key={node.id}
-                          className="flex cursor-pointer items-start gap-3 border-b border-border/40 px-3 py-2.5 last:border-0 hover:bg-muted/30"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleGroupNode(node.id)}
-                            className="mt-1"
-                          />
-                          <span>
-                            <span className="block text-sm font-medium">{node.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {nodePathLabel(tree, node.id, scopeRootNodeId)}
-                            </span>
-                          </span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <SearchPicker
-                  options={scopePickerOptions}
-                  value={scopeNodeId}
-                  onChange={setScopeNodeId}
-                  placeholder="Search units…"
-                  emptyMessage="No units at this layer."
-                  required
-                />
-              )}
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleGroupNode(unit.id)}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium">{unit.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {nodePathLabel(tree, unit.id, scopeRootNodeId)}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
+          ) : (
+            <SearchPicker
+              options={scopePickerOptions}
+              value={scopeNodeId}
+              onChange={setScopeNodeId}
+              placeholder="Search units…"
+              emptyMessage="No units at this layer."
+              required
+            />
           )}
-
-          {step === reviewStep && (
-            <dl className="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-4 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Name</dt>
-                <dd className="font-medium">{title}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Type</dt>
-                <dd className="font-medium">{typeLabel}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Timeline</dt>
-                <dd className="font-medium">
-                  {startsOn} → {endsOn}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Go live</dt>
-                <dd className="font-medium">
-                  {goLiveMode === 'today' ? 'Today' : goLiveDate}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Scope</dt>
-                <dd className="text-right font-medium">
-                  {churchWideManager
-                    ? 'Church-wide'
-                    : scopeKind === 'FellowshipGroup'
-                      ? `${scopeNodeIds.length} fellowships`
-                      : scopeKindLabel(scopeKind)}
-                </dd>
-              </div>
-            </dl>
-          )}
-        </WizardStepPanel>
+        </div>
 
         <WizardFooter
-          step={step}
+          step={0}
           busy={busy}
           onCancel={() => onOpenChange(false)}
-          onBack={() => go(step - 1)}
-          onNext={handleNext}
-          isLastStep={step === steps.length - 1}
+          onBack={() => onOpenChange(false)}
+          onNext={() => void handleSubmit()}
+          isLastStep
           canProceed={canProceed}
           submitLabel="Create campaign"
         />

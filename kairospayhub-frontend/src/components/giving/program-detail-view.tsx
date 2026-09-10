@@ -11,9 +11,13 @@ import {
 } from '@/api/giving'
 import type { StructureTree } from '@/api/structure'
 import { givingTypeLabel, contributionsAwaitingMyApproval } from '@/lib/giving-ui'
-import { canCreateSubGiving, canManageChurch, canViewMemberGivings } from '@/api/auth'
+import { canManageChurch, canViewMemberGivings } from '@/api/auth'
 import { useAppAbility } from '@/auth/ability-context'
 import { structureOptionsForLeader } from '@/lib/contribution-structure'
+import {
+  givingScopePolicy,
+  leadershipFromProfile,
+} from '@/lib/giving-scope-policy'
 import { ContributionsHistoryTable } from '@/components/giving/contributions-history-table'
 import { ContributionsStructureTable } from '@/components/giving/contributions-structure-table'
 import { ContributionsApprovalTable } from '@/components/giving/contributions-approval-table'
@@ -65,13 +69,30 @@ export function ProgramDetailView({
 }: ProgramDetailViewProps) {
   const churchManager = canManageChurch(me.role)
   const ability = useAppAbility()
-  const canCreateSubGivingRole = canCreateSubGiving(me.role)
+  const actorLeadership = leadershipFromProfile(me.leadershipProfile, me.role)
+  const scopePolicy = useMemo(
+    () =>
+      tree
+        ? givingScopePolicy({
+            tree,
+            actorLeadership,
+            actorScopeNodeId: me.scopeNodeId,
+            parent: {
+              scopeKind: String(program.scopeKind),
+              scopeNodeId: program.scopeNodeId,
+            },
+          })
+        : null,
+    [tree, actorLeadership, me.scopeNodeId, program.scopeKind, program.scopeNodeId],
+  )
+  const canCreateSubGivingRole = Boolean(scopePolicy?.canCreateSubCampaign)
   const isFellowshipLeader = me.role === 'FellowshipLeader'
   const isPfccManager = me.role === 'PFCCManager'
-  const isCellLeader = me.role === 'CellLeader'
   const acceptsContributions = program.acceptsContributions
   const canLogContributions =
-    (isCellLeader || isFellowshipLeader || isPfccManager) &&
+    (actorLeadership === 'leaf' ||
+      actorLeadership === 'intermediate' ||
+      actorLeadership === 'churchWide') &&
     program.status === 'Open' &&
     acceptsContributions
   const [subGivingOpen, setSubGivingOpen] = useState(false)
@@ -462,6 +483,7 @@ export function ProgramDetailView({
             api={api}
             programId={program.id}
             meRole={me.role}
+            leadershipProfile={me.leadershipProfile}
             tree={tree}
             scopeNodeId={me.scopeNodeId}
             disabled={busy}
@@ -485,7 +507,10 @@ export function ProgramDetailView({
           api={api}
           tree={tree}
           requiresPastorApproval={!churchManager}
-          scopeRootNodeId={isPfccManager ? me.scopeNodeId : null}
+          scopeRootNodeId={
+            actorLeadership === 'churchWide' ? null : me.scopeNodeId
+          }
+          actorLeadership={actorLeadership}
           onCreated={() => void onRefresh()}
         />
       ) : null}

@@ -55,6 +55,14 @@ export type Me =
       legacyChurchId: string | null
       email: string | null
       name: string | null
+      memberId?: string | null
+      phone?: string | null
+      dateOfBirth?: string | null
+      residence?: string | null
+      state?: string | null
+      occupationStatus?: string | null
+      schoolOrWorkplace?: string | null
+      workplace?: string | null
       /** Product abilities from API (preferred for feature gates). */
       abilities?: string[]
       /** Packed CASL rules from API. */
@@ -86,12 +94,18 @@ export function canCreateSubGiving(role: string): boolean {
   return canCreateGivingProgram(role)
 }
 
+/** Church-wide or intermediate leadership may create campaigns / subs. */
 export function canCreateGivingProgram(role: string): boolean {
-  return canManageChurch(role) || role === 'PFCCManager'
+  return canManageChurch(role) || isScopedLeader(role)
 }
 
-export function canManageMembers(role: string): boolean {
-  return canManageChurch(role) || isScopedLeader(role)
+export function canManageMembers(roleOrMe: string | Me): boolean {
+  if (typeof roleOrMe !== 'string') {
+    if (roleOrMe.onboarded && hasAbilityList(roleOrMe.abilities, 'manageRoster')) return true
+    if (!roleOrMe.onboarded) return false
+    return canManageMembers(roleOrMe.role)
+  }
+  return canManageChurch(roleOrMe) || isScopedLeader(roleOrMe) || isCellLeader(roleOrMe)
 }
 
 export function isCellLeader(role: string): boolean {
@@ -159,6 +173,10 @@ export function canApproveAttendance(role: string): boolean {
 
 export function canViewAttendanceMetrics(role: string): boolean {
   return canManageChurch(role) || isScopedLeader(role)
+}
+
+export function canEditSelfProfile(me: Me): boolean {
+  return me.onboarded && Boolean(me.memberId)
 }
 
 export function displayName(me: Me, sessionEmail?: string | null): string {

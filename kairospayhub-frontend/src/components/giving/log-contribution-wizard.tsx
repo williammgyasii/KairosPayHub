@@ -35,6 +35,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import {
+  givingScopePolicy,
+  leadershipFromProfile,
+} from '@/lib/giving-scope-policy'
 
 type LogMode = 'single' | 'bulk'
 
@@ -58,6 +62,8 @@ interface LogContributionWizardProps {
   api: ApiClient
   programId: string
   meRole: ChurchRole | 'Leader'
+  /** Prefer leadership profile when available; falls back to role. */
+  leadershipProfile?: string | null
   tree: StructureTree | null
   scopeNodeId?: string | null
   embedded?: boolean
@@ -74,7 +80,8 @@ export function LogContributionWizard({
   api,
   programId,
   meRole,
-  tree: _tree,
+  leadershipProfile = null,
+  tree,
   scopeNodeId,
   disabled,
   embedded,
@@ -82,7 +89,14 @@ export function LogContributionWizard({
   onCancel,
   onLogged,
 }: LogContributionWizardProps) {
-  const canBulkLog = meRole === 'PFCCManager' || meRole === 'FellowshipLeader'
+  const actorLeadership = leadershipFromProfile(leadershipProfile, meRole)
+  const canBulkLog = tree
+    ? givingScopePolicy({
+        tree,
+        actorLeadership,
+        actorScopeNodeId: scopeNodeId,
+      }).canBulkLog
+    : actorLeadership === 'churchWide' || actorLeadership === 'intermediate'
   const currency = getChurchDefaultCurrency()
 
   const [mode, setMode] = useState<LogMode | null>(canBulkLog ? null : 'single')

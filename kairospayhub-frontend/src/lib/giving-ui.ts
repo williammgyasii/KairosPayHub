@@ -241,38 +241,56 @@ export function contributionRemittanceSummary(contribution: {
   return remittanceMediumLabel(contribution.remittanceMedium)
 }
 
-export function bulkRemittanceQuestion(role: string) {
+export function bulkRemittanceQuestion(role: string, approverLabel?: string) {
+  if (approverLabel) {
+    return `Has this payment been sent to ${approverLabel}?`
+  }
   if (role === 'FellowshipLeader') {
     return 'Has this payment been sent to your manager or the structure above you?'
   }
   return 'Has this giving been sent to your pastor?'
 }
 
-export function bulkRemittanceAmountLabel(role: string) {
+export function bulkRemittanceAmountLabel(role: string, approverLabel?: string) {
+  if (approverLabel) {
+    return `How much was sent to ${approverLabel}? (GHS)`
+  }
   if (role === 'FellowshipLeader') {
     return 'How much was sent to your manager or the level above? (GHS)'
   }
   return 'How much was sent to pastor? (GHS)'
 }
 
-export function bulkRemittanceTargetLabel(role: string) {
+export function bulkRemittanceTargetLabel(role: string, approverLabel?: string) {
+  if (approverLabel) return approverLabel
   if (role === 'FellowshipLeader') return 'manager / level above'
   return 'pastor'
 }
 
-export function bulkRemittanceFirstStepLabel(role: string) {
+export function bulkRemittanceFirstStepLabel(role: string, approverLabel?: string) {
+  if (approverLabel) return `Remittance to ${approverLabel}`
   if (role === 'FellowshipLeader') return 'Upstream remittance'
   return 'Pastor remittance'
 }
 
-export function bulkSubmitLabel(role: string, sentUpstream: boolean) {
+export function bulkSubmitLabel(
+  role: string,
+  sentUpstream: boolean,
+  approverLabel?: string,
+) {
   if (!sentUpstream) return 'Submit for approval'
+  if (approverLabel) return `Submit for ${approverLabel} approval`
   if (role === 'PFCCManager') return 'Submit for pastor approval'
   return 'Submit for approval'
 }
 
-export function bulkPendingApprovalLabel(role: string, sentUpstream: boolean) {
+export function bulkPendingApprovalLabel(
+  role: string,
+  sentUpstream: boolean,
+  approverLabel?: string,
+) {
   if (!sentUpstream) return 'Pending approval'
+  if (approverLabel) return `Pending approval from ${approverLabel}`
   if (role === 'PFCCManager') return 'Pending pastor approval'
   if (role === 'FellowshipLeader') return 'Pending approval from the level above'
   return 'Pending approval'
@@ -290,14 +308,17 @@ export function remittanceDestinationLabel(
   medium: RemittanceMedium,
   role: string,
   customLabel?: string,
+  approverLabel?: string,
 ) {
   if (customLabel) return customLabel
-  if (role === 'FellowshipLeader') {
+  const upstream = Boolean(approverLabel) || role === 'FellowshipLeader'
+  if (upstream) {
+    const target = approverLabel ?? 'level above'
     switch (medium) {
       case 'PastorBank':
-        return 'Bank account (level above)'
+        return `Bank account (${target})`
       case 'PastorMomo':
-        return 'MoMo (level above)'
+        return `MoMo (${target})`
       case 'ChurchMomo':
         return 'Church MoMo'
       case 'Other':
@@ -312,6 +333,7 @@ export function remittanceDestinationLabel(
 export function remittanceDestinationOptions(
   role: string,
   churchPaymentModes: ChurchPaymentMode[] = [],
+  approverLabel?: string,
 ) {
   if (churchPaymentModes.length > 0) {
     return [
@@ -328,13 +350,20 @@ export function remittanceDestinationOptions(
 
   return REMITTANCE_MEDIUM_OPTIONS.map((option) => ({
     value: option.value,
-    label: remittanceDestinationLabel(option.value, role),
+    label: remittanceDestinationLabel(option.value, role, undefined, approverLabel),
     hint: undefined as string | undefined,
   }))
 }
 
-export function bulkBatchDetailsDescription(role: string, sentUpstream: boolean) {
+export function bulkBatchDetailsDescription(
+  role: string,
+  sentUpstream: boolean,
+  approverLabel?: string,
+) {
   if (!sentUpstream) return 'When this batch was collected.'
+  if (approverLabel) {
+    return `When and where the payment was sent to ${approverLabel}.`
+  }
   if (role === 'FellowshipLeader') {
     return 'When and where the payment was sent to your manager or the level above.'
   }
@@ -345,16 +374,19 @@ export function bulkRemittanceDestinationLabel(_role: string) {
   return 'Where was this payment sent to?'
 }
 
-export function bulkRemittanceOtherLabel(role: string) {
-  if (role === 'FellowshipLeader') {
+export function bulkRemittanceOtherLabel(role: string, approverLabel?: string) {
+  if (approverLabel || role === 'FellowshipLeader') {
     return 'Describe where the payment was sent'
   }
   return 'Describe where it was sent'
 }
 
-export function bulkRemittanceOtherPlaceholder(role: string) {
+export function bulkRemittanceOtherPlaceholder(role: string, approverLabel?: string) {
+  if (approverLabel) {
+    return `e.g. Cash handed to ${approverLabel}`
+  }
   if (role === 'FellowshipLeader') {
-    return 'e.g. Cash handed to PFCC manager'
+    return 'e.g. Cash handed to the level above'
   }
   return 'e.g. Cash to pastor assistant'
 }

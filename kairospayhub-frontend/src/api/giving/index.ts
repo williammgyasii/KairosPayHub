@@ -3,7 +3,13 @@ import { getAccessToken } from '@/auth/client'
 import { apiBaseUrl } from '@/lib/api-base'
 
 export type GivingType = 'Rhapsody' | 'SundayService' | 'SpecialProgram' | 'FellowshipGiving' | 'Other'
-export type ProgramScopeKind = 'ChurchWide' | 'Fellowship' | 'PFCC' | 'FellowshipGroup'
+export type ProgramScopeKind =
+  | 'ChurchWide'
+  | 'Fellowship'
+  | 'PFCC'
+  | 'FellowshipGroup'
+  | 'Unit'
+  | 'UnitGroup'
 export type ProgramStatus = 'Open' | 'Closed' | 'Scheduled'
 export type ProgramApprovalStatus = 'Approved' | 'PendingPastorApproval' | 'Rejected'
 export type ContributionStatus = 'PendingApproval' | 'Approved' | 'Rejected'
@@ -184,7 +190,8 @@ export type CreateGivingProgramInput = {
   goLiveAt?: string
   eventDate?: string
   logOpensAt?: string
-  scopeKind: ProgramScopeKind | string
+  /** Optional — API derives from nodes when omitted. */
+  scopeKind?: ProgramScopeKind | string
   scopeNodeId?: string | null
   scopeNodeIds?: string[]
   parentProgramId?: string | null
@@ -213,7 +220,8 @@ export type CreateSubPeriodInput = {
   periodLabel?: string
   eventDate?: string
   logOpensAt?: string
-  scopeKind: ProgramScopeKind | string
+  /** Optional — API derives from nodes when omitted. */
+  scopeKind?: ProgramScopeKind | string
   scopeNodeId?: string | null
   scopeNodeIds?: string[]
   parentProgramId: string

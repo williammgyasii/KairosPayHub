@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canEditSelfProfile,
   canCreateGivingProgram,
   canCreateSubGiving,
   canManageChurch,
@@ -75,6 +76,16 @@ describe('displayName', () => {
   })
 })
 
+describe('canEditSelfProfile', () => {
+  it('is true when the actor has a linked roster row', () => {
+    expect(canEditSelfProfile({ ...onboarded, role: 'CellLeader', memberId: 'm1' })).toBe(true)
+  })
+
+  it('is false without a linked roster row', () => {
+    expect(canEditSelfProfile(onboarded)).toBe(false)
+  })
+})
+
 describe('isPastor', () => {
   it('is true only for Pastor role', () => {
     expect(isPastor('Pastor')).toBe(true)
@@ -143,11 +154,11 @@ describe('canViewMemberGivings', () => {
 })
 
 describe('canCreateSubGiving', () => {
-  it('allows pastors, church admins, and PFCC managers', () => {
+  it('allows church-wide and intermediate leadership', () => {
     expect(canCreateSubGiving('Pastor')).toBe(true)
     expect(canCreateSubGiving('ChurchAdmin')).toBe(true)
     expect(canCreateSubGiving('PFCCManager')).toBe(true)
-    expect(canCreateSubGiving('FellowshipLeader')).toBe(false)
+    expect(canCreateSubGiving('FellowshipLeader')).toBe(true)
     expect(canCreateSubGiving('CellLeader')).toBe(false)
   })
 })
@@ -157,7 +168,8 @@ describe('canCreateGivingProgram', () => {
     expect(canCreateGivingProgram('Pastor')).toBe(true)
     expect(canCreateGivingProgram('ChurchAdmin')).toBe(true)
     expect(canCreateGivingProgram('PFCCManager')).toBe(true)
-    expect(canCreateGivingProgram('FellowshipLeader')).toBe(false)
+    expect(canCreateGivingProgram('FellowshipLeader')).toBe(true)
+    expect(canCreateGivingProgram('CellLeader')).toBe(false)
   })
 })
 
@@ -215,13 +227,30 @@ describe('roleScopeBadgeLabel', () => {
 })
 
 describe('canManageMembers', () => {
-  it('allows pastors, church admins, and scoped roster leaders', () => {
+  it('allows church managers, mid-layer leaders, and leaf leaders', () => {
     expect(canManageMembers('Pastor')).toBe(true)
     expect(canManageMembers('ChurchAdmin')).toBe(true)
     expect(canManageMembers('PFCCManager')).toBe(true)
     expect(canManageMembers('FellowshipLeader')).toBe(true)
-    expect(canManageMembers('CellLeader')).toBe(false)
+    expect(canManageMembers('CellLeader')).toBe(true)
     expect(canManageMembers('Member')).toBe(false)
+  })
+
+  it('prefers manageRoster on the session profile', () => {
+    expect(
+      canManageMembers({
+        ...onboarded,
+        role: 'CellLeader',
+        abilities: ['manageRoster'],
+      }),
+    ).toBe(true)
+    expect(
+      canManageMembers({
+        ...onboarded,
+        role: 'Member',
+        abilities: [],
+      }),
+    ).toBe(false)
   })
 })
 
