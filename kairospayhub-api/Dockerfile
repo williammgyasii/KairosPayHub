@@ -2,6 +2,9 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY KairosPayHub.slnx ./
+COPY src/KairosPayHub.Domain/KairosPayHub.Domain.csproj src/KairosPayHub.Domain/
+COPY src/KairosPayHub.Application/KairosPayHub.Application.csproj src/KairosPayHub.Application/
+COPY src/KairosPayHub.Infrastructure/KairosPayHub.Infrastructure.csproj src/KairosPayHub.Infrastructure/
 COPY src/KairosPayHub.Api/KairosPayHub.Api.csproj src/KairosPayHub.Api/
 RUN dotnet restore src/KairosPayHub.Api/KairosPayHub.Api.csproj
 

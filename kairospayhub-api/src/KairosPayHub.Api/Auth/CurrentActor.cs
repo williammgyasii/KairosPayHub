@@ -6,9 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KairosPayHub.Api.Auth;
 
-public class NotOnboardedException(string message = "User has not completed onboarding")
-    : Exception(message);
-
 /// <summary>
 /// Request-scoped resolver that turns the validated JWT into an app Actor by
 /// looking up role assignments and legacy app users.

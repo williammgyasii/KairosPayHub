@@ -1,6 +1,7 @@
 using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Services;
 using KairosPayHub.Api.Web;
+using KairosPayHub.Application.Structure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,10 @@ namespace KairosPayHub.Api.Controllers;
 [ApiController]
 [Route("api/structure")]
 [Authorize]
-public class StructureController(CurrentActor current, StructureService structure) : ControllerBase
+public class StructureController(
+    CurrentActor current,
+    StructureService structure,
+    DeleteStructureTemplate deleteTemplate) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetTree([FromQuery] bool includeMembers = true, CancellationToken ct = default)
@@ -54,7 +58,7 @@ public class StructureController(CurrentActor current, StructureService structur
     public async Task<IActionResult> DeleteTemplate(CancellationToken ct)
     {
         var actor = await current.RequireAsync(ct);
-        await structure.DeleteTemplateAsync(actor, ct);
+        await deleteTemplate.ExecuteAsync(actor, ct);
         return NoContent();
     }
 
@@ -77,6 +81,7 @@ public class StructureController(CurrentActor current, StructureService structur
             request.UnitNumber,
             request.LeaderMemberId,
             request.NewLeader,
+            request.ClientRequestId,
             ct));
     }
 
@@ -189,6 +194,8 @@ public class StructureController(CurrentActor current, StructureService structur
             request.SchoolOrWorkplace,
             StructureService.ParseMemberPosition(request.Position),
             request.Responsiveness,
+            request.State,
+            request.Workplace,
             ct));
     }
 
@@ -232,6 +239,8 @@ public class StructureController(CurrentActor current, StructureService structur
             request.SchoolOrWorkplace,
             StructureService.ParseMemberPosition(request.Position),
             request.Responsiveness,
+            request.State,
+            request.Workplace,
             ct));
     }
 

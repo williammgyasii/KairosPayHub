@@ -1,15 +1,10 @@
 using KairosPayHub.Api;
 using KairosPayHub.Api.Auth;
-using KairosPayHub.Api.Data;
-using KairosPayHub.Api.Domain;
-using KairosPayHub.Api.Email;
 using KairosPayHub.Api.Hubs;
 using KairosPayHub.Api.Services;
-using KairosPayHub.Api.Storage;
 using KairosPayHub.Api.Web;
+using KairosPayHub.Application;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -31,63 +26,11 @@ builder.Services.AddSignalR()
         options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
-var connectionString = DbConnectionString.Normalize(
-    builder.Configuration.GetConnectionString("Default")
-    ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured"));
-builder.Services.AddDbContext<KairosDbContext>(o => o.UseNpgsql(connectionString));
-
-builder.Services
-    .AddIdentityCore<ApplicationUser>(options =>
-    {
-        options.User.RequireUniqueEmail = true;
-        options.Password.RequiredLength = 8;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireDigit = true;
-        options.Password.RequireNonAlphanumeric = false;
-    })
-    .AddRoles<IdentityRole<Guid>>()
-    .AddEntityFrameworkStores<KairosDbContext>()
-    .AddDefaultTokenProviders();
-
+builder.Services.AddKairosInfrastructure(builder.Configuration);
+builder.Services.AddKairosApplication();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
-builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
-builder.Services.Configure<R2Options>(builder.Configuration.GetSection(R2Options.SectionName));
-builder.Services.PostConfigure<R2Options>(o =>
-{
-    o.AccessKeyId ??= builder.Configuration["CLOUDFLARE_R2_ACCESS_KEY_ID"];
-    o.SecretAccessKey ??= builder.Configuration["CLOUDFLARE_R2_SECRET_ACCESS_KEY"];
-    o.Endpoint ??= builder.Configuration["CLOUDFLARE_R2_ENDPOINT"];
-});
-builder.Services.AddSingleton<IObjectStorage, R2ObjectStorage>();
-builder.Services.AddScoped<JwtTokenService>();
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddSingleton<SmtpEmailSender>();
-builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
-
-builder.Services.AddMemoryCache();
-builder.Services.AddSingleton<ChurchReadCache>();
 builder.Services.AddScoped<CurrentActor>();
-builder.Services.AddSingleton<KairosPayHub.Api.Authorization.AbilityResolver>();
-builder.Services.AddScoped<ChurchService>();
-builder.Services.AddScoped<StructureLeaderAccountService>();
-builder.Services.AddScoped<StructureService>();
-builder.Services.AddScoped<GivingProgramService>();
-builder.Services.AddScoped<GivingScopeService>();
-builder.Services.AddScoped<ContributionService>();
-builder.Services.AddScoped<AttendanceMeetingTypeService>();
-builder.Services.AddScoped<AttendanceRollCallSyncService>();
-builder.Services.AddScoped<AttendanceRollCallExtrasService>();
-builder.Services.AddScoped<AttendanceOccurrenceGenerator>();
-builder.Services.AddScoped<AttendanceScopeService>();
-builder.Services.AddScoped<AttendanceSubmissionService>();
-builder.Services.AddScoped<AttendanceMemberHistoryService>();
-builder.Services.AddScoped<ChurchAdministratorService>();
-builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<INotificationPublisher, SignalRNotificationPublisher>();
-builder.Services.AddScoped<ChurchBrandingService>();
-builder.Services.AddScoped<LeaderInviteService>();
-builder.Services.AddScoped<CalendarEventService>();
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Jwt configuration is missing");
@@ -135,11 +78,7 @@ builder.Services.AddCors(o => o.AddPolicy(corsPolicyName, p =>
 
 var app = builder.Build();
 
-if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
-{
-    using var scope = app.Services.CreateScope();
-    scope.ServiceProvider.GetRequiredService<KairosDbContext>().Database.Migrate();
-}
+app.Services.MigrateKairosDatabase(builder.Configuration);
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
