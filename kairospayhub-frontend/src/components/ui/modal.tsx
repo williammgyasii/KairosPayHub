@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -8,7 +8,8 @@ interface ModalProps {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
-  children: React.ReactNode
+  titleAccessory?: ReactNode
+  children: ReactNode
   className?: string
   contentClassName?: string
   size?: 'md' | 'lg' | 'xl'
@@ -19,6 +20,7 @@ export function Modal({
   onOpenChange,
   title,
   description,
+  titleAccessory,
   children,
   className,
   contentClassName,
@@ -57,25 +59,26 @@ export function Modal({
           className,
         )}
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4">
-          <div className="min-w-0">
-            <h2 id="modal-title" className="text-lg font-semibold tracking-tight">
+        <header className="shrink-0 border-b px-5 py-3">
+          <div className="flex items-center gap-3">
+            <h2 id="modal-title" className="min-w-0 truncate text-lg font-semibold tracking-tight">
               {title}
             </h2>
-            {description && (
-              <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-            )}
+            {titleAccessory}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-auto size-8 shrink-0"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="size-4" />
+              <span className="sr-only">Close</span>
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0"
-            onClick={() => onOpenChange(false)}
-          >
-            <X className="size-4" />
-            <span className="sr-only">Close</span>
-          </Button>
+          {description && (
+            <p className="mt-0.5 text-xs font-medium text-muted-foreground">{description}</p>
+          )}
         </header>
         <div
           className={cn(
