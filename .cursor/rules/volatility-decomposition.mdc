@@ -1,0 +1,41 @@
+---
+description: Split volatile policy (managers) from stable engines; reuse managers instead of type-name branches
+alwaysApply: true
+---
+
+# Volatility decomposition
+
+Things that change per church or template (who can add, parent required, labels, deepest vs mid-layer) must not live in the same place as things that stay stable (wizard steps, `POST /api/structure/nodes`).
+
+## Managers first
+
+A **manager** is a pure function (or small module) that answers policy from domain data. No JSX, no `fetch`, no `standardType === 'Fellowship'` / `'Cell'` string gates.
+
+Before adding a branch in a view or wizard:
+
+1. Look for an existing manager (`createUnitPolicy`, helpers in `structure-tree.ts`, abilities).
+2. Reuse or extend it. `createUnitPolicy` is the create-unit source of truth — Units list, drill-in, and later giving/attendance placement should consume it, not copy its `if`s.
+3. Only add a new manager when the question is new (e.g. “can this member sit here?”), not when the screen is new.
+
+```ts
+// ❌ BAD — policy baked into the screen
+if (layer.standardType === 'Fellowship') openFellowshipWizard()
+else openNamePopover()
+
+// ✅ GOOD — one engine, policy from the manager
+const policy = createUnitPolicy(tree, layer, scopeUnitId)
+<AddButton disabled={!policy.canAdd} title={policy.blockedReason} />
+<UnitCreateWizard ... />
+```
+
+## Engines second
+
+An **engine** renders or persists. It reads the manager and stays layer-agnostic. Labels come from `displayName` / policy labels, not hardcoded “Fellowship” or “Cell”.
+
+## When a feature spans churches
+
+If Church → Cell and Fellowship → Cell would need different `if`s, that is a missing manager, not two components. Lock the manager with unit tests for at least two template shapes before wiring UI.
+
+## Teach while decomposing
+
+Do not silently extract. For each split, say out loud: what changes (policy), what stays (engine), and what would break if we had left the `if` in the screen. Walk the manager so the human can explain it back. Prefer one concrete example from this repo (`createUnitPolicy`) plus one reading (Sandi Metz, [The Wrong Abstraction](https://sandimetz.com/blog/2016/1/20/the-wrong-abstraction)).
