@@ -35,12 +35,20 @@ import { StructureActionsMenu } from '@/components/structure/structure-actions-m
 import { StructureCanvas } from '@/components/structure/structure-canvas'
 import { StructureLayerEditModal } from '@/components/structure/structure-layer-edit-modal'
 import {
+  StructureLayerRemoveModal,
+  StructureResetModal,
+} from '@/components/structure/structure-reset-modal'
+import {
   StructureEvolveWizard,
   type StructureEvolveMode,
 } from '@/components/structure/structure-evolve-wizard'
 import { StructureTemplateWizard } from '@/components/structure/structure-template-wizard'
 import { useStructureTree } from '@/components/structure/structure-setup'
 import { hasTemplate } from '@/lib/structure-dashboard'
+import {
+  canRemoveStructureLayer,
+  structureLayerRemoveIntent,
+} from '@/lib/can-remove-structure-layer'
 import { getLayers } from '@/lib/structure-tree'
 import { hasDesignedStructure } from '@/lib/structure-table-rows'
 import type { StructureLayerInput } from '@/api/structure'
@@ -191,6 +199,8 @@ export function StructurePage() {
   const [editLayerIndex, setEditLayerIndex] = useState<number | null>(null)
   const [evolveMode, setEvolveMode] = useState<StructureEvolveMode | null>(null)
   const [evolveInsertAt, setEvolveInsertAt] = useState(0)
+  const [removeLayerIndex, setRemoveLayerIndex] = useState<number | null>(null)
+  const [resetOpen, setResetOpen] = useState(false)
   const churchManager = canManageChurch(me.role)
 
   useEffect(() => {
@@ -242,24 +252,36 @@ export function StructurePage() {
     })
   }
 
-  function handleRemoveAt(layerIndex: number) {
-    if (!churchManager || hasRoster) return
-    if (layers.length <= 1 || layerIndex === layers.length - 1) return
-    if (!window.confirm(`Remove the "${layers[layerIndex]?.displayName}" layer?`)) return
-    void submit(async () => {
-      const template = tree!.template!
-      const next = layerInputs().filter((_, i) => i !== layerIndex)
-      await api.put('/api/structure/template', {
-        name: template.name,
-        layers: next,
-      })
-    })
-  }
-
   function handleEditLayer(layerIndex: number | null) {
     if (!churchManager) return
     setEditLayerIndex(layerIndex)
     setLayerEditOpen(true)
+  }
+
+  function handleRemoveAt(layerIndex: number) {
+    if (!churchManager) return
+    if (!canRemoveStructureLayer(layers, layerIndex)) return
+    setRemoveLayerIndex(layerIndex)
+  }
+
+  async function handleConfirmRemoveLayer() {
+    if (removeLayerIndex === null || !tree?.template) return
+    const next = layerInputs().filter((_, index) => index !== removeLayerIndex)
+    await submit(async () => {
+      await api.put('/api/structure/template', {
+        name: tree.template!.name,
+        layers: next,
+      })
+    })
+    setRemoveLayerIndex(null)
+  }
+
+  async function handleConfirmReset() {
+    await submit(async () => {
+      await api.delete('/api/structure/template')
+    })
+    setResetOpen(false)
+    setRemoveLayerIndex(null)
   }
 
   async function handleSaveLayerEdit(payload: {
@@ -327,18 +349,7 @@ export function StructurePage() {
               hasRoster={hasRoster}
               busy={busy}
               onRename={() => setEvolveMode('rename')}
-              onDelete={() => {
-                if (
-                  !window.confirm(
-                    'Delete this structure definition? You can create a new one afterward. Roster must be empty.',
-                  )
-                ) {
-                  return
-                }
-                void submit(async () => {
-                  await api.delete('/api/structure/template')
-                })
-              }}
+              onDelete={() => setResetOpen(true)}
             />
           ) : undefined
         }
@@ -347,11 +358,37 @@ export function StructurePage() {
       <StructureCanvas
         tree={tree}
         editable={churchManager}
-        allowRemove={churchManager && !hasRoster}
         busy={busy}
         onInsertAt={handleInsertAt}
         onRemoveAt={handleRemoveAt}
         onEditLayer={handleEditLayer}
+      />
+
+      <StructureLayerRemoveModal
+        layerName={
+          removeLayerIndex !== null ? layers[removeLayerIndex]?.displayName ?? null : null
+        }
+        intent={
+          removeLayerIndex === null ? null : structureLayerRemoveIntent(hasRoster)
+        }
+        busy={busy}
+        onConfirmRemove={() => {
+          void handleConfirmRemoveLayer()
+        }}
+        onOfferReset={() => {
+          setRemoveLayerIndex(null)
+          setResetOpen(true)
+        }}
+        onClose={() => setRemoveLayerIndex(null)}
+      />
+
+      <StructureResetModal
+        open={resetOpen}
+        busy={busy}
+        onConfirm={() => {
+          void handleConfirmReset()
+        }}
+        onClose={() => setResetOpen(false)}
       />
 
       <StructureLayerEditModal
@@ -461,7 +498,7 @@ export function RosterUnitPage() {
   const { nodeId } = useParams<{ nodeId: string }>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
   const structureReadOnly = !canManageChurch(me.role)
-  const membersReadOnly = !canManageMembers(me.role)
+  const membersReadOnly = !canManageMembers(me)
   const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
 
   useEffect(() => {
@@ -498,7 +535,7 @@ export function MembershipPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
   const [addOpen, setAddOpen] = useState(false)
-  const canManage = canManageMembers(me.role)
+  const canManage = canManageMembers(me)
   const cellScope = isCellLeader(me.role)
     ? rollCallScopesFor(me)[0]?.scopeNodeId ?? me.scopeNodeId
     : me.scopeNodeId

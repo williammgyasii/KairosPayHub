@@ -31,11 +31,24 @@ export function StructureFlowNode({ data, selected }: NodeProps<Node<StructureNo
 
   const showTarget = data.kind !== 'church'
   const showSource = data.kind !== 'member'
-  const showRemove =
-    editable && data.canRemove && data.layerIndex !== undefined && data.kind !== 'member'
+  const showRemove = editable && data.canRemove && data.layerIndex !== undefined
 
   return (
     <div className="group/node relative">
+      {showRemove ? (
+        <button
+          type="button"
+          disabled={busy}
+          aria-label={`Remove ${data.label} layer`}
+          className="nodrag nopan absolute -right-2 -top-2 z-10 flex size-5 items-center justify-center rounded-full border border-destructive/30 bg-background text-destructive opacity-0 shadow-sm transition-opacity hover:bg-destructive/10 group-hover/node:opacity-100"
+          onClick={(event) => {
+            event.stopPropagation()
+            onRemoveAt(data.layerIndex!)
+          }}
+        >
+          <Minus className="size-3" strokeWidth={2.5} />
+        </button>
+      ) : null}
       <div
         className={cn(
           'min-w-[128px] max-w-[160px] rounded-xl border px-3 py-2 text-center shadow-sm transition-shadow',
@@ -79,25 +92,6 @@ export function StructureFlowNode({ data, selected }: NodeProps<Node<StructureNo
           />
         )}
       </div>
-
-      {showRemove && (
-        <button
-          type="button"
-          disabled={busy}
-          aria-label={`Remove ${data.label} layer`}
-          onClick={(e) => {
-            e.stopPropagation()
-            onRemoveAt(data.layerIndex!)
-          }}
-          className={cn(
-            'absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full border border-destructive/40 bg-background text-destructive shadow-sm transition-opacity hover:bg-destructive/10',
-            selected ? 'opacity-100' : 'opacity-0 group-hover/node:opacity-100',
-            busy && 'cursor-not-allowed opacity-50',
-          )}
-        >
-          <Minus className="size-3.5" strokeWidth={2.5} />
-        </button>
-      )}
     </div>
   )
 }

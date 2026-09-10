@@ -32,7 +32,6 @@ const edgeTypes = { skeleton: StructureSkeletonEdge }
 interface StructureCanvasProps {
   tree: StructureTree
   editable?: boolean
-  allowRemove?: boolean
   busy?: boolean
   onInsertAt?: (insertAt: number) => void
   onRemoveAt?: (layerIndex: number) => void
@@ -50,15 +49,14 @@ export function StructureCanvas(props: StructureCanvasProps) {
 function StructureSkeletonCanvas({
   tree,
   editable = false,
-  allowRemove = false,
   busy = false,
   onInsertAt,
   onRemoveAt,
   onEditLayer,
 }: StructureCanvasProps) {
   const initialFlow = useMemo(
-    () => templateToFlow(tree, readSkeletonPositions(tree.churchId), { allowRemove }),
-    [tree, allowRemove],
+    () => templateToFlow(tree, readSkeletonPositions(tree.churchId)),
+    [tree],
   )
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<StructureNodeData>>(initialFlow.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialFlow.edges)
@@ -80,14 +78,14 @@ function StructureSkeletonCanvas({
 
   useEffect(() => {
     const saved = readSkeletonPositions(tree.churchId)
-    const flow = templateToFlow(tree, saved, { allowRemove })
+    const flow = templateToFlow(tree, saved)
     setNodes(flow.nodes)
     setEdges(flow.edges)
     const timer = window.setTimeout(() => {
       flowRef.current?.fitView({ padding: 0.2, duration: 250 })
     }, 50)
     return () => window.clearTimeout(timer)
-  }, [tree, allowRemove, setNodes, setEdges])
+  }, [tree, setNodes, setEdges])
 
   const onNodeDragStart = useCallback(() => {
     didDragRef.current = true
@@ -125,7 +123,7 @@ function StructureSkeletonCanvas({
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {editable
-              ? 'Use + on connectors to add layers, − on a node to remove, click a node to edit. Drag to rearrange.'
+              ? 'Use + on connectors to add layers, − on a mid layer to remove, click a node to edit. Drag to rearrange.'
               : 'Layer skeleton — view only. Pan on empty space or scroll to zoom.'}
           </p>
         </div>

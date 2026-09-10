@@ -1,6 +1,7 @@
 import type { Edge, Node } from '@xyflow/react'
 import { MarkerType } from '@xyflow/react'
 import type { StructureLayer, StructureTree } from '@/api/structure'
+import { canRemoveStructureLayer } from '@/lib/can-remove-structure-layer'
 import { getDeepestLayer, getLayers, nodesAtLayer } from '@/lib/structure-tree'
 
 export type StructureNodeKind = 'church' | 'group' | 'pfcc' | 'fellowship' | 'cell' | 'member'
@@ -139,7 +140,6 @@ export function treeToFlow(
 export function templateToFlow(
   tree: StructureTree,
   positions: Record<string, { x: number; y: number }> = {},
-  options?: { allowRemove?: boolean },
 ): {
   nodes: Node<StructureNodeData>[]
   edges: Edge[]
@@ -180,7 +180,6 @@ export function templateToFlow(
     const kind = kindForStandardType(layer.standardType)
     const id = `layer-def:${layer.id}`
     const x = (index + 1) * X_GAP
-    const cellIndex = layers.length - 1
 
     nodes.push({
       id,
@@ -194,8 +193,7 @@ export function templateToFlow(
         definitionOnly: true,
         layout: 'horizontal',
         layerIndex: index,
-        canRemove:
-          (options?.allowRemove ?? false) && layers.length > 1 && index !== cellIndex,
+        canRemove: canRemoveStructureLayer(layers, index),
       },
       draggable: true,
       selectable: true,

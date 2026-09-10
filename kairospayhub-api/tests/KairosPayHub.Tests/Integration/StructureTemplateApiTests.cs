@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using KairosPayHub.Api.Domain.Attendance;
+using KairosPayHub.Api.Domain.Giving;
 using KairosPayHub.Api.Domain.Structure;
 using Microsoft.EntityFrameworkCore;
 
@@ -60,29 +62,150 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Delete_template_requires_empty_roster()
+    public async Task Delete_template_wipes_operational_data_and_leaves_other_church()
     {
-        var client = PastorClient();
-        await OnboardAsync(client);
+        var alpha = PastorClient();
+        await OnboardAsync(alpha, "Alpha Church");
+        await PutTemplateAsync(alpha, ("Fellowship", "Fellowship"), ("Cell", "Cell"));
 
-        await PutTemplateAsync(
-            client,
-            ("PFCC", "PFCC"),
-            ("Fellowship", "Fellowship"),
-            ("Cell", "Cell"));
+        var alphaTemplate = await alpha.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = alphaTemplate.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = alphaTemplate.GetProperty("layers")[1].GetProperty("id").GetGuid();
 
-        var template = await client.GetFromJsonAsync<JsonElement>("/api/structure/template");
-        var pfccLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
-
-        await client.PostAsJsonAsync("/api/structure/nodes", new
+        var fellowshipResp = await alpha.PostAsJsonAsync("/api/structure/nodes", new
         {
-            layerId = pfccLayerId,
+            layerId = fellowshipLayerId,
             parentNodeId = (Guid?)null,
-            name = "PFCC One",
+            name = "Youth",
         });
+        var fellowshipId = (await fellowshipResp.Content.ReadFromJsonAsync<JsonElement>())!
+            .GetProperty("node").GetProperty("id").GetGuid();
 
-        var blocked = await client.DeleteAsync("/api/structure/template");
-        Assert.Equal(HttpStatusCode.BadRequest, blocked.StatusCode);
+        var cellResp = await alpha.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell One",
+        });
+        var cellId = (await cellResp.Content.ReadFromJsonAsync<JsonElement>())!
+            .GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberResp = await alpha.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Kay",
+            parentNodeId = cellId,
+            email = "kay-alpha@example.com",
+        });
+        Assert.Equal(HttpStatusCode.OK, memberResp.StatusCode);
+        var memberId = (await memberResp.Content.ReadFromJsonAsync<JsonElement>())!.GetProperty("id").GetGuid();
+
+        var programResp = await alpha.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "Rhapsody",
+            title = "Rhapsody 2026",
+            periodLabel = "2026",
+            scopeKind = "ChurchWide",
+        });
+        Assert.Equal(HttpStatusCode.OK, programResp.StatusCode);
+        var programId = (await programResp.Content.ReadFromJsonAsync<JsonElement>())!.GetProperty("id").GetGuid();
+
+        var meetingResp = await alpha.PostAsJsonAsync("/api/attendance/meeting-types", new
+        {
+            title = "Sunday Service",
+            recurrenceKind = "Weekly",
+            dayOfWeek = "Sunday",
+            scopeKind = "ChurchWide",
+            opensDayOffset = 0,
+            opensTimeUtc = "14:00:00",
+            deadlineDayOffset = 1,
+            deadlineTimeUtc = "00:00:00",
+        });
+        Assert.Equal(HttpStatusCode.OK, meetingResp.StatusCode);
+        var meetingTypeId = (await meetingResp.Content.ReadFromJsonAsync<JsonElement>())!.GetProperty("id").GetGuid();
+        var occurrences = await alpha.GetFromJsonAsync<JsonElement>(
+            $"/api/attendance/meeting-types/{meetingTypeId}/occurrences");
+        var occurrenceId = occurrences[0].GetProperty("id").GetGuid();
+
+        var alphaTree = await alpha.GetFromJsonAsync<JsonElement>("/api/structure");
+        var alphaChurchId = alphaTree.GetProperty("churchId").GetGuid();
+
+        await using (var db = fx.CreateContext())
+        {
+            db.Contributions.Add(new Contribution
+            {
+                ProgramId = programId,
+                MemberId = memberId,
+                Amount = 25,
+                Currency = "GHS",
+                DateSent = DateTimeOffset.UtcNow,
+                AttachmentKey = "test/alpha.jpg",
+                EnteredByAuthUserId = Guid.NewGuid(),
+                MemberParentNodeId = cellId,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            var entry = await db.AttendanceEntries.SingleOrDefaultAsync(e =>
+                e.OccurrenceId == occurrenceId && e.MemberId == memberId);
+            if (entry is null)
+            {
+                db.AttendanceEntries.Add(new AttendanceEntry
+                {
+                    OccurrenceId = occurrenceId,
+                    MemberId = memberId,
+                    MemberScopeNodeId = cellId,
+                    Status = AttendanceEntryStatus.Present,
+                    MarkedAt = DateTimeOffset.UtcNow,
+                });
+            }
+            else
+            {
+                entry.Status = AttendanceEntryStatus.Present;
+                entry.MarkedAt = DateTimeOffset.UtcNow;
+            }
+            await db.SaveChangesAsync();
+        }
+
+        var beta = _factory.CreateClient();
+        beta.DefaultRequestHeaders.Add("X-Test-Sub", Guid.NewGuid().ToString());
+        beta.DefaultRequestHeaders.Add("X-Test-Email", "pastor-beta@example.com");
+        beta.DefaultRequestHeaders.Add("X-Test-Name", "Beta Pastor");
+        await OnboardAsync(beta, "Beta Church");
+        await PutTemplateAsync(beta, ("Cell", "Cell"));
+        var betaTemplate = await beta.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var betaCellLayerId = betaTemplate.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var betaNode = await beta.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = betaCellLayerId,
+            parentNodeId = (Guid?)null,
+            name = "Beta Cell",
+        });
+        Assert.Equal(HttpStatusCode.OK, betaNode.StatusCode);
+        var betaTree = await beta.GetFromJsonAsync<JsonElement>("/api/structure");
+        var betaChurchId = betaTree.GetProperty("churchId").GetGuid();
+
+        var wiped = await alpha.DeleteAsync("/api/structure/template");
+        Assert.Equal(HttpStatusCode.NoContent, wiped.StatusCode);
+
+        var missing = await alpha.GetAsync("/api/structure/template");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        var after = await alpha.GetFromJsonAsync<JsonElement>("/api/structure");
+        Assert.Equal(JsonValueKind.Null, after.GetProperty("template").ValueKind);
+        Assert.Equal(0, after.GetProperty("nodes").GetArrayLength());
+        Assert.Equal(0, after.GetProperty("members").GetArrayLength());
+
+        await using (var db = fx.CreateContext())
+        {
+            Assert.False(await db.GivingPrograms.AnyAsync(p => p.ChurchId == alphaChurchId));
+            Assert.False(await db.Contributions.AnyAsync(c => c.ProgramId == programId));
+            Assert.False(await db.AttendanceOccurrences.AnyAsync(o => o.ChurchId == alphaChurchId));
+            Assert.False(await db.ChurchMembers.AnyAsync(m => m.ChurchId == alphaChurchId));
+            Assert.False(await db.StructureNodes.AnyAsync(n => n.ChurchId == alphaChurchId));
+            Assert.True(await db.StructureNodes.AnyAsync(n => n.ChurchId == betaChurchId));
+            Assert.True(await db.StructureTemplates.AnyAsync(t => t.ChurchId == betaChurchId));
+        }
+
+        var betaStill = await beta.GetFromJsonAsync<JsonElement>("/api/structure");
+        Assert.Equal(1, betaStill.GetProperty("nodes").GetArrayLength());
     }
 
     [Fact]
