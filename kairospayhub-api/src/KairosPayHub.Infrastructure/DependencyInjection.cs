@@ -56,7 +56,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AuthService>();
         services.AddScoped<ChurchService>();
         services.AddScoped<StructureLeaderAccountService>();
-        services.AddScoped<StructureService>();
+        services.AddScoped<StructureMemberService>();
+        services.AddScoped<StructureTemplateService>();
+        services.AddScoped<StructureTemplateEvolveService>();
+        services.AddScoped<StructureTreeService>();
+        services.AddScoped<StructureNodeService>();
         services.AddScoped<GivingProgramService>();
         services.AddScoped<GivingScopeService>();
         services.AddScoped<ContributionService>();

@@ -1,0 +1,40 @@
+---
+description: Prevent god files — prefer ≤400 lines, hard stop ~600; split by use-case before growing further
+alwaysApply: true
+---
+
+# No god files
+
+Large multi-concern files are hard to review and become dump sites for every new feature. Prefer focused types/modules by **use-case**, not by layer name alone.
+
+## Limits (soft / hard)
+
+| | Preferred | Hard stop |
+|---|----------:|----------:|
+| Infrastructure services, FE feature modules/components | **~400** lines | **~600** lines |
+
+**Exclude from limits:** EF `Migrations/`, generated code, snapshot files. Integration test fixtures may exceed; still prefer splitting when a test file mixes unrelated domains.
+
+## Before adding to an existing file
+
+1. Check line count. If already near/over soft limit, **extract or create a sibling** instead of appending.
+2. Split by **use-case** (e.g. member CRUD vs template evolve vs tree read), not by “partial class of the same god.”
+3. Prefer injecting the new service into the controller/caller over a forever-growing façade.
+
+```csharp
+// ❌ BAD — another 200 lines on StructureService
+public async Task<...> CreateMemberAsync(...) { ... }
+
+// ✅ GOOD — sibling owns the use-case (see StructureLeaderAccountService)
+public class StructureMemberService(...) { public async Task<...> CreateMemberAsync(...) { ... } }
+```
+
+## With volatility-decomposition
+
+Managers (policy) stay small and pure. Engines stay use-case-sized. A “manager” is not an excuse for a 1k-line service.
+
+## When splitting
+
+- Behavior-preserving moves first; no product changes in the same PR/chunk.
+- Register the new type in DI; update call sites; delete dead code from the old file.
+- Teach the seam: what moved, what stayed, what would break if left in the god file.

@@ -206,7 +206,7 @@ public class MeController(
         member.DateOfBirth = request.DateOfBirth;
         member.Residence = string.IsNullOrWhiteSpace(request.Residence) ? null : request.Residence.Trim();
         member.State = string.IsNullOrWhiteSpace(request.State) ? null : request.State.Trim();
-        member.OccupationStatus = StructureService.ParseMemberOccupationStatus(request.OccupationStatus);
+        member.OccupationStatus = StructureMemberService.ParseMemberOccupationStatus(request.OccupationStatus);
         member.SchoolOrWorkplace = string.IsNullOrWhiteSpace(request.SchoolOrWorkplace)
             ? null
             : request.SchoolOrWorkplace.Trim();
