@@ -21,8 +21,7 @@ import {
   ChangeLeadershipModal,
   type ChangeLeadershipTarget,
 } from '@/components/structure/change-leadership-modal'
-import { FellowshipCreateWizard } from '@/components/structure/fellowship-create-wizard'
-import { CellCreateWizard } from '@/components/structure/cell-create-wizard'
+import { UnitCreateWizard } from '@/components/structure/unit-create-wizard'
 import { UnitDeleteModal } from '@/components/structure/unit-delete-modal'
 import { AddFellowshipButton } from '@/components/structure/add-fellowship-button'
 import { Button } from '@/components/ui/button'
@@ -39,6 +38,7 @@ import {
   type StructureMemberRow,
   type StructureUnitNodeRow,
 } from '@/lib/structure-table-rows'
+import { createUnitPolicy } from '@/lib/create-unit-policy'
 import {
   countCellsUnderUnit,
   countMembersUnderUnit,
@@ -48,11 +48,8 @@ import {
   getLayers,
   isUnitChildLayerUnlocked,
   layerById,
-  layerParentOptions,
-  layerRequiresParent,
   memberBelongsToUnit,
   nodeById,
-  resolveLayerParentId,
   rosterBreadcrumbChain,
   unitChildLayerLockReason,
   unitDetailTabs,
@@ -120,8 +117,7 @@ export function RosterUnitView({
   const [memberSheet, setMemberSheet] = useState<MemberSheetState | null>(null)
   const [deleteMember, setDeleteMember] = useState<StructureMemberRow | null>(null)
   const [nodeSheet, setNodeSheet] = useState<UnitNodeSheetState | null>(null)
-  const [fellowshipWizardOpen, setFellowshipWizardOpen] = useState(false)
-  const [cellWizardOpen, setCellWizardOpen] = useState(false)
+  const [createWizardOpen, setCreateWizardOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<StructureUnitNodeRow | null>(null)
   const [changeLeaderTarget, setChangeLeaderTarget] = useState<ChangeLeadershipTarget | null>(null)
 
@@ -203,46 +199,16 @@ export function RosterUnitView({
 
   const openCreateNode = () => {
     if (activeTab?.kind !== 'layer') return
-    if (activeTab.layer.standardType === 'Fellowship') {
-      setFellowshipWizardOpen(true)
-      return
-    }
-    if (deepest && activeTab.layer.id === deepest.id) {
-      setCellWizardOpen(true)
-      return
-    }
-    setNodeSheet({ mode: 'create', layer: activeTab.layer, parentNodeId: unit.id })
+    setCreateWizardOpen(true)
   }
+
+  const createPolicy =
+    activeTab?.kind === 'layer' ? createUnitPolicy(tree, activeTab.layer, unit.id) : null
 
   const deleteImpact = useMemo(
     () => (deleteTarget ? unitDeleteImpact(tree, deleteTarget.id) : null),
     [deleteTarget, tree],
   )
-
-  const fellowshipParentOptions = useMemo(() => {
-    if (activeTab?.kind !== 'layer' || activeTab.layer.standardType !== 'Fellowship') return []
-    return layerParentOptions(tree, activeTab.layer, unit.id)
-  }, [tree, unit.id, activeTab])
-
-  const fellowshipParentId = resolveLayerParentId(fellowshipParentOptions) ?? ''
-  const fellowshipAddBlocked =
-    activeTab?.kind === 'layer' &&
-    activeTab.layer.standardType === 'Fellowship' &&
-    layerRequiresParent(tree, activeTab.layer) &&
-    fellowshipParentOptions.length === 0
-
-  const cellParentOptions = useMemo(() => {
-    if (activeTab?.kind !== 'layer' || !deepest || activeTab.layer.id !== deepest.id) return []
-    return layerParentOptions(tree, activeTab.layer, unit.id)
-  }, [tree, unit.id, activeTab, deepest])
-
-  const cellParentId = resolveLayerParentId(cellParentOptions, unit.id) ?? ''
-  const cellAddBlocked =
-    activeTab?.kind === 'layer' &&
-    deepest &&
-    activeTab.layer.id === deepest.id &&
-    layerRequiresParent(tree, activeTab.layer) &&
-    cellParentOptions.length === 0
 
   const handleDeleteNode = (row: StructureUnitNodeRow) => {
     setDeleteTarget(row)
@@ -284,25 +250,13 @@ export function RosterUnitView({
               </Button>
             )}
 
-            {activeTab?.kind === 'layer' && !readOnly && (
-              activeTab.layer.standardType === 'Fellowship' ? (
-                <AddFellowshipButton
-                  label={`Add new ${activeTab.layer.displayName.toLowerCase()}`}
-                  disabled={busy || fellowshipAddBlocked}
-                  onClick={openCreateNode}
-                />
-              ) : deepest && activeTab.layer.id === deepest.id ? (
-                <AddFellowshipButton
-                  label={`Add new ${activeTab.layer.displayName.toLowerCase()}`}
-                  disabled={busy || cellAddBlocked}
-                  onClick={openCreateNode}
-                />
-              ) : (
-                <Button className="shrink-0" onClick={openCreateNode}>
-                  <Plus className="size-4" />
-                  Add new {activeTab.layer.displayName.toLowerCase()}
-                </Button>
-              )
+            {activeTab?.kind === 'layer' && !readOnly && createPolicy && (
+              <AddFellowshipButton
+                label={`Add new ${activeTab.layer.displayName.toLowerCase()}`}
+                disabled={busy || !createPolicy.canAdd}
+                title={createPolicy.blockedReason ?? undefined}
+                onClick={openCreateNode}
+              />
             )}
 
             {activeTab?.kind === 'members' && !membersReadOnly && (
@@ -417,27 +371,14 @@ export function RosterUnitView({
         />
       )}
 
-      {!readOnly && fellowshipWizardOpen && activeTab?.kind === 'layer' && (
-        <FellowshipCreateWizard
+      {!readOnly && createWizardOpen && activeTab?.kind === 'layer' && (
+        <UnitCreateWizard
           tree={tree}
-          unitNodeId={unit.id}
           layer={activeTab.layer}
-          parentNodeId={fellowshipParentId}
+          scopeUnitId={unit.id}
           busy={busy}
           submit={submit}
-          onClose={() => setFellowshipWizardOpen(false)}
-        />
-      )}
-
-      {!readOnly && cellWizardOpen && activeTab?.kind === 'layer' && deepest && (
-        <CellCreateWizard
-          tree={tree}
-          unitNodeId={unit.id}
-          layer={activeTab.layer}
-          parentNodeId={cellParentId}
-          busy={busy}
-          submit={submit}
-          onClose={() => setCellWizardOpen(false)}
+          onClose={() => setCreateWizardOpen(false)}
         />
       )}
 

@@ -6,17 +6,20 @@ export function AddFellowshipButton({
   label,
   onClick,
   disabled,
+  title,
   className,
 }: {
   label: string
   onClick: () => void
   disabled?: boolean
+  title?: string
   className?: string
 }) {
   return (
     <Button
       type="button"
       disabled={disabled}
+      title={title}
       onClick={onClick}
       className={cn(
         'shrink-0 border-0 bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/20',

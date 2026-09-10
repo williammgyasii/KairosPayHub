@@ -10,11 +10,41 @@ export function WizardStepper({
   steps,
   currentStep,
   className,
+  variant = 'cards',
 }: {
   steps: readonly string[]
   currentStep: number
   className?: string
+  variant?: 'cards' | 'dots'
 }) {
+  if (variant === 'dots') {
+    return (
+      <nav
+        className={cn('flex items-center gap-1.5', className)}
+        aria-label={`Step ${currentStep + 1} of ${steps.length}`}
+      >
+        {steps.map((stepLabel, index) => {
+          const isActive = index === currentStep
+          const isComplete = index < currentStep
+          return (
+            <span
+              key={stepLabel}
+              title={stepLabel}
+              className={cn(
+                'rounded-full transition-all',
+                isActive
+                  ? 'size-2 bg-primary'
+                  : isComplete
+                    ? 'size-1.5 bg-primary/45'
+                    : 'size-1.5 bg-muted-foreground/30',
+              )}
+            />
+          )
+        })}
+      </nav>
+    )
+  }
+
   return (
     <div className={cn('w-full space-y-3', className)}>
       <p className="text-center text-xs font-medium text-muted-foreground">

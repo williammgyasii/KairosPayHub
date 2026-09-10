@@ -8,7 +8,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table'
-import { ArrowUpDown, Plus } from 'lucide-react'
+import { ArrowUpDown } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useApi } from '@/api/core'
 import type { StructureLayer, StructureTree } from '@/api/structure'
@@ -17,22 +17,18 @@ import {
   ChangeLeadershipModal,
   type ChangeLeadershipTarget,
 } from '@/components/structure/change-leadership-modal'
-import { FellowshipCreateWizard } from '@/components/structure/fellowship-create-wizard'
+import { UnitCreateWizard } from '@/components/structure/unit-create-wizard'
 import { RosterUnitActionsMenu } from '@/components/structure/roster-unit-actions-menu'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
 import { UnitDeleteModal } from '@/components/structure/unit-delete-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { createUnitPolicy } from '@/lib/create-unit-policy'
 import { buildNodeRows, type StructureNodeRow } from '@/lib/structure-table-rows'
 import {
-  getLayers,
   isRosterLayerUnlocked,
-  layerParentOptions,
-  layerRequiresParent,
   nodesAtLayer,
   nodeById,
-  resolveLayerParentId,
   rosterLayerLockReason,
   rosterLayersForScope,
   unitDeleteImpact,
@@ -61,10 +57,13 @@ export function RosterView({
     [tree, scopeRootNodeId],
   )
   const [tab, setTab] = useState<string>(layers[0]?.id ?? '')
-  const [fellowshipWizardOpen, setFellowshipWizardOpen] = useState(false)
+  const [createWizardOpen, setCreateWizardOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<StructureNodeRow | null>(null)
   const [changeLeaderTarget, setChangeLeaderTarget] = useState<ChangeLeadershipTarget | null>(null)
   const activeLayer = layers.find((l) => l.id === tab) ?? layers[0]
+  const createPolicy = activeLayer
+    ? createUnitPolicy(tree, activeLayer, scopeRootNodeId)
+    : null
 
   const deleteImpact = useMemo(
     () => (deleteTarget ? unitDeleteImpact(tree, deleteTarget.id) : null),
@@ -97,9 +96,6 @@ export function RosterView({
 
   if (!activeLayer) return null
 
-  const fellowshipParentOptions = layerParentOptions(tree, activeLayer, scopeRootNodeId)
-  const fellowshipParentId = resolveLayerParentId(fellowshipParentOptions) ?? ''
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -107,15 +103,14 @@ export function RosterView({
           <StructurePageTabs tabs={tabs} activeId={tab} onChange={setTab} />
         </div>
 
-        <AddLayerButton
-          layer={activeLayer}
-          tree={tree}
-          scopeRootNodeId={scopeRootNodeId}
-          busy={busy}
-          submit={submit}
-          hidden={readOnly}
-          onOpenFellowshipWizard={() => setFellowshipWizardOpen(true)}
-        />
+        {!readOnly && createPolicy && (
+          <AddFellowshipButton
+            label={`Add new ${activeLayer.displayName.toLowerCase()}`}
+            disabled={busy || !createPolicy.canAdd}
+            title={createPolicy.blockedReason ?? undefined}
+            onClick={() => setCreateWizardOpen(true)}
+          />
+        )}
       </div>
 
       {error && (
@@ -167,122 +162,15 @@ export function RosterView({
         />
       )}
 
-      {!readOnly && fellowshipWizardOpen && activeLayer.standardType === 'Fellowship' && (
-        <FellowshipCreateWizard
+      {!readOnly && createWizardOpen && (
+        <UnitCreateWizard
           tree={tree}
-          unitNodeId={scopeRootNodeId}
           layer={activeLayer}
-          parentNodeId={fellowshipParentId}
+          scopeUnitId={scopeRootNodeId}
           busy={busy}
           submit={submit}
-          onClose={() => setFellowshipWizardOpen(false)}
+          onClose={() => setCreateWizardOpen(false)}
         />
-      )}
-    </div>
-  )
-}
-
-function AddLayerButton({
-  layer,
-  tree,
-  scopeRootNodeId = null,
-  busy,
-  submit,
-  hidden = false,
-  onOpenFellowshipWizard,
-}: {
-  layer: StructureLayer
-  tree: StructureTree
-  scopeRootNodeId?: string | null
-  busy: boolean
-  submit: RosterViewProps['submit']
-  hidden?: boolean
-  onOpenFellowshipWizard: () => void
-}) {
-  const api = useApi()
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [parentNodeId, setParentNodeId] = useState('')
-  const parentOptions = layerParentOptions(tree, layer, scopeRootNodeId)
-  const parentLayer = getLayers(tree)[layer.sortOrder - 1]
-  const isFellowship = layer.standardType === 'Fellowship'
-  const blocked =
-    isFellowship
-      ? layerRequiresParent(tree, layer) && parentOptions.length === 0
-      : layer.sortOrder > 0 && parentOptions.length === 0
-
-  if (hidden) return null
-
-  if (isFellowship) {
-    return (
-      <AddFellowshipButton
-        label={`Add new ${layer.displayName.toLowerCase()}`}
-        disabled={busy || blocked}
-        onClick={onOpenFellowshipWizard}
-      />
-    )
-  }
-
-  return (
-    <div className="relative">
-      <Button
-        size="sm"
-        disabled={busy || blocked}
-        onClick={() => setOpen((v) => !v)}
-        title={blocked ? `Add a ${parentLayer?.displayName ?? 'parent'} first` : undefined}
-      >
-        <Plus className="size-4" />
-        Add new {layer.displayName}
-      </Button>
-
-      {open && !blocked && (
-        <form
-          className="absolute right-0 top-full z-10 mt-2 w-72 space-y-3 rounded-xl border border-border/60 bg-background p-4 shadow-lg"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void submit(async () => {
-              await api.post('/api/structure/nodes', {
-                layerId: layer.id,
-                parentNodeId: layer.sortOrder === 0 ? null : parentNodeId || null,
-                name,
-              })
-              setName('')
-              setParentNodeId('')
-              setOpen(false)
-            })
-          }}
-        >
-          {layer.sortOrder > 0 && (
-            <div className="space-y-1">
-              <Label className="text-xs">Parent {parentLayer?.displayName}</Label>
-              <select
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={parentNodeId}
-                onChange={(e) => setParentNodeId(e.target.value)}
-                required
-              >
-                <option value="">Select…</option>
-                {parentOptions.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {n.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label className="text-xs">{layer.displayName} name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-          </div>
-          <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={busy} className="flex-1">
-              Save
-            </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
       )}
     </div>
   )
