@@ -8,90 +8,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KairosPayHub.Api.Services;
 
+/// <summary>
+/// Composers: build kind/title/body/link, resolve recipients via managers, deliver via engine.
+/// </summary>
 public class NotificationService(
     KairosDbContext db,
     GivingScopeService scope,
-    INotificationPublisher publisher)
+    NotificationEngine engine,
+    NotificationRecipientResolver recipientResolver)
 {
-    public async Task<IReadOnlyList<NotificationDto>> ListAsync(
-        Guid authUserId,
-        Guid churchId,
-        bool unreadOnly,
-        int limit,
-        CancellationToken ct = default)
-    {
-        limit = Math.Clamp(limit, 1, 100);
-
-        var query = db.Notifications.AsNoTracking()
-            .Where(n => n.RecipientAuthUserId == authUserId && n.ChurchId == churchId);
-
-        if (unreadOnly)
-            query = query.Where(n => n.ReadAt == null);
-
-        var rows = await query
-            .OrderByDescending(n => n.CreatedAt)
-            .Take(limit)
-            .ToListAsync(ct);
-
-        return rows.Select(ToDto).ToList();
-    }
-
-    public async Task<int> GetUnreadCountAsync(
-        Guid authUserId,
-        Guid churchId,
-        CancellationToken ct = default) =>
-        await db.Notifications.CountAsync(
-            n => n.RecipientAuthUserId == authUserId
-                && n.ChurchId == churchId
-                && n.ReadAt == null,
-            ct);
-
-    public async Task<NotificationDto?> MarkReadAsync(
-        Guid authUserId,
-        Guid churchId,
-        Guid notificationId,
-        CancellationToken ct = default)
-    {
-        var row = await db.Notifications.SingleOrDefaultAsync(
-            n => n.Id == notificationId
-                && n.RecipientAuthUserId == authUserId
-                && n.ChurchId == churchId,
-            ct);
-
-        if (row is null)
-            return null;
-
-        if (row.ReadAt is null)
-        {
-            row.ReadAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync(ct);
-        }
-
-        return ToDto(row);
-    }
-
-    public async Task<int> MarkAllReadAsync(
-        Guid authUserId,
-        Guid churchId,
-        CancellationToken ct = default)
-    {
-        var unread = await db.Notifications
-            .Where(n => n.RecipientAuthUserId == authUserId
-                && n.ChurchId == churchId
-                && n.ReadAt == null)
-            .ToListAsync(ct);
-
-        if (unread.Count == 0)
-            return 0;
-
-        var now = DateTimeOffset.UtcNow;
-        foreach (var row in unread)
-            row.ReadAt = now;
-
-        await db.SaveChangesAsync(ct);
-        return unread.Count;
-    }
-
     public async Task NotifySubGivingPendingAsync(
         GivingProgram subGiving,
         CancellationToken ct = default)
@@ -100,8 +25,8 @@ public class NotificationService(
             return;
 
         var parentId = subGiving.ParentProgramId.Value;
-        var recipients = await PastorAuthUserIdsAsync(subGiving.ChurchId, ct);
-        if (recipients.Count == 0)
+        var recipientIds = await recipientResolver.PastorAuthUserIdsAsync(subGiving.ChurchId, ct);
+        if (recipientIds.Count == 0)
             return;
 
         var creator = await GivingProgramCreatorResolver.ResolveAsync(
@@ -116,9 +41,9 @@ public class NotificationService(
             ? $"{creatorLabel} submitted \"{subGiving.Title}\" for approval."
             : $"\"{subGiving.Title}\" needs your approval before contributions can be logged.";
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             subGiving.ChurchId,
-            recipients,
+            recipientIds,
             NotificationKind.SubGivingPendingApproval,
             creatorLabel is not null
                 ? $"Sub-giving from {creatorLabel.Split(" ·")[0]}"
@@ -165,7 +90,7 @@ public class NotificationService(
                   ? "."
                   : $": {subGiving.RejectionReason}");
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             subGiving.ChurchId,
             [subGiving.CreatedByAuthUserId],
             kind,
@@ -204,7 +129,7 @@ public class NotificationService(
         var body =
             $"{creatorLabel} opened \"{program.Title}\" ({program.PeriodLabel}). Log contributions from Givings.";
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             program.ChurchId,
             recipients,
             NotificationKind.GivingCampaignOpened,
@@ -224,13 +149,13 @@ public class NotificationService(
         string? enteredByScopeUnitName,
         CancellationToken ct = default)
     {
-        var recipients = await ContributionApprovalRecipientAuthUserIdsAsync(
+        var recipientIds = await recipientResolver.ForContributionApprovalAsync(
             program.ChurchId,
             contribution.EnteredByRole,
             contribution.MemberParentNodeId,
             ct);
 
-        if (recipients.Count == 0)
+        if (recipientIds.Count == 0)
             return;
 
         var body = BuildContributionPendingBody(
@@ -239,9 +164,9 @@ public class NotificationService(
             memberName,
             enteredByName,
             enteredByScopeUnitName);
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             program.ChurchId,
-            recipients,
+            recipientIds,
             NotificationKind.ContributionPendingApproval,
             "Contribution awaiting approval",
             body,
@@ -263,13 +188,13 @@ public class NotificationService(
             return;
 
         var first = contributions[0];
-        var recipients = await ContributionApprovalRecipientAuthUserIdsAsync(
+        var recipientIds = await recipientResolver.ForContributionApprovalAsync(
             program.ChurchId,
             first.EnteredByRole,
             first.MemberParentNodeId,
             ct);
 
-        if (recipients.Count == 0)
+        if (recipientIds.Count == 0)
             return;
 
         var totalAmount = contributions.Sum(c => c.Amount);
@@ -283,9 +208,9 @@ public class NotificationService(
             enteredByScopeUnitName,
             first);
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             program.ChurchId,
-            recipients,
+            recipientIds,
             NotificationKind.ContributionPendingApproval,
             "Batch awaiting approval",
             body,
@@ -390,7 +315,7 @@ public class NotificationService(
                   ? "."
                   : $": {contribution.RejectedReason}");
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             program.ChurchId,
             [contribution.EnteredByAuthUserId],
             kind,
@@ -408,21 +333,22 @@ public class NotificationService(
         string cellName,
         CancellationToken ct = default)
     {
-        var recipients = await AttendanceApprovalRecipientAuthUserIdsAsync(
+        var recipientIds = await recipientResolver.ForAttendanceApprovalAsync(
             occurrence.ChurchId,
+            submission.EnteredByRole,
             submission.ScopeNodeId,
             ct);
 
-        if (recipients.Count == 0)
+        if (recipientIds.Count == 0)
             return;
 
         var meetingTitle = occurrence.MeetingType?.Title ?? "Service";
         var body =
             $"{cellName} · {meetingTitle} · {occurrence.MeetingDate:dddd, d MMMM yyyy}. Review the roll call on Attendance Approvals.";
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             occurrence.ChurchId,
-            recipients,
+            recipientIds,
             NotificationKind.AttendancePendingApproval,
             "Roll call awaiting approval",
             body,
@@ -454,7 +380,7 @@ public class NotificationService(
                   ? "."
                   : $": {submission.RejectionReason}");
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             occurrence.ChurchId,
             [submission.SubmittedByAuthUserId.Value],
             kind,
@@ -517,7 +443,7 @@ public class NotificationService(
             eventDate,
             description);
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             churchId,
             recipients,
             NotificationKind.CalendarEventReminder,
@@ -591,7 +517,7 @@ public class NotificationService(
         var recipients = new HashSet<Guid>();
 
         if (notifyUp)
-            recipients.UnionWith(await PastorAuthUserIdsAsync(churchId, ct));
+            recipients.UnionWith(await recipientResolver.PastorAuthUserIdsAsync(churchId, ct));
 
         if (scopeNodeId is null)
         {
@@ -669,7 +595,7 @@ public class NotificationService(
         var body =
             $"{memberName} · {ageLabel} · {birthdayDate:dddd, d MMMM}. Open Events to see the full calendar.";
 
-        await CreateManyAsync(
+        await engine.DeliverAsync(
             churchId,
             recipients,
             NotificationKind.CalendarBirthdayReminder,
@@ -691,7 +617,7 @@ public class NotificationService(
 
         if (scopeNodeId is null)
         {
-            recipients.UnionWith(await PastorAuthUserIdsAsync(churchId, ct));
+            recipients.UnionWith(await recipientResolver.PastorAuthUserIdsAsync(churchId, ct));
             var leaders = await db.RoleAssignments.AsNoTracking()
                 .Where(r =>
                     r.ChurchId == churchId
@@ -776,142 +702,6 @@ public class NotificationService(
         return recipients.ToList();
     }
 
-    private async Task CreateManyAsync(
-        Guid churchId,
-        IEnumerable<Guid> recipientAuthUserIds,
-        NotificationKind kind,
-        string title,
-        string body,
-        string? LinkPath,
-        Guid? programId,
-        Guid? relatedEntityId,
-        CancellationToken ct)
-    {
-        var recipients = recipientAuthUserIds.Distinct().ToList();
-        if (recipients.Count == 0)
-            return;
-
-        var rows = recipients.Select(recipientId => new Notification
-        {
-            ChurchId = churchId,
-            RecipientAuthUserId = recipientId,
-            Kind = kind,
-            Title = title,
-            Body = body,
-            LinkPath = LinkPath,
-            ProgramId = programId,
-            RelatedEntityId = relatedEntityId,
-        }).ToList();
-
-        db.Notifications.AddRange(rows);
-        await db.SaveChangesAsync(ct);
-
-        var dtos = rows.Select(ToDto).ToList();
-        await publisher.PushAsync(recipients, dtos, ct);
-    }
-
-    private async Task<List<Guid>> PastorAuthUserIdsAsync(Guid churchId, CancellationToken ct) =>
-        await db.RoleAssignments.AsNoTracking()
-            .Where(r => r.ChurchId == churchId && r.Role == ChurchRole.Pastor)
-            .Select(r => r.AuthUserId)
-            .Distinct()
-            .ToListAsync(ct);
-
-    private async Task<List<Guid>> AttendanceApprovalRecipientAuthUserIdsAsync(
-        Guid churchId,
-        Guid scopeNodeId,
-        CancellationToken ct)
-    {
-        var recipients = await FellowshipLeaderAuthUserIdsForMemberAsync(churchId, scopeNodeId, ct);
-
-        if (await scope.ChurchHasPfccManagersAsync(churchId, ct))
-        {
-            recipients.AddRange(await PfccManagerAuthUserIdsForMemberAsync(churchId, scopeNodeId, ct));
-        }
-
-        return recipients.Distinct().ToList();
-    }
-
-    private async Task<List<Guid>> ContributionApprovalRecipientAuthUserIdsAsync(
-        Guid churchId,
-        ChurchRole? enteredByRole,
-        Guid memberParentNodeId,
-        CancellationToken ct)
-    {
-        var approvingRole = enteredByRole switch
-        {
-            ChurchRole.CellLeader or null => ChurchRole.FellowshipLeader,
-            ChurchRole.FellowshipLeader => await scope.ChurchHasPfccManagersAsync(churchId, ct)
-                ? ChurchRole.PFCCManager
-                : ChurchRole.Pastor,
-            ChurchRole.PFCCManager => ChurchRole.Pastor,
-            _ => (ChurchRole?)null,
-        };
-
-        if (approvingRole is null)
-            return [];
-
-        if (approvingRole == ChurchRole.Pastor)
-            return await PastorAuthUserIdsAsync(churchId, ct);
-
-        if (approvingRole == ChurchRole.PFCCManager)
-            return await PfccManagerAuthUserIdsForMemberAsync(churchId, memberParentNodeId, ct);
-
-        return await FellowshipLeaderAuthUserIdsForMemberAsync(churchId, memberParentNodeId, ct);
-    }
-
-    private async Task<List<Guid>> PfccManagerAuthUserIdsForMemberAsync(
-        Guid churchId,
-        Guid memberParentNodeId,
-        CancellationToken ct)
-    {
-        var assignments = await db.RoleAssignments.AsNoTracking()
-            .Where(r =>
-                r.ChurchId == churchId
-                && r.Role == ChurchRole.PFCCManager
-                && r.ScopeNodeId != null)
-            .ToListAsync(ct);
-
-        var result = new List<Guid>();
-        foreach (var assignment in assignments)
-        {
-            var subtree = await scope.CollectSubtreeNodeIdsAsync(
-                churchId,
-                assignment.ScopeNodeId!.Value,
-                ct);
-            if (subtree.Contains(memberParentNodeId))
-                result.Add(assignment.AuthUserId);
-        }
-
-        return result.Distinct().ToList();
-    }
-
-    private async Task<List<Guid>> FellowshipLeaderAuthUserIdsForMemberAsync(
-        Guid churchId,
-        Guid memberParentNodeId,
-        CancellationToken ct)
-    {
-        var assignments = await db.RoleAssignments.AsNoTracking()
-            .Where(r =>
-                r.ChurchId == churchId
-                && r.Role == ChurchRole.FellowshipLeader
-                && r.ScopeNodeId != null)
-            .ToListAsync(ct);
-
-        var result = new List<Guid>();
-        foreach (var assignment in assignments)
-        {
-            var subtree = await scope.CollectSubtreeNodeIdsAsync(
-                churchId,
-                assignment.ScopeNodeId!.Value,
-                ct);
-            if (subtree.Contains(memberParentNodeId))
-                result.Add(assignment.AuthUserId);
-        }
-
-        return result.Distinct().ToList();
-    }
-
     private static string? FormatCreatorLabel(ProgramCreatorDisplay creator, ChurchRole? role)
     {
         if (string.IsNullOrWhiteSpace(creator.Name))
@@ -935,22 +725,4 @@ public class NotificationService(
             _ => role.ToString(),
         };
 
-    private static NotificationDto ToDto(Notification row) =>
-        new(
-            row.Id,
-            row.Kind.ToString(),
-            row.Title,
-            row.Body,
-            row.LinkPath,
-            row.ProgramId,
-            row.CreatedAt,
-            row.ReadAt);
-}
-
-public interface INotificationPublisher
-{
-    Task PushAsync(
-        IReadOnlyList<Guid> recipientAuthUserIds,
-        IReadOnlyList<NotificationDto> notifications,
-        CancellationToken ct = default);
 }

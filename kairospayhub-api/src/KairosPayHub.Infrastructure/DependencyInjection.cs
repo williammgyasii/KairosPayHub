@@ -72,6 +72,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AttendanceSubmissionService>();
         services.AddScoped<AttendanceMemberHistoryService>();
         services.AddScoped<ChurchAdministratorService>();
+        services.AddScoped<NotificationEngine>();
+        services.AddScoped<NotificationInboxService>();
+        services.AddScoped<NotificationRecipientResolver>();
         services.AddScoped<NotificationService>();
         services.AddScoped<ChurchBrandingService>();
         services.AddScoped<LeaderInviteService>();

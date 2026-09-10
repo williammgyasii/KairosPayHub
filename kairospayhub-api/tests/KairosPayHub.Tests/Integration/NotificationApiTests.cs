@@ -539,4 +539,67 @@ public class NotificationApiTests(PostgresFixture fx) : IAsyncLifetime
             .First(p => p.GetProperty("id").GetGuid() == programId);
         Assert.Equal(2, program.GetProperty("awaitingMyApprovalCount").GetInt32());
     }
+
+    [Fact]
+    public async Task Church_cell_only_cell_leader_log_notifies_pastor()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Notify Cell Church" });
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[] { new { standardType = "Cell", displayName = "Cell" } },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var cellLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+
+        var cellId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            name = "Cell One",
+            newLeader = new
+            {
+                name = "Dana CL",
+                email = "dana.notify@example.com",
+                phone = "+233241111130",
+                dateOfBirth = "1992-01-01",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var memberId = (await (await pastor.PostAsJsonAsync("/api/structure/members", new
+        {
+            name = "Member Kay",
+            parentNodeId = cellId,
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var cl = await db.ChurchMembers.SingleAsync(m => m.Email == "dana.notify@example.com");
+
+        var programId = (await (await pastor.PostAsJsonAsync("/api/giving/programs", new
+        {
+            givingType = "SundayService",
+            title = "Sunday",
+            startsOn = "2026-03-01",
+            endsOn = "2026-03-31",
+            scopeKind = "ChurchWide",
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var clClient = ClientForAuthUser(cl.AuthUserId!.Value, "dana.notify@example.com", "Dana CL");
+        var logged = await clClient.PostAsJsonAsync($"/api/giving/programs/{programId}/contributions", new
+        {
+            memberId,
+            amount = 40,
+            dateSent = "2026-03-02T00:00:00Z",
+            attachmentKey = "giving/test/scope-receipt.jpg",
+        });
+        Assert.Equal(HttpStatusCode.OK, logged.StatusCode);
+        var contribution = await logged.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Pastor", contribution.GetProperty("pendingApproverRole").GetString());
+
+        var pastorNotifications = await pastor.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Contains(
+            pastorNotifications.GetProperty("notifications").EnumerateArray(),
+            n => n.GetProperty("kind").GetString() == "ContributionPendingApproval");
+    }
 }

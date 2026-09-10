@@ -9,7 +9,7 @@ namespace KairosPayHub.Api.Controllers;
 [ApiController]
 [Route("api/notifications")]
 [Authorize]
-public class NotificationsController(CurrentActor current, NotificationService notifications) : ControllerBase
+public class NotificationsController(CurrentActor current, NotificationInboxService inbox) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List(
@@ -24,13 +24,13 @@ public class NotificationsController(CurrentActor current, NotificationService n
         if (actor.StructureChurchId == default)
             return Ok(new NotificationListResponse([], 0));
 
-        var items = await notifications.ListAsync(
+        var items = await inbox.ListAsync(
             authUserId,
             actor.StructureChurchId,
             unreadOnly,
             limit,
             ct);
-        var unreadCount = await notifications.GetUnreadCountAsync(
+        var unreadCount = await inbox.GetUnreadCountAsync(
             authUserId,
             actor.StructureChurchId,
             ct);
@@ -48,7 +48,7 @@ public class NotificationsController(CurrentActor current, NotificationService n
         if (actor.StructureChurchId == default)
             return Ok(new NotificationUnreadCountResponse(0));
 
-        var count = await notifications.GetUnreadCountAsync(
+        var count = await inbox.GetUnreadCountAsync(
             authUserId,
             actor.StructureChurchId,
             ct);
@@ -65,7 +65,7 @@ public class NotificationsController(CurrentActor current, NotificationService n
         if (actor.StructureChurchId == default)
             return NotFound(new { error = "Notification not found" });
 
-        var dto = await notifications.MarkReadAsync(
+        var dto = await inbox.MarkReadAsync(
             authUserId,
             actor.StructureChurchId,
             notificationId,
@@ -85,7 +85,7 @@ public class NotificationsController(CurrentActor current, NotificationService n
         if (actor.StructureChurchId == default)
             return Ok(new { markedRead = 0 });
 
-        var markedRead = await notifications.MarkAllReadAsync(
+        var markedRead = await inbox.MarkAllReadAsync(
             authUserId,
             actor.StructureChurchId,
             ct);
