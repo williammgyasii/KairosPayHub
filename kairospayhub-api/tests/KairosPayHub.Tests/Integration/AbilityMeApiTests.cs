@@ -92,6 +92,7 @@ public class AbilityMeApiTests : IAsyncLifetime
 
         var abilities = me.GetProperty("abilities").EnumerateArray().Select(a => a.GetString()).ToHashSet();
         Assert.Contains(ProductAbilities.ViewMemberGivings, abilities);
+        Assert.Contains(ProductAbilities.ManageRoster, abilities);
         Assert.DoesNotContain(ProductAbilities.ManageChurch, abilities);
         Assert.NotNull(me.GetProperty("scopeNodeId").GetString());
     }

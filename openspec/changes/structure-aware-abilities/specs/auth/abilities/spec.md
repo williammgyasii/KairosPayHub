@@ -32,6 +32,22 @@ The session profile SHALL include authorization rules suitable for client-side a
 - **THEN** the Member givings surface is available
 - **AND** the UI does not require `role === 'FellowshipLeader'` or `role === 'CellLeader'`
 
+### Requirement: Roster member writes follow manageRoster and scope
+Actors with `manageRoster` SHALL be able to add and update members on nodes inside their structure scope. The SPA SHALL show Add member from that ability (or packed `manage` / `Roster` rules), not from comparing a role string. Leaf leaders SHALL have `manageRoster`. Ordinary members SHALL not. The API SHALL still reject writes outside the actor’s scope even if the client claims the ability.
+
+#### Scenario: Leaf leader adds a member in their unit
+- **WHEN** a leaf-scoped leader with `manageRoster` sends `POST /api/structure/members` for a parent node in their scope
+- **THEN** the member is created
+
+#### Scenario: Leaf leader cannot add outside scope
+- **WHEN** they send `POST /api/structure/members` for a parent node outside their scope
+- **THEN** the request is rejected
+
+#### Scenario: Add member uses ability, not role name
+- **WHEN** a leaf-scoped leader opens Membership or a unit Members tab
+- **THEN** Add member is available
+- **AND** the UI does not require `role === 'CellLeader'`
+
 ### Requirement: Scope accompanies abilities
 The session profile SHALL continue to expose the actor’s structure scope (e.g. scope node id / unit name) when leadership is node-scoped, so clients can label context while the API enforces subtree limits.
 

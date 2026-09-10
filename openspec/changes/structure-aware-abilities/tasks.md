@@ -24,3 +24,9 @@
 - [x] 4.1 Cell leader + fellowship/mid-layer leader + pastor smoke: Member givings / campaigns without role-name UI checks
 - [x] 4.2 Restart dev servers; confirm `/me` payload includes abilities + rules
 - [x] 4.3 Mark migration notes in change design if any legacy role field remains display-only
+
+## 5. Roster writes follow manageRoster
+
+- [x] 5.1 Add failing tests: `canManageMembers` follows `manageRoster` (leaf fallback true); cell leader `POST` in-scope succeeds and out-of-scope is 403
+- [x] 5.2 `RequireMemberManageAsync` authorizes via node scope access, not `IsScopedStructureLeader`
+- [x] 5.3 Membership and unit Members pages gate Add member with `canManageMembers(me)`, not `me.role`
