@@ -240,31 +240,23 @@ public class StructureService(
             .Include(t => t.Layers)
             .SingleOrDefaultAsync(t => t.ChurchId == churchId, ct);
 
-        if (existing is not null)
-        {
-            db.StructureLayers.RemoveRange(existing.Layers);
-            existing.Layers.Clear();
-            existing.Name = templateName;
-        }
-        else
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        if (existing is null)
         {
             existing = new StructureTemplate { ChurchId = churchId, Name = templateName };
             db.StructureTemplates.Add(existing);
+            AddTemplateLayers(existing, layers);
         }
-
-        for (var i = 0; i < layers.Count; i++)
+        else
         {
-            var input = layers[i];
-            existing.Layers.Add(new StructureLayer
-            {
-                TemplateId = existing.Id,
-                SortOrder = i,
-                StandardType = ParseLayerType(input.StandardType),
-                DisplayName = input.DisplayName.Trim(),
-            });
+            existing.Name = templateName;
+            await RelocateLayerSortOrdersAsync(existing, ct);
+            ApplyReplacementLayers(existing, layers);
         }
 
         await SaveStructureChangesAsync(churchId, ct);
+        await tx.CommitAsync(ct);
 
         var loaded = await db.StructureTemplates.AsNoTracking()
             .Include(t => t.Layers.OrderBy(l => l.SortOrder))
@@ -1591,6 +1583,61 @@ public class StructureService(
                     l.StandardType.ToString(),
                     l.DisplayName))
                 .ToList());
+
+    private static void AddTemplateLayers(
+        StructureTemplate template,
+        IReadOnlyList<StructureLayerInput> layers)
+    {
+        for (var i = 0; i < layers.Count; i++)
+        {
+            var input = layers[i];
+            template.Layers.Add(new StructureLayer
+            {
+                TemplateId = template.Id,
+                SortOrder = i,
+                StandardType = ParseLayerType(input.StandardType),
+                DisplayName = input.DisplayName.Trim(),
+            });
+        }
+    }
+
+    private async Task RelocateLayerSortOrdersAsync(StructureTemplate template, CancellationToken ct)
+    {
+        var current = template.Layers.OrderBy(l => l.SortOrder).ToList();
+        for (var i = 0; i < current.Count; i++)
+            current[i].SortOrder = 1_000 + i;
+        await db.SaveChangesAsync(ct);
+    }
+
+    private void ApplyReplacementLayers(
+        StructureTemplate template,
+        IReadOnlyList<StructureLayerInput> layers)
+    {
+        var current = template.Layers.OrderBy(l => l.SortOrder).ToList();
+        var shared = Math.Min(current.Count, layers.Count);
+
+        for (var i = 0; i < shared; i++)
+        {
+            current[i].SortOrder = i;
+            current[i].StandardType = ParseLayerType(layers[i].StandardType);
+            current[i].DisplayName = layers[i].DisplayName.Trim();
+        }
+
+        foreach (var extra in current.Skip(shared))
+            db.StructureLayers.Remove(extra);
+
+        for (var i = shared; i < layers.Count; i++)
+        {
+            var input = layers[i];
+            template.Layers.Add(new StructureLayer
+            {
+                TemplateId = template.Id,
+                SortOrder = i,
+                StandardType = ParseLayerType(input.StandardType),
+                DisplayName = input.DisplayName.Trim(),
+            });
+        }
+    }
 
     private static void ValidateLayerInputs(IReadOnlyList<StructureLayerInput> layers)
     {

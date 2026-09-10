@@ -182,6 +182,53 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Pastor_can_remove_fellowship_layer_when_roster_is_empty()
+    {
+        var client = PastorClient();
+        await OnboardAsync(client);
+
+        await PutTemplateAsync(client, ("Fellowship", "Fellowship"), ("Cell", "Cell"));
+
+        var response = await client.PutAsJsonAsync("/api/structure/template", new
+        {
+            name = "Main structure",
+            layers = new[]
+            {
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var template = (await response.Content.ReadFromJsonAsync<JsonElement>());
+        Assert.Equal(1, template.GetProperty("layers").GetArrayLength());
+        Assert.Equal("Cell", template.GetProperty("layers")[0].GetProperty("standardType").GetString());
+    }
+
+    [Fact]
+    public async Task Pastor_can_resave_empty_template_without_changing_layers()
+    {
+        var client = PastorClient();
+        await OnboardAsync(client);
+
+        await PutTemplateAsync(client, "Main structure", ("Fellowship", "Fellowship"), ("Cell", "Cell"));
+
+        var response = await client.PutAsJsonAsync("/api/structure/template", new
+        {
+            name = "Campus structure",
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var template = (await response.Content.ReadFromJsonAsync<JsonElement>());
+        Assert.Equal("Campus structure", template.GetProperty("name").GetString());
+        Assert.Equal(2, template.GetProperty("layers").GetArrayLength());
+    }
+
+    [Fact]
     public async Task Cannot_create_node_without_template()
     {
         var client = PastorClient();
