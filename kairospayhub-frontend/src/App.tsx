@@ -17,7 +17,10 @@ import {
 } from './pages/MemberDetailPages'
 import { SettingsLayout } from './components/settings/settings-layout'
 import { SettingsBrandingPage } from './pages/SettingsBrandingPage'
-import { SettingsAccountPage } from './pages/SettingsAccountPage'
+import { AccountLayout } from './pages/AccountLayout'
+import { AccountNotificationsPage } from './pages/AccountNotificationsPage'
+import { AccountProfilePage } from './pages/AccountProfilePage'
+import { AccountSecurityPage } from './pages/AccountSecurityPage'
 import { SettingsAdministratorsPage } from './pages/SettingsAdministratorsPage'
 import { AttendanceApprovalsPage } from './pages/AttendanceApprovalsPage'
 import { AttendanceOverviewPage } from './pages/AttendanceOverviewPage'
@@ -163,7 +166,11 @@ export default function App() {
             </PastorRoute>
           }
         />
-        <Route path="account" element={<SettingsAccountPage />} />
+        <Route path="account" element={<AccountLayout />}>
+          <Route index element={<AccountProfilePage />} />
+          <Route path="security" element={<AccountSecurityPage />} />
+          <Route path="notifications" element={<AccountNotificationsPage />} />
+        </Route>
         <Route
           path="settings"
           element={

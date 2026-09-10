@@ -4,7 +4,7 @@ import { canManageChurch, type Me } from '@/api/auth'
 
 const PASTOR_TABS = [
   { to: '/settings', label: 'Branding', end: true },
-  { to: '/account', label: 'Account', end: true },
+  { to: '/account', label: 'Account', end: false },
   { to: '/settings/administrators', label: 'Administrators', end: true },
 ] as const
 
