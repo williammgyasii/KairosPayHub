@@ -85,7 +85,8 @@ export function givingScopePolicy(input: {
 }): GivingScopePolicy {
   const { tree, actorLeadership, actorScopeNodeId = null, parent = null } = input
   const canCreate = actorLeadership === 'churchWide' || actorLeadership === 'intermediate'
-  const canBulkLog = actorLeadership === 'churchWide' || actorLeadership === 'intermediate'
+  // Spec: bulk-log = intermediate only; leaf = single member; church-wide does not log.
+  const canBulkLog = actorLeadership === 'intermediate'
 
   const parentNode = parent?.scopeNodeId ? nodeById(tree, parent.scopeNodeId) : undefined
   const parentLayer = parentNode ? layerById(tree, parentNode.layerId) : undefined

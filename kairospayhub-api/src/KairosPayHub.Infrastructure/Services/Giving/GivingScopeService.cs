@@ -605,11 +605,15 @@ public class GivingScopeService(KairosDbContext db)
         CancellationToken ct = default)
     {
         var enteredBy = enteredByRole ?? ChurchRole.CellLeader;
+        var hasFellowship = await ChurchHasLayerAsync(churchId, StructureLayerType.Fellowship, ct);
+        var hasPfcc = await ChurchHasPfccManagersAsync(churchId, ct);
 
         return enteredBy switch
         {
-            ChurchRole.CellLeader => ChurchRole.FellowshipLeader,
-            ChurchRole.FellowshipLeader => await ChurchHasPfccManagersAsync(churchId, ct)
+            ChurchRole.CellLeader when hasFellowship => ChurchRole.FellowshipLeader,
+            ChurchRole.CellLeader when hasPfcc => ChurchRole.PFCCManager,
+            ChurchRole.CellLeader => ChurchRole.Pastor,
+            ChurchRole.FellowshipLeader => hasPfcc
                 ? ChurchRole.PFCCManager
                 : ChurchRole.Pastor,
             ChurchRole.PFCCManager => ChurchRole.Pastor,
@@ -665,15 +669,20 @@ public class GivingScopeService(KairosDbContext db)
             return query.Where(_ => false);
 
         query = query.Where(c => c.Status == ContributionStatus.PendingApproval);
+        var hasFellowship = await ChurchHasLayerAsync(churchId, StructureLayerType.Fellowship, ct);
         var hasPfcc = await ChurchHasPfccManagersAsync(churchId, ct);
 
         return role switch
         {
-            ChurchRole.FellowshipLeader => query.Where(c => c.EnteredByRole == ChurchRole.CellLeader),
-            ChurchRole.PFCCManager when hasPfcc => query.Where(c => c.EnteredByRole == ChurchRole.FellowshipLeader),
+            ChurchRole.FellowshipLeader when hasFellowship =>
+                query.Where(c => c.EnteredByRole == ChurchRole.CellLeader),
+            ChurchRole.PFCCManager when hasPfcc => query.Where(c =>
+                c.EnteredByRole == ChurchRole.FellowshipLeader
+                || (c.EnteredByRole == ChurchRole.CellLeader && !hasFellowship)),
             ChurchRole.Pastor => query.Where(c =>
                 c.EnteredByRole == ChurchRole.PFCCManager
-                || (c.EnteredByRole == ChurchRole.FellowshipLeader && !hasPfcc)),
+                || (c.EnteredByRole == ChurchRole.FellowshipLeader && !hasPfcc)
+                || (c.EnteredByRole == ChurchRole.CellLeader && !hasFellowship && !hasPfcc)),
             _ => query.Where(_ => false),
         };
     }
@@ -682,6 +691,15 @@ public class GivingScopeService(KairosDbContext db)
         await db.RoleAssignments.AsNoTracking()
             .AnyAsync(
                 r => r.ChurchId == churchId && r.Role == ChurchRole.PFCCManager,
+                ct);
+
+    async Task<bool> ChurchHasLayerAsync(
+        Guid churchId,
+        StructureLayerType standardType,
+        CancellationToken ct) =>
+        await db.StructureLayers.AsNoTracking()
+            .AnyAsync(
+                l => l.Template!.ChurchId == churchId && l.StandardType == standardType,
                 ct);
 
     public async Task<bool> CanViewMemberContributionsAsync(

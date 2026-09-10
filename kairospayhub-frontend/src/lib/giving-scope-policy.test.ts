@@ -100,6 +100,12 @@ describe('givingScopePolicy — Fellowship → Cell', () => {
     expect(intermediate.canBulkLog).toBe(true)
     expect(intermediate.allowChurchWide).toBe(false)
 
+    const churchWide = givingScopePolicy({
+      tree: t,
+      actorLeadership: 'churchWide',
+    })
+    expect(churchWide.canBulkLog).toBe(false)
+
     const leaf = givingScopePolicy({
       tree: t,
       actorLeadership: 'leaf',

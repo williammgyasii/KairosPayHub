@@ -76,12 +76,22 @@ Who may create a campaign or sub-campaign, who may bulk-log, and who approves a 
 - **THEN** the next approver is the fellowship (intermediate) leadership, then church-wide
 - **AND** the hop does not require a PFCC manager
 
+#### Scenario: Approval goes to pastor when there is no Fellowship layer
+
+- **WHEN** the church template is Church → Cell (no Fellowship or PFCC)
+- **AND** a cell leader logs a contribution
+- **THEN** the next approver is the pastor (church-wide)
+- **AND** the pastor can approve that contribution
+- **AND** church-wide leadership is not offered Log giving on the program
+
 #### Scenario: Bulk log is for intermediate leadership
 
 - **WHEN** the actor’s leadership is intermediate
 - **THEN** they may bulk-log contributions
 - **WHEN** the actor’s leadership is leaf
 - **THEN** they may log a single member only
+- **WHEN** the actor’s leadership is church-wide
+- **THEN** they may not log contributions
 
 ### Requirement: Create and sub-campaign forms are single-page
 
