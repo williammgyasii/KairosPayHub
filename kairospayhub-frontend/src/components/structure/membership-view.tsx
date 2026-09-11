@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { OnChangeFn, SortingState } from '@tanstack/react-table'
+import type { OnChangeFn, SortingState, VisibilityState } from '@tanstack/react-table'
 import { Link, useNavigate } from 'react-router-dom'
 import type {
   StructureMemberListParams,
@@ -21,6 +21,10 @@ import {
   type MemberFilterField,
   type MemberFilterRule,
 } from '@/lib/member-filters'
+import {
+  defaultMembershipColumnVisibility,
+  mergeMembershipColumnVisibility,
+} from '@/lib/membership-table-columns'
 import { buildMemberRows } from '@/lib/structure-table-rows'
 import { getLayers } from '@/lib/structure-tree'
 import { formatApiError } from '@/lib/structure-tree'
@@ -146,7 +150,23 @@ export function MembershipView({
     [tree, list?.items],
   )
   const rows = useMemo(() => buildMemberRows(listTree), [listTree])
-  const structureLayers = getLayers(tree)
+  const structureLayers = useMemo(() => getLayers(tree), [tree])
+  const structureLayerKey = useMemo(
+    () => structureLayers.map((layer) => layer.id).join('|'),
+    [structureLayers],
+  )
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() =>
+    defaultMembershipColumnVisibility(structureLayers),
+  )
+
+  useEffect(() => {
+    setColumnVisibility((current) =>
+      mergeMembershipColumnVisibility(defaultMembershipColumnVisibility(structureLayers), current),
+    )
+    // Re-seed when template layers change; keep user toggles for shared keys.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- structureLayerKey captures layer identity
+  }, [structureLayerKey])
+
   const filteredRows = useMemo(() => {
     if (filterRules.length === 0) return rows
     return applyMemberFilterRules(rows, filterRules)
@@ -213,6 +233,8 @@ export function MembershipView({
         structureLayers={structureLayers}
         title={tableTitle}
         extendedColumns
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
         totalCount={totalCount}
         emptyMessage={
           totalCount === 0
@@ -243,6 +265,8 @@ export function MembershipView({
             onSearchFieldChange={setSearchField}
             filteredCount={filteredRows.length}
             totalCount={totalCount}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
           />
         }
         footer={

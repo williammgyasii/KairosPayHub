@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { format, parseISO } from 'date-fns'
 import {
   createColumnHelper,
   flexRender,
@@ -8,10 +9,12 @@ import {
   useReactTable,
   type OnChangeFn,
   type SortingState,
+  type VisibilityState,
 } from '@tanstack/react-table'
 import { ArrowUpDown, Coins, Eye, FileText, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import type { StructureLayer } from '@/api/structure'
 import { formatOccupationStatus } from '@/lib/member-filters'
+import { defaultMembershipColumnVisibility } from '@/lib/membership-table-columns'
 import {
   membershipStickyColumnLeft,
   membershipStickyColumnWidth,
@@ -42,7 +45,10 @@ interface StructureMemberTableProps {
   onView?: (member: StructureMemberRow, destination?: MemberViewDestination) => void
   onDelete?: (member: StructureMemberRow) => void
   showSearch?: boolean
+  /** @deprecated Prefer columnVisibility; true seeds full profile columns with defaults. */
   extendedColumns?: boolean
+  columnVisibility?: VisibilityState
+  onColumnVisibilityChange?: OnChangeFn<VisibilityState>
   compactLayout?: boolean
   hideHeader?: boolean
   toolbar?: ReactNode
@@ -56,6 +62,15 @@ interface StructureMemberTableProps {
   readOnly?: boolean
 }
 
+function formatMemberDob(value: string) {
+  if (!value.trim()) return '—'
+  try {
+    return format(parseISO(value), 'PP')
+  } catch {
+    return value
+  }
+}
+
 export function StructureMemberTable({
   rows,
   structureLayers,
@@ -67,6 +82,8 @@ export function StructureMemberTable({
   onDelete,
   showSearch = true,
   extendedColumns = false,
+  columnVisibility: columnVisibilityProp,
+  onColumnVisibilityChange,
   compactLayout = false,
   hideHeader = false,
   toolbar,
@@ -87,6 +104,22 @@ export function StructureMemberTable({
   const sorting = sortingProp ?? localSorting
   const setSorting = onSortingChangeProp ?? setLocalSorting
 
+  const defaultVisibility = useMemo(
+    () => defaultMembershipColumnVisibility(structureLayers),
+    [structureLayers],
+  )
+  const [localVisibility, setLocalVisibility] = useState<VisibilityState>(() => defaultVisibility)
+  const useToggleableColumns = !compactLayout && (extendedColumns || columnVisibilityProp != null)
+  const columnVisibility = useToggleableColumns
+    ? (columnVisibilityProp ?? localVisibility)
+    : undefined
+  const setColumnVisibility = onColumnVisibilityChange ?? setLocalVisibility
+
+  useEffect(() => {
+    if (columnVisibilityProp != null) return
+    setLocalVisibility(defaultVisibility)
+  }, [defaultVisibility, columnVisibilityProp])
+
   useEffect(() => {
     function onResize() {
       setViewportWidth(window.innerWidth)
@@ -100,17 +133,22 @@ export function StructureMemberTable({
       createMemberColumns(
         structureLayers,
         { onEdit, onView, onDelete, readOnly },
-        { extendedColumns, compactLayout },
+        { toggleableProfile: useToggleableColumns, compactLayout },
       ),
-    [structureLayers, onEdit, onView, onDelete, extendedColumns, compactLayout, readOnly],
+    [structureLayers, onEdit, onView, onDelete, useToggleableColumns, compactLayout, readOnly],
   )
 
   const table = useReactTable({
     data: rows,
     columns,
-    state: { sorting, globalFilter: filter },
+    state: {
+      sorting,
+      globalFilter: filter,
+      ...(columnVisibility ? { columnVisibility } : {}),
+    },
     onSortingChange: setSorting,
     onGlobalFilterChange: setFilter,
+    onColumnVisibilityChange: columnVisibility ? setColumnVisibility : undefined,
     manualSorting: serverSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: serverSorting ? undefined : getSortedRowModel(),
@@ -128,7 +166,6 @@ export function StructureMemberTable({
       )
     },
   })
-
   const countLabel =
     totalCount != null && totalCount !== rows.length
       ? `${rows.length} of ${totalCount}`
@@ -198,8 +235,8 @@ export function StructureMemberTable({
         <table
           className={cn(
             'w-full text-sm',
-            viewportWidth >= 1024 && !compactLayout && extendedColumns && 'min-w-[1200px]',
-            viewportWidth >= 1024 && !compactLayout && !extendedColumns && 'min-w-[760px]',
+            viewportWidth >= 1024 && !compactLayout && useToggleableColumns && 'min-w-[1200px]',
+            viewportWidth >= 1024 && !compactLayout && !useToggleableColumns && 'min-w-[760px]',
           )}
         >
           <thead>
@@ -234,7 +271,10 @@ export function StructureMemberTable({
           <tbody>
             {table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-5 py-10 text-center text-muted-foreground">
+                <td
+                  colSpan={Math.max(table.getVisibleLeafColumns().length, 1)}
+                  className="px-5 py-10 text-center text-muted-foreground"
+                >
                   {emptyMessage}
                 </td>
               </tr>
@@ -282,7 +322,7 @@ function createMemberColumns(
     onDelete?: (member: StructureMemberRow) => void
     readOnly?: boolean
   },
-  options: { extendedColumns: boolean; compactLayout: boolean },
+  options: { toggleableProfile: boolean; compactLayout: boolean },
 ) {
   const helper = createColumnHelper<StructureMemberRow>()
   const showActions = Boolean(actions.onView || actions.onDelete || actions.onEdit)
@@ -293,6 +333,7 @@ function createMemberColumns(
         helper.display({
           id: `structure-${layer.id}`,
           header: layer.displayName,
+          enableHiding: true,
           cell: ({ row }) => {
             const segment = row.original.structure.find(
               (s) => s.layerId === layer.id || s.standardType === layer.standardType,
@@ -306,10 +347,11 @@ function createMemberColumns(
         }),
       )
 
-  const profileColumns = options.extendedColumns
+  const profileColumns = options.toggleableProfile
     ? [
         helper.accessor('email', {
           header: 'Email',
+          enableHiding: true,
           cell: ({ getValue }) => {
             const email = getValue()?.trim()
             if (!email) {
@@ -327,65 +369,122 @@ function createMemberColumns(
             )
           },
         }),
+        helper.accessor('phone', {
+          header: 'Phone',
+          enableHiding: true,
+          cell: ({ getValue }) => (
+            <span className="whitespace-nowrap text-muted-foreground">{getValue() || '—'}</span>
+          ),
+        }),
+        helper.accessor('age', {
+          header: 'Age',
+          enableHiding: true,
+          cell: ({ getValue }) => (
+            <span className="tabular-nums text-muted-foreground">{getValue() || '—'}</span>
+          ),
+        }),
+        helper.accessor('dateOfBirth', {
+          header: 'Date of birth',
+          enableHiding: true,
+          cell: ({ getValue }) => (
+            <span className="whitespace-nowrap text-muted-foreground">
+              {formatMemberDob(getValue() || '')}
+            </span>
+          ),
+        }),
         helper.accessor('residence', {
           header: 'Residence',
+          enableHiding: true,
           cell: ({ getValue }) => (
             <span className="max-w-[10rem] truncate text-muted-foreground">{getValue() || '—'}</span>
           ),
         }),
+        helper.accessor('state', {
+          header: 'State',
+          enableHiding: true,
+          cell: ({ getValue }) => (
+            <span className="max-w-[8rem] truncate text-muted-foreground">{getValue() || '—'}</span>
+          ),
+        }),
         helper.accessor('occupationStatus', {
           header: 'Occupation',
+          enableHiding: true,
           cell: ({ getValue }) => (
             <span className="text-muted-foreground">{formatOccupationStatus(getValue())}</span>
           ),
         }),
         helper.accessor('schoolOrWorkplace', {
           header: 'School / work',
+          enableHiding: true,
           cell: ({ getValue }) => (
             <span className="max-w-[10rem] truncate text-muted-foreground">{getValue() || '—'}</span>
           ),
         }),
+        helper.accessor('workplace', {
+          header: 'Workplace',
+          enableHiding: true,
+          cell: ({ getValue }) => (
+            <span className="max-w-[10rem] truncate text-muted-foreground">{getValue() || '—'}</span>
+          ),
+        }),
+        helper.accessor('responsiveness', {
+          header: 'Responsiveness',
+          enableHiding: true,
+          cell: ({ getValue }) => <ResponsivenessBadge level={getValue()} />,
+        }),
+        helper.accessor('role', {
+          header: 'Role',
+          enableHiding: true,
+          cell: ({ row }) => (
+            <div className="whitespace-nowrap">
+              <RoleBadge role={row.original.role} position={row.original.position} />
+            </div>
+          ),
+        }),
       ]
-    : []
+    : [
+        helper.accessor('responsiveness', {
+          header: 'Responsiveness',
+          cell: ({ getValue }) => <ResponsivenessBadge level={getValue()} />,
+        }),
+        helper.accessor('role', {
+          header: 'Role',
+          cell: ({ row }) => (
+            <div className="whitespace-nowrap">
+              <RoleBadge role={row.original.role} position={row.original.position} />
+            </div>
+          ),
+        }),
+        helper.accessor('phone', {
+          header: 'Phone',
+          cell: ({ getValue }) => (
+            <span className="whitespace-nowrap text-muted-foreground">{getValue() || '—'}</span>
+          ),
+        }),
+        helper.accessor('age', {
+          header: 'Age',
+          cell: ({ getValue }) => (
+            <span className="tabular-nums text-muted-foreground">{getValue() || '—'}</span>
+          ),
+        }),
+      ]
 
   return [
     helper.accessor('member', {
       header: 'Name',
+      enableHiding: false,
       cell: ({ getValue }) => (
         <span className="block max-w-[14rem] truncate font-medium">{getValue()}</span>
       ),
     }),
     ...profileColumns,
     ...structureColumns,
-    helper.accessor('responsiveness', {
-      header: 'Responsiveness',
-      cell: ({ getValue }) => <ResponsivenessBadge level={getValue()} />,
-    }),
-    helper.accessor('role', {
-      header: 'Role',
-      cell: ({ row }) => (
-        <div className="whitespace-nowrap">
-          <RoleBadge role={row.original.role} position={row.original.position} />
-        </div>
-      ),
-    }),
-    helper.accessor('phone', {
-      header: 'Phone',
-      cell: ({ getValue }) => (
-        <span className="whitespace-nowrap text-muted-foreground">{getValue() || '—'}</span>
-      ),
-    }),
-    helper.accessor('age', {
-      header: 'Age',
-      cell: ({ getValue }) => (
-        <span className="tabular-nums text-muted-foreground">{getValue() || '—'}</span>
-      ),
-    }),
     ...(showActions
       ? [
           helper.display({
             id: 'actions',
             header: '',
+            enableHiding: false,
             cell: ({ row }) => <MemberRowMenu member={row.original} {...actions} />,
           }),
         ]

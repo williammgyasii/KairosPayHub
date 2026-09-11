@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Briefcase,
   ChevronDown,
+  Columns3,
   Filter,
   GitBranch,
   Mail,
@@ -29,8 +30,22 @@ import {
   type MemberFilterFieldDef,
   type MemberFilterRule,
 } from '@/lib/member-filters'
+import {
+  membershipColumnLabel,
+  membershipToggleableColumnIds,
+  mergeMembershipColumnVisibility,
+} from '@/lib/membership-table-columns'
 import type { StructureMemberRow } from '@/lib/structure-table-rows'
+import { ColumnToggleSwitch } from '@/components/attendance/attendance-overview-parts'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -71,6 +86,9 @@ interface MemberTableToolbarProps {
   onClearExtraFilters?: () => void
   addFilterLabel?: string
   className?: string
+  /** When set with onColumnVisibilityChange, shows Attendance-style Columns toggles. */
+  columnVisibility?: Record<string, boolean>
+  onColumnVisibilityChange?: (next: Record<string, boolean>) => void
 }
 
 export function MemberTableToolbar({
@@ -96,7 +114,14 @@ export function MemberTableToolbar({
   onClearExtraFilters,
   addFilterLabel = 'Add filter',
   className,
+  columnVisibility,
+  onColumnVisibilityChange,
 }: MemberTableToolbarProps) {
+  const showColumnToggles = Boolean(columnVisibility && onColumnVisibilityChange)
+  const toggleableColumnIds = useMemo(
+    () => (showColumnToggles ? membershipToggleableColumnIds(structureLayers) : []),
+    [showColumnToggles, structureLayers],
+  )
   const fields = useMemo(
     () =>
       structureOnly
@@ -215,6 +240,41 @@ export function MemberTableToolbar({
               )}
             </Button>
             {trailingSlot}
+            {showColumnToggles && columnVisibility && onColumnVisibilityChange ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5">
+                    <Columns3 className="size-3.5" />
+                    Columns
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-80 w-56 overflow-y-auto">
+                  <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled className="justify-between gap-3 opacity-100">
+                    Name
+                    <ColumnToggleSwitch on />
+                  </DropdownMenuItem>
+                  {toggleableColumnIds.map((columnId) => (
+                    <DropdownMenuItem
+                      key={columnId}
+                      className="justify-between gap-3"
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        onColumnVisibilityChange(
+                          mergeMembershipColumnVisibility(columnVisibility, {
+                            [columnId]: !columnVisibility[columnId],
+                          }),
+                        )
+                      }}
+                    >
+                      {membershipColumnLabel(columnId, structureLayers)}
+                      <ColumnToggleSwitch on={Boolean(columnVisibility[columnId])} />
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             <span className="text-xs tabular-nums text-muted-foreground">
               {filteredCount} / {totalCount}
             </span>
