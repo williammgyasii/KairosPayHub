@@ -24,7 +24,7 @@ public class StructureMemberManageApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Cell_leader_can_create_member_in_own_cell_but_not_another()
+    public async Task Cell_leader_cannot_type_add_and_cannot_write_another_cell()
     {
         var authUserId = Guid.NewGuid();
         Guid ownCellId;
@@ -51,16 +51,16 @@ public class StructureMemberManageApiTests(PostgresFixture fx) : IAsyncLifetime
         {
             name = "New Cell Member",
             parentNodeId = ownCellId,
+            dateOfBirth = "2000-01-01",
         });
-        Assert.Equal(HttpStatusCode.OK, inScope.StatusCode);
-        var created = await inScope.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("New Cell Member", created.GetProperty("name").GetString());
-        Assert.Equal(ownCellId, created.GetProperty("parentNodeId").GetGuid());
+        Assert.Equal(HttpStatusCode.BadRequest, inScope.StatusCode);
+        Assert.Contains("join link", await inScope.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
 
         var outOfScope = await client.PostAsJsonAsync("/api/structure/members", new
         {
             name = "Other Cell Member",
             parentNodeId = otherCellId,
+            dateOfBirth = "2000-01-01",
         });
         Assert.Equal(HttpStatusCode.Forbidden, outOfScope.StatusCode);
     }

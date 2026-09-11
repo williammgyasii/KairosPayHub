@@ -118,7 +118,7 @@ public class UnitJoinInviteService(
             request.Workplace);
         db.ChurchMembers.Add(member);
         await db.SaveChangesAsync(ct);
-        readCache.InvalidateStructureTree(invite.ChurchId);
+        InvalidateRosterReads(invite.ChurchId);
     }
 
     public async Task<StructureMemberDto> AcceptAsync(
@@ -130,7 +130,7 @@ public class UnitJoinInviteService(
         var member = await LoadPendingAsync(actor, authUserId, memberId, ct);
         member.RosterStatus = RosterStatus.Active;
         await db.SaveChangesAsync(ct);
-        readCache.InvalidateStructureTree(member.ChurchId);
+        InvalidateRosterReads(member.ChurchId);
         return StructureMemberService.ToMemberDto(member);
     }
 
@@ -143,7 +143,14 @@ public class UnitJoinInviteService(
         var member = await LoadPendingAsync(actor, authUserId, memberId, ct);
         db.ChurchMembers.Remove(member);
         await db.SaveChangesAsync(ct);
-        readCache.InvalidateStructureTree(member.ChurchId);
+        InvalidateRosterReads(member.ChurchId);
+    }
+
+    private void InvalidateRosterReads(Guid churchId)
+    {
+        readCache.InvalidateStructureTree(churchId);
+        // Accept promotes Pending → Active; dashboard memberCount is cached separately.
+        readCache.InvalidateGivingDashboard(churchId);
     }
 
     private async Task<Member> LoadPendingAsync(

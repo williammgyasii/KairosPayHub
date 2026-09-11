@@ -987,14 +987,12 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal(MemberOccupationStatus.Student, member.OccupationStatus);
         Assert.Equal("University of Ghana", member.SchoolOrWorkplace);
         Assert.Equal(1, await db.RoleAssignments.CountAsync(r => r.Role == ChurchRole.FellowshipLeader));
-        Assert.Equal(1, await db.RoleAssignments.CountAsync(r => r.Role == ChurchRole.CellLeader));
+        Assert.Equal(0, await db.RoleAssignments.CountAsync(r => r.Role == ChurchRole.CellLeader));
 
         var fellowshipId = body.GetProperty("node").GetProperty("id").GetGuid();
-        var autoCell = await db.StructureNodes.SingleAsync(n =>
-            n.ParentNodeId == fellowshipId && n.LayerId == layers[2].GetProperty("id").GetGuid());
-        Assert.Equal("Fellowship 1 Cell", autoCell.Name);
-        Assert.Equal(member.Id, autoCell.LeaderMemberId);
-        Assert.Equal(autoCell.Id, member.ParentNodeId);
+        Assert.Equal(0, await db.StructureNodes.CountAsync(n =>
+            n.ParentNodeId == fellowshipId && n.LayerId == layers[2].GetProperty("id").GetGuid()));
+        Assert.Equal(fellowshipId, member.ParentNodeId);
         Assert.Equal(MemberPosition.FellowshipLeader, member.Position);
     }
 
