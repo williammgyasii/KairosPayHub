@@ -99,8 +99,12 @@ public class StructureController(
             return BadRequest(new { error = "Name is required" });
 
         var actor = await current.RequireAsync(ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized();
+
         return Ok(await nodes.UpdateNodeAsync(
             actor,
+            authUserId,
             nodeId,
             request.Name,
             request.UnitNumber,

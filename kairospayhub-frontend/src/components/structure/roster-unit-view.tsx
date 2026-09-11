@@ -39,6 +39,7 @@ import {
   type StructureUnitNodeRow,
 } from '@/lib/structure-table-rows'
 import { createUnitPolicy } from '@/lib/create-unit-policy'
+import { unitEditPolicy } from '@/lib/unit-edit-policy'
 import {
   countCellsUnderUnit,
   countMembersUnderUnit,
@@ -65,6 +66,8 @@ interface RosterUnitViewProps {
   readOnly?: boolean
   membersReadOnly?: boolean
   scopeRootNodeId?: string | null
+  canManageChurch?: boolean
+  actorScopeNodeId?: string | null
 }
 
 export function RosterUnitView({
@@ -76,6 +79,8 @@ export function RosterUnitView({
   readOnly = false,
   membersReadOnly = false,
   scopeRootNodeId = null,
+  canManageChurch = !readOnly,
+  actorScopeNodeId = null,
 }: RosterUnitViewProps) {
   const api = useApi()
   const navigate = useNavigate()
@@ -287,9 +292,22 @@ export function RosterUnitView({
           hideParentColumn={activeTab.layer.sortOrder === layer.sortOrder + 1}
           embedded
           readOnly={readOnly}
-          onEdit={(row) =>
-            setNodeSheet({ mode: 'edit', row, layer: activeTab.layer })
-          }
+          canManageChurch={canManageChurch}
+          actorScopeNodeId={actorScopeNodeId}
+          onEdit={(row) => {
+            const policy = unitEditPolicy({
+              canManageChurch,
+              actorScopeNodeId,
+              unitId: row.id,
+            })
+            if (!policy.canRename) return
+            setNodeSheet({
+              mode: 'edit',
+              row,
+              layer: activeTab.layer,
+              renameOnly: policy.renameOnly,
+            })
+          }}
           onChangeLeader={(row) => {
             const node = nodeById(tree, row.id)
             if (!node) return
@@ -392,7 +410,7 @@ export function RosterUnitView({
         />
       )}
 
-      {!readOnly && nodeSheet && (
+      {nodeSheet && (
         <UnitNodeFormSheet
           tree={tree}
           unitNodeId={unit.id}

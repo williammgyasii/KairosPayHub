@@ -38,7 +38,7 @@ import { cn } from '@/lib/utils'
 
 export type UnitNodeSheetState =
   | { mode: 'create'; layer: StructureLayer; parentNodeId: string }
-  | { mode: 'edit'; row: StructureUnitNodeRow; layer: StructureLayer }
+  | { mode: 'edit'; row: StructureUnitNodeRow; layer: StructureLayer; renameOnly?: boolean }
 
 type LeaderMode = 'none' | 'existing' | 'new'
 
@@ -58,6 +58,7 @@ export function UnitNodeFormSheet({
   onClose: () => void
 }) {
   const isEdit = sheet.mode === 'edit'
+  const renameOnly = sheet.mode === 'edit' && Boolean(sheet.renameOnly)
   const layer = sheet.layer
   const [generatedLogin, setGeneratedLogin] = useState<GeneratedLeaderLogin | null>(null)
   const [leaderName, setLeaderName] = useState('')
@@ -82,10 +83,12 @@ export function UnitNodeFormSheet({
       title={isEdit ? `Edit ${layer.displayName}` : `Add ${layer.displayName}`}
       description={
         isEdit
-          ? `Update this ${layer.displayName.toLowerCase()} under your structure.`
+          ? renameOnly
+            ? `Update the name of this ${layer.displayName.toLowerCase()}.`
+            : `Update this ${layer.displayName.toLowerCase()} under your structure.`
           : `Create a ${layer.displayName.toLowerCase()} under ${nodeById(tree, unitNodeId)?.name ?? 'this unit'}.`
       }
-      size="lg"
+      size={renameOnly ? 'md' : 'lg'}
     >
       <UnitNodeForm
         tree={tree}
@@ -93,6 +96,7 @@ export function UnitNodeFormSheet({
         layer={layer}
         row={isEdit ? sheet.row : undefined}
         parentNodeId={isEdit ? undefined : sheet.parentNodeId}
+        renameOnly={renameOnly}
         busy={busy}
         onCancel={onClose}
         submit={submit}
@@ -111,6 +115,7 @@ function UnitNodeForm({
   layer,
   row,
   parentNodeId,
+  renameOnly = false,
   busy,
   onCancel,
   submit,
@@ -121,6 +126,7 @@ function UnitNodeForm({
   layer: StructureLayer
   row?: StructureUnitNodeRow
   parentNodeId?: string
+  renameOnly?: boolean
   busy: boolean
   onCancel: () => void
   submit: (action: () => Promise<void>) => Promise<void>
@@ -230,6 +236,11 @@ function UnitNodeForm({
       onSubmit={(e) => {
         e.preventDefault()
         void submit(async () => {
+          if (row && renameOnly) {
+            await api.patch(`/api/structure/nodes/${row.id}`, { name })
+            onCancel()
+            return
+          }
           const resolvedUnitNumber = row
             ? unitNumber || null
             : autoUnitNumber != null
@@ -283,23 +294,25 @@ function UnitNodeForm({
         })
       }}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className={cn('grid gap-4', !renameOnly && 'sm:grid-cols-2')}>
         <Field label={`${layer.displayName} name`} id="unit-name">
           <Input id="unit-name" value={name} onChange={(e) => setName(e.target.value)} required />
         </Field>
 
-        <Field label={numberLabel} id="unit-number">
-          <Input
-            id="unit-number"
-            value={row ? unitNumber : String(autoUnitNumber ?? '')}
-            onChange={(e) => setUnitNumber(e.target.value)}
-            readOnly={!row}
-            className={!row ? 'bg-muted/40 text-muted-foreground' : undefined}
-          />
-        </Field>
+        {!renameOnly && (
+          <Field label={numberLabel} id="unit-number">
+            <Input
+              id="unit-number"
+              value={row ? unitNumber : String(autoUnitNumber ?? '')}
+              onChange={(e) => setUnitNumber(e.target.value)}
+              readOnly={!row}
+              className={!row ? 'bg-muted/40 text-muted-foreground' : undefined}
+            />
+          </Field>
+        )}
       </div>
 
-      {!row && parentOptions.length > 1 && parentLayer && (
+      {!renameOnly && !row && parentOptions.length > 1 && parentLayer && (
         <Field label={`Parent ${parentLayer.displayName}`} id="unit-parent">
           <select
             id="unit-parent"
@@ -318,6 +331,7 @@ function UnitNodeForm({
         </Field>
       )}
 
+      {!renameOnly && (
       <section className="space-y-3 rounded-lg border border-border/60 bg-muted/10 p-4">
         <div>
           <p className="text-sm font-medium">Leader</p>
@@ -421,6 +435,7 @@ function UnitNodeForm({
           </>
         )}
       </section>
+      )}
 
       <div className="flex justify-end gap-2 border-t pt-4">
         <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>

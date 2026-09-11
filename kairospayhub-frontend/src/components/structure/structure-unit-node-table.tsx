@@ -19,6 +19,7 @@ import {
 } from '@/components/structure/structure-badges'
 import { RosterUnitActionsMenu } from '@/components/structure/roster-unit-actions-menu'
 import { Input } from '@/components/ui/input'
+import { unitEditMenuLabel, unitEditPolicy } from '@/lib/unit-edit-policy'
 import { cn } from '@/lib/utils'
 
 interface StructureUnitNodeTableProps {
@@ -35,6 +36,8 @@ interface StructureUnitNodeTableProps {
   onChangeLeader?: (row: StructureUnitNodeRow) => void
   className?: string
   readOnly?: boolean
+  canManageChurch?: boolean
+  actorScopeNodeId?: string | null
 }
 
 export function StructureUnitNodeTable({
@@ -51,18 +54,33 @@ export function StructureUnitNodeTable({
   onChangeLeader,
   className,
   readOnly = false,
+  canManageChurch = !readOnly,
+  actorScopeNodeId = null,
 }: StructureUnitNodeTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
 
   const columns = useMemo(
     () =>
-      createUnitNodeColumns(tree, layer, childLayer, { hidePathColumn, hideParentColumn, readOnly }, {
-        onEdit,
-        onDelete,
-        onChangeLeader,
-      }),
-    [tree, layer, childLayer, hidePathColumn, hideParentColumn, onEdit, onDelete, onChangeLeader, readOnly],
+      createUnitNodeColumns(
+        tree,
+        layer,
+        childLayer,
+        { hidePathColumn, hideParentColumn, canManageChurch, actorScopeNodeId },
+        { onEdit, onDelete, onChangeLeader },
+      ),
+    [
+      tree,
+      layer,
+      childLayer,
+      hidePathColumn,
+      hideParentColumn,
+      onEdit,
+      onDelete,
+      onChangeLeader,
+      canManageChurch,
+      actorScopeNodeId,
+    ],
   )
 
   const table = useReactTable({
@@ -164,9 +182,14 @@ export function StructureUnitNodeTable({
 
 function createUnitNodeColumns(
   tree: StructureTree,
-  _layer: Pick<StructureLayer, 'displayName' | 'standardType'>,
+  layer: Pick<StructureLayer, 'id' | 'displayName' | 'standardType'>,
   childLayer: Pick<StructureLayer, 'displayName' | 'standardType'> | undefined,
-  options: { hidePathColumn: boolean; hideParentColumn: boolean; readOnly?: boolean },
+  options: {
+    hidePathColumn: boolean
+    hideParentColumn: boolean
+    canManageChurch: boolean
+    actorScopeNodeId?: string | null
+  },
   actions: {
     onEdit: (row: StructureUnitNodeRow) => void
     onDelete: (row: StructureUnitNodeRow) => void
@@ -174,7 +197,6 @@ function createUnitNodeColumns(
   },
 ) {
   const helper = createColumnHelper<StructureUnitNodeRow>()
-  const readOnly = options.readOnly ?? false
 
   return [
     helper.accessor('name', {
@@ -189,7 +211,7 @@ function createUnitNodeColumns(
       ),
     }),
     helper.accessor('unitNumber', {
-      header: `${_layer.displayName} number`,
+      header: `${layer.displayName} number`,
       sortingFn: (rowA, rowB) => {
         const a = Number.parseInt(rowA.original.unitNumber, 10)
         const b = Number.parseInt(rowB.original.unitNumber, 10)
@@ -251,21 +273,30 @@ function createUnitNodeColumns(
     helper.display({
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <RosterUnitActionsMenu
-          tree={tree}
-          unitId={row.original.id}
-          unitName={row.original.name}
-          readOnly={readOnly}
-          onChangeLeader={
-            readOnly || !actions.onChangeLeader
-              ? undefined
-              : () => actions.onChangeLeader!(row.original)
-          }
-          onEdit={readOnly ? undefined : () => actions.onEdit(row.original)}
-          onDelete={readOnly ? undefined : () => actions.onDelete(row.original)}
-        />
-      ),
+      cell: ({ row }) => {
+        const policy = unitEditPolicy({
+          canManageChurch: options.canManageChurch,
+          actorScopeNodeId: options.actorScopeNodeId,
+          unitId: row.original.id,
+        })
+        return (
+          <RosterUnitActionsMenu
+            tree={tree}
+            unitId={row.original.id}
+            unitName={row.original.name}
+            editLabel={unitEditMenuLabel(layer.displayName)}
+            onChangeLeader={
+              policy.canChangeLeader && actions.onChangeLeader
+                ? () => actions.onChangeLeader!(row.original)
+                : undefined
+            }
+            onEdit={policy.canRename ? () => actions.onEdit(row.original) : undefined}
+            onDelete={
+              options.canManageChurch ? () => actions.onDelete(row.original) : undefined
+            }
+          />
+        )
+      },
     }),
   ]
 }

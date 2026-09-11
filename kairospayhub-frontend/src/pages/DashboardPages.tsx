@@ -487,7 +487,9 @@ export function RosterPage() {
         busy={busy}
         submit={submit}
         readOnly={readOnly}
+        canManageChurch={canManageChurch(me.role)}
         scopeRootNodeId={rosterScopeRootNodeId(me)}
+        actorScopeNodeId={rosterScopeRootNodeId(me)}
       />
     </div>
   )
@@ -527,6 +529,8 @@ export function RosterUnitPage() {
       readOnly={structureReadOnly}
       membersReadOnly={membersReadOnly}
       scopeRootNodeId={rosterScopeRootNodeId(me)}
+      canManageChurch={canManageChurch(me.role)}
+      actorScopeNodeId={rosterScopeRootNodeId(me)}
     />
   )
 }

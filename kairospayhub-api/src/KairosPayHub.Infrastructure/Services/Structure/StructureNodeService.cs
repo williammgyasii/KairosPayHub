@@ -115,6 +115,7 @@ public class StructureNodeService(
 
     public async Task<StructureNodeDto> UpdateNodeAsync(
         Actor actor,
+        Guid authUserId,
         Guid nodeId,
         string name,
         string? unitNumber,
@@ -123,7 +124,6 @@ public class StructureNodeService(
         bool clearLeader = false,
         CancellationToken ct = default)
     {
-        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
@@ -134,7 +134,28 @@ public class StructureNodeService(
             ?? throw new ForbiddenException("Node not found in your church");
 
         var layer = template.Layers.Single(l => l.Id == node.LayerId);
-        node.Name = name.Trim();
+        var isManager = givingScope.CanManageChurch(actor);
+
+        if (!isManager)
+        {
+            var scopeNodeId = await givingScope.GetActorScopeNodeIdAsync(actor, authUserId, ct);
+            if (scopeNodeId != nodeId)
+                throw new ForbiddenException("You can only rename your own unit");
+
+            if (clearLeader || leaderMemberId is not null || newLeader is not null)
+                throw new ForbiddenException("You cannot change leadership for this unit");
+
+            var trimmedName = name.Trim();
+            await EnsureUniqueNodeNameAsync(churchId, node.LayerId, node.ParentNodeId, trimmedName, node.Id, ct);
+            node.Name = trimmedName;
+            await SaveStructureChangesAsync(churchId, ct);
+            await db.Entry(node).Reference(n => n.Leader).LoadAsync(ct);
+            return ToNodeDto(node);
+        }
+
+        var managerName = name.Trim();
+        await EnsureUniqueNodeNameAsync(churchId, node.LayerId, node.ParentNodeId, managerName, node.Id, ct);
+        node.Name = managerName;
         node.UnitNumber = NormalizeUnitNumber(unitNumber);
 
         if (clearLeader)
@@ -145,6 +166,25 @@ public class StructureNodeService(
 
         await db.Entry(node).Reference(n => n.Leader).LoadAsync(ct);
         return ToNodeDto(node);
+    }
+
+    private async Task EnsureUniqueNodeNameAsync(
+        Guid churchId,
+        Guid layerId,
+        Guid? parentNodeId,
+        string trimmedName,
+        Guid excludeNodeId,
+        CancellationToken ct)
+    {
+        var duplicateName = await db.StructureNodes.AnyAsync(
+            n => n.ChurchId == churchId
+                 && n.LayerId == layerId
+                 && n.ParentNodeId == parentNodeId
+                 && n.Id != excludeNodeId
+                 && n.Name.ToLower() == trimmedName.ToLower(),
+            ct);
+        if (duplicateName)
+            throw new BadRequestException("A unit with this name already exists under the same parent");
     }
 
     public async Task DeleteNodeAsync(Actor actor, Guid nodeId, CancellationToken ct = default)

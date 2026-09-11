@@ -20,7 +20,7 @@ interface RosterUnitActionsMenuProps {
   tree: StructureTree
   unitId: string
   unitName?: string
-  readOnly?: boolean
+  editLabel?: string
   onChangeLeader?: () => void
   onEdit?: () => void
   onDelete?: () => void
@@ -30,13 +30,13 @@ export function RosterUnitActionsMenu({
   tree,
   unitId,
   unitName,
-  readOnly = false,
+  editLabel = 'Edit',
   onChangeLeader,
   onEdit,
   onDelete,
 }: RosterUnitActionsMenuProps) {
   const childLayer = directChildLayer(tree, unitId)
-  const showManageActions = !readOnly && (onChangeLeader || onEdit || onDelete)
+  const showManageActions = Boolean(onChangeLeader || onEdit || onDelete)
 
   return (
     <DropdownMenu>
@@ -85,7 +85,7 @@ export function RosterUnitActionsMenu({
             {onEdit && (
               <DropdownMenuItem className="gap-2" onClick={onEdit}>
                 <Pencil className="size-4" />
-                Edit
+                {editLabel}
               </DropdownMenuItem>
             )}
             {onDelete && (
