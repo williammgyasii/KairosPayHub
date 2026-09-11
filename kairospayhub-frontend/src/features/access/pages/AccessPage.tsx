@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { useDispatch } from 'react-redux'
-import { useApi } from '@/api/core'
-import type { AccessChange, AccessGrid, AccessRow } from '@/api/access'
-import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { Button } from '@/components/ui/button'
+import { useApi } from '@/shared/api'
+import type { AccessChange, AccessGrid, AccessRow } from '@/features/access/api'
+import { DashboardPageHeader } from '@/shared/layout/dashboard-page-header'
+import { Button } from '@/shared/ui/button'
 import { invalidateMeTags } from '@/store/meApi'
-import { groupAccessColumns, orderAccessCells } from '@/lib/access-ability-groups'
-import { formatApiError } from '@/lib/structure-tree'
-import { cn } from '@/lib/utils'
+import { groupAccessColumns, orderAccessCells } from '@/features/access/lib/access-ability-groups'
+import { formatApiError } from '@/shared/lib/structure-tree'
+import { cn } from '@/shared/lib/utils'
 
 export function AccessPage() {
   const api = useApi()

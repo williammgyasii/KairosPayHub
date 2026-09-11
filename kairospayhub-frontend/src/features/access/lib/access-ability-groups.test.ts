@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { AccessAbilityColumn } from '@/api/access'
-import { PRODUCT_ABILITIES } from '@/lib/abilities'
+import type { AccessAbilityColumn } from '@/features/access/api'
+import { PRODUCT_ABILITIES } from '@/shared/lib/abilities'
 import {
   flattenGroupedColumns,
   groupAccessColumns,
   orderAccessCells,
-} from '@/lib/access-ability-groups'
+} from '@/features/access/lib/access-ability-groups'
 
 function col(id: string, label = id): AccessAbilityColumn {
   return { id, label }

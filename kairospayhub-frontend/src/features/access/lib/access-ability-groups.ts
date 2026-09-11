@@ -1,5 +1,5 @@
-import type { AccessAbilityColumn, AccessCell } from '@/api/access'
-import { PRODUCT_ABILITIES } from '@/lib/abilities'
+import type { AccessAbilityColumn, AccessCell } from '@/features/access/api'
+import { PRODUCT_ABILITIES } from '@/shared/lib/abilities'
 
 export type AccessAbilityGroupId = 'units' | 'roster' | 'records' | 'other'
 

@@ -2,18 +2,18 @@ import { describe, expect, it, vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
-import type { AccessGrid } from '@/api/access'
+import type { AccessGrid } from '@/features/access/api'
 import type { Me } from '@/api/auth'
 import { PastorOnlyRoute } from '@/auth/PastorRoute'
-import { PRODUCT_ABILITIES } from '@/lib/abilities'
-import { AccessPage } from '@/pages/AccessPage'
+import { PRODUCT_ABILITIES } from '@/shared/lib/abilities'
+import { AccessPage } from '@/features/access'
 
 const api = vi.hoisted(() => ({
   get: vi.fn(),
   put: vi.fn(),
 }))
 
-vi.mock('@/api/core', () => ({
+vi.mock('@/shared/api', () => ({
   useApi: () => api,
 }))
 
