@@ -26,13 +26,13 @@ describe('memberProfileOverviewSections', () => {
     expect(personal?.fields.find((field) => field.id === 'state')?.value).toBe('Maryland')
   })
 
-  it('hides state and uses residence for a Ghana church', () => {
-    const sections = memberProfileOverviewSections(base, 'GH')
+  it('shows region and home address for a Ghana church', () => {
+    const sections = memberProfileOverviewSections({ ...base, state: 'GAR' }, 'GH')
     const personal = sections.find((section) => section.id === 'personal')
-    expect(personal?.fields.map((field) => field.id)).toEqual(['dob', 'age', 'residence'])
-    expect(personal?.fields.find((field) => field.id === 'residence')?.label).toBe(
-      'Residence / location',
-    )
+    expect(personal?.fields.map((field) => field.id)).toEqual(['dob', 'age', 'state', 'residence'])
+    expect(personal?.fields.find((field) => field.id === 'residence')?.label).toBe('Home address')
+    expect(personal?.fields.find((field) => field.id === 'state')?.label).toBe('Region')
+    expect(personal?.fields.find((field) => field.id === 'state')?.value).toBe('Greater Accra')
   })
 
   it('shows school and workplace separately for student and working', () => {

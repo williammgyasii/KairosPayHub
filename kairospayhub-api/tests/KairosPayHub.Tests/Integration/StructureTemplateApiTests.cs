@@ -1048,7 +1048,7 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Create_fellowship_when_leader_is_not_cell_leader_returns_bad_request()
+    public async Task Create_fellowship_without_cell_leader_flag_creates_fellowship_only()
     {
         var client = PastorClient();
         await OnboardAsync(client);
@@ -1062,6 +1062,7 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
             .GetProperty("layers");
         var pfccLayerId = layers[0].GetProperty("id").GetGuid();
         var fellowshipLayerId = layers[1].GetProperty("id").GetGuid();
+        var cellLayerId = layers[2].GetProperty("id").GetGuid();
 
         var pfccId = (await (await client.PostAsJsonAsync("/api/structure/nodes", new
         {
@@ -1085,9 +1086,14 @@ public class StructureTemplateApiTests(PostgresFixture fx) : IAsyncLifetime
             },
         });
 
-        Assert.Equal(HttpStatusCode.BadRequest, create.StatusCode);
-        var body = await create.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Contains("first cell", body.GetProperty("error").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+
+        await using var db = fx.CreateContext();
+        Assert.Equal(0, await db.StructureNodes.CountAsync(n => n.LayerId == cellLayerId));
+        var leader = await db.ChurchMembers.SingleAsync(m => m.Email == "josh@example.com");
+        var fellowship = await db.StructureNodes.SingleAsync(n => n.Name == "Titans Fellowship");
+        Assert.Equal(fellowship.Id, leader.ParentNodeId);
+        Assert.Equal(leader.Id, fellowship.LeaderMemberId);
     }
 
     [Fact]

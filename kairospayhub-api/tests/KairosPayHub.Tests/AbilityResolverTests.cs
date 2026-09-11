@@ -14,6 +14,7 @@ public class AbilityResolverTests
         Assert.Equal(LeadershipProfileKind.ChurchWide, result.Profile);
         Assert.Contains(ProductAbilities.ManageChurch, result.Abilities);
         Assert.Contains(ProductAbilities.ViewMemberGivings, result.Abilities);
+        Assert.Contains(ProductAbilities.CreateChildUnits, result.Abilities);
         Assert.Contains(result.Rules, r => r.Action == "view" && r.Subject == "MemberGivings");
     }
 
@@ -24,6 +25,7 @@ public class AbilityResolverTests
         Assert.Equal(LeadershipProfileKind.Intermediate, result.Profile);
         Assert.Contains(ProductAbilities.ViewMemberGivings, result.Abilities);
         Assert.Contains(ProductAbilities.ApproveGiving, result.Abilities);
+        Assert.Contains(ProductAbilities.CreateChildUnits, result.Abilities);
         Assert.DoesNotContain(ProductAbilities.CreateCampaign, result.Abilities);
         Assert.DoesNotContain(ProductAbilities.ManageChurch, result.Abilities);
     }
@@ -38,6 +40,7 @@ public class AbilityResolverTests
         Assert.Contains(ProductAbilities.LogGiving, result.Abilities);
         Assert.DoesNotContain(ProductAbilities.ApproveGiving, result.Abilities);
         Assert.DoesNotContain(ProductAbilities.ManageChurch, result.Abilities);
+        Assert.DoesNotContain(ProductAbilities.CreateChildUnits, result.Abilities);
     }
 
     [Fact]
@@ -47,6 +50,42 @@ public class AbilityResolverTests
         Assert.Equal(LeadershipProfileKind.Member, result.Profile);
         Assert.Empty(result.Abilities);
         Assert.Empty(result.Rules);
+    }
+
+    [Fact]
+    public void Overlay_turns_ability_off_for_non_pastor()
+    {
+        var result = _resolver.Resolve(
+            ChurchRole.FellowshipLeader,
+            StructureLayerType.Fellowship,
+            [ProductAbilities.CreateChildUnits]);
+
+        Assert.DoesNotContain(ProductAbilities.CreateChildUnits, result.Abilities);
+        Assert.Contains(ProductAbilities.ManageRoster, result.Abilities);
+    }
+
+    [Fact]
+    public void Pastor_ignores_disabled_overlays()
+    {
+        var result = _resolver.Resolve(
+            ChurchRole.Pastor,
+            null,
+            [ProductAbilities.CreateChildUnits, ProductAbilities.ViewOverallGivings]);
+
+        Assert.Contains(ProductAbilities.CreateChildUnits, result.Abilities);
+        Assert.Contains(ProductAbilities.ViewOverallGivings, result.Abilities);
+    }
+
+    [Fact]
+    public void Admin_profile_overlay_strips_ability()
+    {
+        var result = _resolver.Resolve(
+            ChurchRole.ChurchAdmin,
+            null,
+            [ProductAbilities.ViewOverallGivings]);
+
+        Assert.DoesNotContain(ProductAbilities.ViewOverallGivings, result.Abilities);
+        Assert.Contains(ProductAbilities.ManageChurch, result.Abilities);
     }
 
     [Fact]

@@ -28,7 +28,8 @@ See proposal.md for motivation. Today `AttendanceRollCallSyncService` resolves s
    Existing meeting types: prefer template layer with `StandardType == Cell`; else deepest (highest order index) layer. Document in migration.
 
 3. **Who can submit**  
-   Prefer role assignment / leader membership on the scope node (align with structure-aware abilities). Keep AssignedLeaderAuthUserId as override. Deprecate CellLeader-only checks over this change’s tasks.
+   Prefer role assignment / leader membership on the scope node (align with structure-aware abilities). Keep AssignedLeaderAuthUserId as override. Deprecate CellLeader-only checks over this change’s tasks.  
+   `/me` exposes `canMarkAttendance` (true only when a led node’s layer matches an active meeting type’s `SubmissionLayerId`) plus `layerId` on each roll-call scope. Sidebar Mark attendance and the meeting picker use that — not “any unit leader.”
 
 4. **One-hop approval**
    Parent node of the submission node → leaders assigned to that parent only. Pastors/admins never approve attendance and never see the Approvals nav. If there is no parent leader, the sheet stays pending until a parent-unit leader is assigned (no church-manager override).

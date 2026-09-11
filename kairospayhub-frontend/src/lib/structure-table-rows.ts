@@ -1,5 +1,6 @@
 import type { StructureTree } from '@/api/structure'
 import type { MemberPosition } from '@/api/structure'
+import { isPendingRosterStatus } from '@/lib/member-row-actions'
 import { formatMemberAge } from '@/lib/member-age'
 import {
   getDeepestLayer,
@@ -57,6 +58,8 @@ export type StructureMemberRow = {
   parentNodeId: string
   position: MemberPosition
   responsiveness: number
+  rosterStatus: 'Active' | 'Pending' | string
+  createdAt?: string | null
   structure: StructureSegment[]
 }
 
@@ -103,14 +106,14 @@ export function buildMemberRow(
     parentNodeId: m.parentNodeId,
     position: (m.position as MemberPosition) || 'Member',
     responsiveness: m.responsiveness ?? 3,
+    rosterStatus: m.rosterStatus ?? 'Active',
+    createdAt: m.createdAt ?? null,
     structure,
   }
 }
 
 export function buildMemberRows(tree: StructureTree): StructureMemberRow[] {
-  return tree.members
-    .map((m) => buildMemberRow(tree, m))
-    .sort((a, b) => a.member.localeCompare(b.member))
+  return tree.members.map((m) => buildMemberRow(tree, m))
 }
 
 export function buildUnitNodeRows(
@@ -174,8 +177,12 @@ export function buildUnitNodeRows(
 
       const memberCount =
         deepest?.id === layerId
-          ? tree.members.filter((m) => m.parentNodeId === node.id).length
-          : tree.members.filter((m) => isDescendantOf(tree, node.id, m.parentNodeId)).length
+          ? tree.members.filter((m) => m.parentNodeId === node.id && !isPendingRosterStatus(m.rosterStatus))
+              .length
+          : tree.members.filter(
+              (m) =>
+                isDescendantOf(tree, node.id, m.parentNodeId) && !isPendingRosterStatus(m.rosterStatus),
+            ).length
 
       const childUnitCount = childLayer
         ? nodesAtLayer(tree, childLayer.id).filter((n) => isDescendantOf(tree, node.id, n.id)).length
@@ -223,8 +230,12 @@ export function buildNodeRows(tree: StructureTree, layerId: string): StructureNo
         : tree.churchName
       const memberCount =
         deepest?.id === layerId
-          ? tree.members.filter((m) => m.parentNodeId === node.id).length
-          : tree.members.filter((m) => isDescendantOf(tree, node.id, m.parentNodeId)).length
+          ? tree.members.filter((m) => m.parentNodeId === node.id && !isPendingRosterStatus(m.rosterStatus))
+              .length
+          : tree.members.filter(
+              (m) =>
+                isDescendantOf(tree, node.id, m.parentNodeId) && !isPendingRosterStatus(m.rosterStatus),
+            ).length
       return {
         id: node.id,
         name: formatName(node.name),

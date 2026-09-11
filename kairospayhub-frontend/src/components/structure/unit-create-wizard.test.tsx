@@ -77,20 +77,21 @@ describe('UnitCreateWizard', () => {
     expect(screen.getByRole('heading', { name: 'Add cell' })).toBeTruthy()
     expect(screen.getByText('Name & place')).toBeTruthy()
     expect(screen.getByLabelText('Step 1 of 2')).toBeTruthy()
-    expect(screen.queryByText('Cell leader')).toBeNull()
+    expect(screen.getByTitle('Cell leader')).toBeTruthy()
     expect(screen.queryByText('First cell')).toBeNull()
     expect(screen.queryByText(/which /i)).toBeNull()
   })
 
-  it('includes the first-child step when creating a fellowship above cell', () => {
+  it('creates a fellowship with a leader step and no first cell', () => {
     const fellowship = layer('fel', 0, 'Fellowship', 'Fellowship')
     const cell = layer('cell', 1, 'Cell', 'Cell')
     renderWizard(tree([fellowship, cell]), fellowship)
 
     expect(screen.getByTestId('unit-create-wizard')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Add fellowship' })).toBeTruthy()
-    expect(screen.getByLabelText('Step 1 of 3')).toBeTruthy()
-    expect(screen.getByTitle('First cell')).toBeTruthy()
+    expect(screen.getByLabelText('Step 1 of 2')).toBeTruthy()
+    expect(screen.getByTitle('Fellowship leader')).toBeTruthy()
+    expect(screen.queryByTitle('First cell')).toBeNull()
   })
 
   it('uses the display name when the deepest layer is relabeled', () => {
@@ -105,23 +106,25 @@ describe('UnitCreateWizard', () => {
 
   it('defaults the leader phone dial code to the church country', async () => {
     const user = userEvent.setup()
-    const cell = layer('cell', 0, 'Cell', 'Cell')
-    renderWizard(tree([cell]), cell, undefined, 'US')
+    const fellowship = layer('fel', 0, 'Fellowship', 'Fellowship')
+    const cell = layer('cell', 1, 'Cell', 'Cell')
+    renderWizard(tree([fellowship, cell]), fellowship, undefined, 'US')
 
-    await user.type(screen.getByLabelText(/cell name/i), 'Zion')
+    await user.type(screen.getByLabelText(/fellowship name/i), 'Zion')
     await user.click(screen.getByRole('button', { name: 'Continue' }))
 
     expect(screen.getByLabelText('Country code')).toHaveTextContent('+1')
-    expect(screen.getByText('Cell leader')).toBeTruthy()
+    expect(screen.getByText('Fellowship leader')).toBeTruthy()
     expect(screen.getByLabelText('Step 2 of 2')).toBeTruthy()
   })
 
   it('shows state and home address on the US leader step and blocks continue without state', async () => {
     const user = userEvent.setup()
-    const cell = layer('cell', 0, 'Cell', 'Cell')
-    renderWizard(tree([cell]), cell, undefined, 'US')
+    const fellowship = layer('fel', 0, 'Fellowship', 'Fellowship')
+    const cell = layer('cell', 1, 'Cell', 'Cell')
+    renderWizard(tree([fellowship, cell]), fellowship, undefined, 'US')
 
-    await user.type(screen.getByLabelText(/cell name/i), 'Zion')
+    await user.type(screen.getByLabelText(/fellowship name/i), 'Zion')
     await user.click(screen.getByRole('button', { name: 'Continue' }))
 
     expect(screen.getByLabelText(/home address/i)).toBeTruthy()
@@ -131,19 +134,21 @@ describe('UnitCreateWizard', () => {
     await user.type(screen.getByLabelText(/leader email/i), 'ada@example.com')
     await user.type(screen.getByLabelText(/phone number/i), '2025550100')
 
-    expect(screen.getByRole('button', { name: /create cell/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /create fellowship/i })).toBeDisabled()
   })
 
-  it('keeps residence and hides state on the Ghana leader step', async () => {
+  it('shows home address and a region dropdown on the Ghana leader step', async () => {
     const user = userEvent.setup()
-    const cell = layer('cell', 0, 'Cell', 'Cell')
-    renderWizard(tree([cell]), cell, undefined, 'GH')
+    const fellowship = layer('fel', 0, 'Fellowship', 'Fellowship')
+    const cell = layer('cell', 1, 'Cell', 'Cell')
+    renderWizard(tree([fellowship, cell]), fellowship, undefined, 'GH')
 
-    await user.type(screen.getByLabelText(/cell name/i), 'Zion')
+    await user.type(screen.getByLabelText(/fellowship name/i), 'Zion')
     await user.click(screen.getByRole('button', { name: 'Continue' }))
 
-    expect(screen.getByLabelText(/residence \/ location/i)).toBeTruthy()
-    expect(screen.queryByLabelText(/^state/i)).toBeNull()
+    expect(screen.getByLabelText(/home address/i)).toBeTruthy()
+    expect(screen.getByLabelText(/^region/i)).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'Greater Accra' })).toBeTruthy()
   })
 
   it('scopes the parent when adding a cell under a fellowship', () => {

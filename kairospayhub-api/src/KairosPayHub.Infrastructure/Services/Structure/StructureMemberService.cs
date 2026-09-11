@@ -15,6 +15,7 @@ public class StructureMemberService(
     KairosDbContext db,
     StructureLeaderAccountService leaderAccounts,
     GivingScopeService givingScope,
+    LayerAccessService layerAccess,
     ChurchReadCache readCache)
 {
     public async Task<StructureMemberListResponse> ListMembersAsync(
@@ -27,6 +28,7 @@ public class StructureMemberService(
         string? search,
         Guid? parentNodeId,
         bool includeDescendants,
+        string? rosterStatus,
         CancellationToken ct = default)
     {
         var churchId = RequireStructureChurch(actor);
@@ -89,6 +91,10 @@ public class StructureMemberService(
                 || (m.Email != null && EF.Functions.ILike(m.Email, term)));
         }
 
+        var pendingCount = await query.CountAsync(m => m.RosterStatus == RosterStatus.Pending, ct);
+        if (Enum.TryParse<RosterStatus>(rosterStatus, ignoreCase: true, out var parsedStatus))
+            query = query.Where(m => m.RosterStatus == parsedStatus);
+
         var totalCount = await query.CountAsync(ct);
         var items = await ApplyMemberSort(query, sortBy, sortDir)
             .Skip((page - 1) * pageSize)
@@ -99,7 +105,8 @@ public class StructureMemberService(
             items.Select(ToMemberDto).ToList(),
             totalCount,
             page,
-            pageSize);
+            pageSize,
+            pendingCount);
     }
 
     public async Task<StructureMemberDto> GetMemberAsync(
@@ -152,6 +159,18 @@ public class StructureMemberService(
         var deepestLayer = template.Layers.OrderByDescending(l => l.SortOrder).First();
         if (deepestLayer.StandardType != StructureLayerType.Cell)
             throw new BadRequestException("The deepest org layer must be Cell before adding members");
+
+        if (!givingScope.CanManageChurch(actor))
+        {
+            var scopeId = await givingScope.GetActorScopeNodeIdAsync(actor, authUserId, ct);
+            if (scopeId is Guid sid)
+            {
+                var scopeNode = await db.StructureNodes.AsNoTracking()
+                    .SingleOrDefaultAsync(n => n.Id == sid && n.ChurchId == churchId, ct);
+                if (scopeNode?.LayerId == deepestLayer.Id)
+                    throw new BadRequestException("Share a join link instead of adding a member");
+            }
+        }
 
         var parentNode = await db.StructureNodes.AsNoTracking()
             .SingleOrDefaultAsync(n => n.Id == parentNodeId && n.ChurchId == churchId, ct)
@@ -332,6 +351,9 @@ public class StructureMemberService(
             .SingleOrDefaultAsync(m => m.Id == memberId && m.ChurchId == churchId, ct)
             ?? throw new ForbiddenException("Member not found in your church");
 
+        if (member.AuthUserId == authUserId)
+            throw new BadRequestException("You cannot remove yourself");
+
         await RequireMemberManageAsync(actor, authUserId, member.ParentNodeId, ct);
 
         var hasContributions = await db.Contributions
@@ -365,7 +387,9 @@ public class StructureMemberService(
             member.Position.ToString(),
             member.Responsiveness,
             member.State,
-            member.Workplace);
+            member.Workplace,
+            member.RosterStatus.ToString(),
+            member.CreatedAt);
 
     public static void ApplyMemberProfile(
         Member member,
@@ -414,26 +438,33 @@ public class StructureMemberService(
         return parsed;
     }
 
+    private const int NewMemberWithinDays = 14;
+
     private static IQueryable<Member> ApplyMemberSort(
         IQueryable<Member> query,
         string? sortBy,
         string? sortDir)
     {
         var desc = sortDir?.Equals("desc", StringComparison.OrdinalIgnoreCase) == true;
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-NewMemberWithinDays);
+        var ranked = query
+            .OrderBy(m => m.RosterStatus == RosterStatus.Pending ? 0 : 1)
+            .ThenBy(m => m.RosterStatus == RosterStatus.Active && m.CreatedAt >= cutoff ? 0 : 1);
+
         return (sortBy?.Trim().ToLowerInvariant(), desc) switch
         {
-            ("email", false) => query.OrderBy(m => m.Email).ThenBy(m => m.Name),
-            ("email", true) => query.OrderByDescending(m => m.Email).ThenBy(m => m.Name),
-            ("phone", false) => query.OrderBy(m => m.Phone).ThenBy(m => m.Name),
-            ("phone", true) => query.OrderByDescending(m => m.Phone).ThenBy(m => m.Name),
-            ("age", false) => query.OrderBy(m => m.Age).ThenBy(m => m.Name),
-            ("age", true) => query.OrderByDescending(m => m.Age).ThenBy(m => m.Name),
-            ("position", false) => query.OrderBy(m => m.Position).ThenBy(m => m.Name),
-            ("position", true) => query.OrderByDescending(m => m.Position).ThenBy(m => m.Name),
-            ("createdat", false) => query.OrderBy(m => m.CreatedAt).ThenBy(m => m.Name),
-            ("createdat", true) => query.OrderByDescending(m => m.CreatedAt).ThenBy(m => m.Name),
-            ("name", true) => query.OrderByDescending(m => m.Name),
-            _ => query.OrderBy(m => m.Name),
+            ("email", false) => ranked.ThenBy(m => m.Email).ThenBy(m => m.Name),
+            ("email", true) => ranked.ThenByDescending(m => m.Email).ThenBy(m => m.Name),
+            ("phone", false) => ranked.ThenBy(m => m.Phone).ThenBy(m => m.Name),
+            ("phone", true) => ranked.ThenByDescending(m => m.Phone).ThenBy(m => m.Name),
+            ("age", false) => ranked.ThenBy(m => m.Age).ThenBy(m => m.Name),
+            ("age", true) => ranked.ThenByDescending(m => m.Age).ThenBy(m => m.Name),
+            ("position", false) => ranked.ThenBy(m => m.Position).ThenBy(m => m.Name),
+            ("position", true) => ranked.ThenByDescending(m => m.Position).ThenBy(m => m.Name),
+            ("createdat", false) => ranked.ThenBy(m => m.CreatedAt).ThenBy(m => m.Name),
+            ("createdat", true) => ranked.ThenByDescending(m => m.CreatedAt).ThenBy(m => m.Name),
+            ("name", true) => ranked.ThenByDescending(m => m.Name),
+            _ => ranked.ThenBy(m => m.Name),
         };
     }
 
@@ -504,6 +535,7 @@ public class StructureMemberService(
         Guid parentNodeId,
         CancellationToken ct)
     {
+        await layerAccess.EnsureCanManageRosterAsync(actor, authUserId, ct);
         await givingScope.CanAccessStructureNodeAsync(actor, authUserId, parentNodeId, ct);
     }
 }

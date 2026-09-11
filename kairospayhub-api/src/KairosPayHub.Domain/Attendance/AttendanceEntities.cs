@@ -121,6 +121,8 @@ public class AttendanceScopeSubmission
     public Guid? ReopenedByAuthUserId { get; set; }
     public DateTimeOffset? ReopenedAt { get; set; }
     public DateTimeOffset? LockedAt { get; set; }
+    public string GuestRiskLevel { get; set; } = "clear";
+    public string GuestRiskReasons { get; set; } = "[]";
 }
 
 public class AttendanceEntry

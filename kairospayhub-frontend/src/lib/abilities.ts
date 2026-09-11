@@ -16,6 +16,7 @@ export type AppSubjects =
   | 'SubCampaign'
   | 'OverallGivings'
   | 'Roster'
+  | 'ChildUnit'
   | 'all'
 
 export type AppAbility = MongoAbility<[AppActions, AppSubjects]>
@@ -35,6 +36,7 @@ export const PRODUCT_ABILITIES = {
   createSubCampaign: 'createSubCampaign',
   viewOverallGivings: 'viewOverallGivings',
   manageRoster: 'manageRoster',
+  createChildUnits: 'createChildUnits',
 } as const
 
 export type ProductAbility = (typeof PRODUCT_ABILITIES)[keyof typeof PRODUCT_ABILITIES]
@@ -79,6 +81,9 @@ export function createAbilityFromAbilityIds(abilities: string[] | null | undefin
         break
       case PRODUCT_ABILITIES.manageRoster:
         can('manage', 'Roster')
+        break
+      case PRODUCT_ABILITIES.createChildUnits:
+        can('create', 'ChildUnit')
         break
       default:
         break

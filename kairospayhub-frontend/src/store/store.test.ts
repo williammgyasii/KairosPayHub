@@ -10,6 +10,7 @@ import '@/store/attendanceApi'
 describe('RTK Query baseApi injection', () => {
   it('registers core read endpoints on the shared api slice', () => {
     expect(baseApi.endpoints.getMe).toBeDefined()
+    expect(baseApi.endpoints.getTablePreferences).toBeDefined()
     expect(baseApi.endpoints.getStructureTree).toBeDefined()
     expect(baseApi.endpoints.getGivingDashboard).toBeDefined()
     expect(baseApi.endpoints.listChildGivingPrograms).toBeDefined()

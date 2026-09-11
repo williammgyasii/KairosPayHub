@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using KairosPayHub.Api.Authorization;
+using KairosPayHub.Api.Domain.Attendance;
+using KairosPayHub.Api.Domain.Giving;
 using KairosPayHub.Api.Domain.Structure;
 using Microsoft.EntityFrameworkCore;
 
@@ -95,5 +97,63 @@ public class AbilityMeApiTests : IAsyncLifetime
         Assert.Contains(ProductAbilities.ManageRoster, abilities);
         Assert.DoesNotContain(ProductAbilities.ManageChurch, abilities);
         Assert.NotNull(me.GetProperty("scopeNodeId").GetString());
+    }
+
+    [Fact]
+    public async Task Fellowship_leader_cannot_mark_when_submission_starts_at_cell()
+    {
+        var fellowshipAuthId = Guid.NewGuid();
+        var cellAuthId = Guid.NewGuid();
+        Guid cellLayerId = default;
+        Guid fellowshipLayerId = default;
+
+        await using (var db = _fx.CreateContext())
+        {
+            var church = StructureSeed.Church("Mark Attendance Church");
+            var template = StructureSeed.Template(
+                church,
+                (StructureLayerType.Fellowship, "Fellowship"),
+                (StructureLayerType.Cell, "Cell"));
+            var fellowshipLayer = template.Layers.OrderBy(l => l.SortOrder).First();
+            var cellLayer = template.Layers.OrderBy(l => l.SortOrder).Last();
+            fellowshipLayerId = fellowshipLayer.Id;
+            cellLayerId = cellLayer.Id;
+            var fellowship = StructureSeed.Node(church, fellowshipLayer, "Titans");
+            var cell = StructureSeed.Node(church, cellLayer, "Titans Cell", fellowship);
+            db.StructureChurches.Add(church);
+            db.StructureTemplates.Add(template);
+            db.StructureNodes.AddRange(fellowship, cell);
+            db.RoleAssignments.Add(StructureSeed.FellowshipLeaderRole(church, fellowshipAuthId, fellowship));
+            db.RoleAssignments.Add(StructureSeed.CellLeaderRole(church, cellAuthId, cell));
+            db.AttendanceMeetingTypes.Add(new AttendanceMeetingType
+            {
+                ChurchId = church.Id,
+                Title = "Sunday Service",
+                RecurrenceKind = AttendanceRecurrenceKind.Weekly,
+                DayOfWeek = DayOfWeek.Sunday,
+                ScopeKind = ProgramScopeKind.ChurchWide,
+                SubmissionLayerId = cellLayer.Id,
+                OpensTimeUtc = new TimeOnly(14, 0),
+                DeadlineTimeUtc = new TimeOnly(0, 0),
+                IsActive = true,
+                CreatedByAuthUserId = Guid.NewGuid(),
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var fellowshipMe = await AuthedClient(fellowshipAuthId, "jane.fellow@example.com", "Jane")
+            .GetFromJsonAsync<JsonElement>("/api/me");
+        Assert.True(fellowshipMe.GetProperty("onboarded").GetBoolean());
+        Assert.Equal("FellowshipLeader", fellowshipMe.GetProperty("role").GetString());
+        Assert.False(fellowshipMe.GetProperty("canMarkAttendance").GetBoolean());
+        var fellowshipScope = fellowshipMe.GetProperty("rollCallScopes")[0];
+        Assert.Equal(fellowshipLayerId, fellowshipScope.GetProperty("layerId").GetGuid());
+
+        var cellMe = await AuthedClient(cellAuthId, "bob.cell@example.com", "Bob")
+            .GetFromJsonAsync<JsonElement>("/api/me");
+        Assert.True(cellMe.GetProperty("canMarkAttendance").GetBoolean());
+        var cellScope = cellMe.GetProperty("rollCallScopes")[0];
+        Assert.Equal(cellLayerId, cellScope.GetProperty("layerId").GetGuid());
     }
 }

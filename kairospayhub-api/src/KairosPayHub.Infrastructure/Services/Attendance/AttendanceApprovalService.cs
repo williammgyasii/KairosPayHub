@@ -84,7 +84,9 @@ public class AttendanceApprovalService(
                 submission.EnteredByRole?.ToString(),
                 counts.Present,
                 counts.Absent,
-                counts.Total));
+                counts.Total,
+                submission.GuestRiskLevel,
+                GuestRiskService.ParseReasons(submission.GuestRiskReasons)));
         }
 
         return result;

@@ -65,6 +65,7 @@ describe('createUnitPolicy — Church → Cell', () => {
     expect(policy.parentOptions).toEqual([])
     expect(policy.defaultParentId).toBeNull()
     expect(policy.includeFirstChildStep).toBe(false)
+    expect(policy.includeLeaderStep).toBe(true)
   })
 
   it('uses the layer display name in labels, not the standard type', () => {
@@ -75,24 +76,26 @@ describe('createUnitPolicy — Church → Cell', () => {
     expect(policy.labels.title).toBe('Add home group')
     expect(policy.labels.submitLabel).toBe('Create home group')
     expect(policy.includeFirstChildStep).toBe(false)
+    expect(policy.includeLeaderStep).toBe(true)
   })
 })
 
 describe('createUnitPolicy — Fellowship → Cell', () => {
   const layers = [fellowshipCell.fellowship, fellowshipCell.cell]
 
-  it('includes the first-child step when creating a fellowship', () => {
+  it('creates a fellowship with a leader and no bundled cell', () => {
     const policy = createUnitPolicy(tree(layers), fellowshipCell.fellowship)
 
     expect(policy.canAdd).toBe(true)
     expect(policy.parentRequired).toBe(false)
-    expect(policy.includeFirstChildStep).toBe(true)
+    expect(policy.includeFirstChildStep).toBe(false)
+    expect(policy.includeLeaderStep).toBe(true)
     expect(policy.labels.layerName).toBe('Fellowship')
     expect(policy.labels.deepestLayerName).toBe('Cell')
-    expect(policy.labels.firstChildStepLabel).toBe('First cell')
+    expect(policy.labels.firstChildStepLabel).toBeNull()
   })
 
-  it('requires a parent and skips first-child when creating a cell', () => {
+  it('requires a parent and a leader when creating a cell', () => {
     const withFellowship = tree(layers, [
       node('f1', 'fel', null, 'Titans Fellowship'),
     ])
@@ -103,6 +106,7 @@ describe('createUnitPolicy — Fellowship → Cell', () => {
     expect(policy.parentOptions).toEqual([{ id: 'f1', label: 'Titans Fellowship' }])
     expect(policy.defaultParentId).toBe('f1')
     expect(policy.includeFirstChildStep).toBe(false)
+    expect(policy.includeLeaderStep).toBe(true)
   })
 
   it('blocks add when the parent layer is empty and names that layer', () => {
@@ -134,12 +138,13 @@ describe('createUnitPolicy — PFCC → Fellowship → Cell', () => {
     pfccFellowshipCell.cell,
   ]
 
-  it('treats PFCC as a mid-layer create with a first-child step', () => {
+  it('treats PFCC as a mid-layer create with a leader and no bundled child', () => {
     const policy = createUnitPolicy(tree(layers), pfccFellowshipCell.pfcc)
 
     expect(policy.canAdd).toBe(true)
     expect(policy.parentRequired).toBe(false)
-    expect(policy.includeFirstChildStep).toBe(true)
+    expect(policy.includeFirstChildStep).toBe(false)
+    expect(policy.includeLeaderStep).toBe(true)
     expect(policy.labels.deepestLayerName).toBe('Cell')
   })
 
@@ -150,7 +155,8 @@ describe('createUnitPolicy — PFCC → Fellowship → Cell', () => {
     expect(policy.canAdd).toBe(true)
     expect(policy.parentRequired).toBe(true)
     expect(policy.parentOptions).toEqual([{ id: 'p1', label: 'North PFCC' }])
-    expect(policy.includeFirstChildStep).toBe(true)
+    expect(policy.includeFirstChildStep).toBe(false)
+    expect(policy.includeLeaderStep).toBe(true)
     expect(policy.labels.parentLayerName).toBe('PFCC')
   })
 
@@ -159,5 +165,45 @@ describe('createUnitPolicy — PFCC → Fellowship → Cell', () => {
 
     expect(policy.canAdd).toBe(false)
     expect(policy.blockedReason).toMatch(/pfcc/i)
+  })
+})
+
+describe('createUnitPolicy — actor access', () => {
+  const layers = [fellowshipCell.fellowship, fellowshipCell.cell]
+  const scoped = tree(layers, [node('f1', 'fel', null, 'Titans Fellowship')])
+
+  it('lets a mid-layer leader add the immediate child layer', () => {
+    const policy = createUnitPolicy(scoped, fellowshipCell.cell, 'f1', {
+      hasCreateChildUnits: true,
+      churchWide: false,
+      actorScopeNodeId: 'f1',
+    })
+    expect(policy.canAdd).toBe(true)
+  })
+
+  it('hides add on the leader’s own layer', () => {
+    const policy = createUnitPolicy(scoped, fellowshipCell.fellowship, 'f1', {
+      hasCreateChildUnits: true,
+      churchWide: false,
+      actorScopeNodeId: 'f1',
+    })
+    expect(policy.canAdd).toBe(false)
+  })
+
+  it('hides add when create-child-units is off', () => {
+    const policy = createUnitPolicy(scoped, fellowshipCell.cell, 'f1', {
+      hasCreateChildUnits: false,
+      churchWide: false,
+      actorScopeNodeId: 'f1',
+    })
+    expect(policy.canAdd).toBe(false)
+  })
+
+  it('lets a church-wide actor add any layer that has a parent', () => {
+    const policy = createUnitPolicy(scoped, fellowshipCell.cell, null, {
+      hasCreateChildUnits: true,
+      churchWide: true,
+    })
+    expect(policy.canAdd).toBe(true)
   })
 })

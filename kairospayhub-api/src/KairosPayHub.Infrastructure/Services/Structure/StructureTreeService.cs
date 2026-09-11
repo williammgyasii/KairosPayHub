@@ -60,7 +60,8 @@ public class StructureTreeService(
             }
             else
             {
-                nodeEntities = nodeEntities.Where(n => subtreeIds.Contains(n.Id)).ToList();
+                var labelIds = LabelNodeIds(nodeEntities, subtreeIds);
+                nodeEntities = nodeEntities.Where(n => labelIds.Contains(n.Id)).ToList();
             }
         }
 
@@ -69,7 +70,8 @@ public class StructureTreeService(
         {
             var members = await db.ChurchMembers.AsNoTracking()
                 .Where(m => m.ChurchId == churchId)
-                .OrderBy(m => m.Name)
+                .OrderByDescending(m => m.RosterStatus)
+                .ThenBy(m => m.Name)
                 .ToListAsync(ct);
 
             if (!givingScope.CanManageChurch(actor))
@@ -96,6 +98,27 @@ public class StructureTreeService(
             memberDtos);
     }
 
+
+    /// <summary>Subtree plus ancestor nodes for labels. Does not add sibling units.</summary>
+    private static HashSet<Guid> LabelNodeIds(
+        IReadOnlyList<StructureNode> nodes,
+        HashSet<Guid> subtreeIds)
+    {
+        var byId = nodes.ToDictionary(n => n.Id);
+        var ids = new HashSet<Guid>(subtreeIds);
+        foreach (var id in subtreeIds)
+        {
+            var current = byId.GetValueOrDefault(id);
+            while (current?.ParentNodeId is Guid parentId)
+            {
+                if (!ids.Add(parentId))
+                    break;
+                current = byId.GetValueOrDefault(parentId);
+            }
+        }
+
+        return ids;
+    }
 
     private static Guid RequireStructureChurch(Actor actor)
     {

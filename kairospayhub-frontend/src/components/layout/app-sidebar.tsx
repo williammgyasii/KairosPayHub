@@ -34,6 +34,7 @@ import {
   isScopedLeader,
   type Me,
 } from '@/api/auth'
+import { shouldShowAccessNav } from '@/lib/sidebar-nav'
 import { canAccessEvents } from '@/lib/calendar-events-ui'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -177,6 +178,7 @@ const NAV: NavEntry[] = [
     children: ROSTER_CHILDREN,
   },
   GIVINGS_NAV_GROUP,
+  { kind: 'item', to: 'access', label: 'Access', icon: ShieldCheck },
   { kind: 'item', to: 'settings', label: 'Settings', icon: Settings2 },
 ]
 
@@ -207,8 +209,15 @@ const SCOPED_LEADER_NAV: NavEntry[] = [
   GIVINGS_NAV_GROUP,
 ]
 
+function withoutAccessNav(entries: NavEntry[]): NavEntry[] {
+  return entries.filter((entry) => entry.kind !== 'item' || entry.to !== 'access')
+}
+
 function navForRole(me: Me & { onboarded: true }): NavEntry[] {
-  if (canManageChurch(me.role)) return navWithAttendance(NAV, me)
+  if (canManageChurch(me.role)) {
+    const entries = navWithAttendance(NAV, me)
+    return shouldShowAccessNav(me.role) ? entries : withoutAccessNav(entries)
+  }
   if (isScopedLeader(me.role)) return navWithAttendance(SCOPED_LEADER_NAV, me)
   if (isCellLeader(me.role)) return navWithAttendance(CELL_LEADER_NAV, me)
   return navWithAttendance(LEADER_NAV, me)

@@ -14,6 +14,7 @@ public enum NotificationKind
     CalendarEventReminder,
     CalendarBirthdayReminder,
     GivingCampaignOpened,
+    MeetingTypeCreated,
 }
 
 public class Notification

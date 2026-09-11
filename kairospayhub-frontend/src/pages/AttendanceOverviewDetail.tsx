@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { SortingState } from '@tanstack/react-table'
 import { Link, useNavigate, useParams, useOutletContext } from 'react-router-dom'
-import { CalendarDays } from 'lucide-react'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import {
@@ -9,7 +9,6 @@ import {
   useListMeetingTypesQuery,
   useListOccurrencesQuery,
 } from '@/store/attendanceApi'
-import type { AttendanceOccurrenceRollupQuery } from '@/api/attendance'
 import { isScopedLeader } from '@/api/auth/me'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -27,26 +26,17 @@ import {
   type MetricsDetailTabId,
   type WhoShowedUpColumnId,
 } from '@/lib/attendance-ui'
+import { attendanceSortByFromColumn } from '@/lib/attendance-all-table'
+import { TABLE_PREFERENCE_KEYS } from '@/lib/table-preferences'
+import { usePersistedColumnVisibility } from '@/lib/use-persisted-column-visibility'
 import {
   filterUnitRows,
-  formatServiceDate,
   OverviewMetrics,
 } from '@/components/attendance/attendance-overview-parts'
 import { AttendanceOverviewDetailTabs } from '@/components/attendance/attendance-overview-detail-tabs'
 
 const selectClassName =
   'flex h-9 min-w-[10rem] rounded-md border border-input bg-background px-3 text-sm shadow-sm'
-
-type SortColumn = NonNullable<AttendanceOccurrenceRollupQuery['sortBy']>
-
-const SORT_COLUMNS: { id: SortColumn; columnId: WhoShowedUpColumnId; label: string }[] = [
-  { id: 'name', columnId: 'name', label: 'Name' },
-  { id: 'cell', columnId: 'unit', label: 'Unit' },
-  { id: 'parent', columnId: 'parentUnit', label: 'Parent unit' },
-  { id: 'type', columnId: 'type', label: 'Type' },
-  { id: 'phone', columnId: 'phone', label: 'Phone' },
-  { id: 'invitedBy', columnId: 'invitedBy', label: 'Invited by' },
-]
 
 export function AttendanceOverviewDetail() {
   const { me } = useOutletContext<DashboardOutletContext>()
@@ -62,14 +52,15 @@ export function AttendanceOverviewDetail() {
   const [unitSearch, setUnitSearch] = useState('')
   const [unitStatusFilter, setUnitStatusFilter] = useState('')
   const [detailTab, setDetailTab] = useState<MetricsDetailTabId>('who')
-  const [columnVisibility, setColumnVisibility] = useState(DEFAULT_WHO_SHOWED_UP_COLUMN_VISIBILITY)
+  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
+    TABLE_PREFERENCE_KEYS.attendanceWho,
+    DEFAULT_WHO_SHOWED_UP_COLUMN_VISIBILITY,
+    { alwaysOn: ['name'] },
+  )
   const [byUnitColumnVisibility, setByUnitColumnVisibility] = useState(
     DEFAULT_BY_UNIT_COLUMN_VISIBILITY,
   )
-  const [sorting, setSorting] = useState<{ id: SortColumn; desc: boolean }>({
-    id: 'name',
-    desc: false,
-  })
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }])
 
   const selectedTypeId = routeTypeId ?? ''
   const timeZoneId = me.onboarded ? me.timeZoneId : null
@@ -84,17 +75,18 @@ export function AttendanceOverviewDetail() {
     error: occurrencesError,
   } = useListOccurrencesQuery(selectedTypeId, { skip: !selectedTypeId })
 
+  const activeSort = sorting[0]
   const rollupQuery = useMemo(
     () => ({
       page,
       pageSize,
-      sortBy: sorting.id,
-      sortDir: sorting.desc ? ('desc' as const) : ('asc' as const),
+      sortBy: attendanceSortByFromColumn(activeSort?.id ?? 'name'),
+      sortDir: activeSort?.desc ? ('desc' as const) : ('asc' as const),
       search: debouncedSearch || undefined,
       personKind: personKind || undefined,
       cell: cellFilter || undefined,
     }),
-    [page, pageSize, sorting.id, sorting.desc, debouncedSearch, personKind, cellFilter],
+    [page, pageSize, activeSort?.id, activeSort?.desc, debouncedSearch, personKind, cellFilter],
   )
 
   const {
@@ -119,7 +111,7 @@ export function AttendanceOverviewDetail() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, personKind, cellFilter, sorting.id, sorting.desc, selectedOccurrenceId])
+  }, [debouncedSearch, personKind, cellFilter, activeSort?.id, activeSort?.desc, selectedOccurrenceId])
 
   const selectedMeetingType = meetingTypes.find((type) => type.id === selectedTypeId)
   const selectableOccurrenceRows = useMemo(
@@ -142,7 +134,6 @@ export function AttendanceOverviewDetail() {
     setSelectedOccurrenceId(nearest?.id ?? selectableOccurrenceRows[0]!.id)
   }, [selectableOccurrenceRows, selectedOccurrenceId, timeZoneId])
 
-  const selectedOccurrence = selectableOccurrenceRows.find((row) => row.id === selectedOccurrenceId)
   const pendingCount = rollup?.pendingCellCount ?? 0
   const unitNoun = selectedMeetingType?.submissionLayerName?.trim() || 'Unit'
 
@@ -193,17 +184,12 @@ export function AttendanceOverviewDetail() {
       ? `${rollup.pendingCellCount} roll call(s) are still in the approval queue. Approve submitted roll calls or wait for units to submit.`
       : 'No approved attendance for this service yet. Totals appear after unit leaders mark attendance and parent leaders approve.'
 
-  function toggleSort(column: SortColumn) {
-    setSorting((current) =>
-      current.id === column
-        ? { id: column, desc: !current.desc }
-        : { id: column, desc: false },
-    )
-  }
-
   function toggleColumn(columnId: WhoShowedUpColumnId) {
     if (columnId === 'name') return
-    setColumnVisibility((current) => ({ ...current, [columnId]: !current[columnId] }))
+    setColumnVisibility({
+      ...columnVisibility,
+      [columnId]: !columnVisibility[columnId],
+    })
   }
 
   function toggleByUnitColumn(columnId: ByUnitColumnId) {
@@ -222,21 +208,16 @@ export function AttendanceOverviewDetail() {
     return layer?.trim() || unitNoun
   }, [occurrenceDetail?.scopeSubmissions, unitNoun])
 
-  const visibleSortColumns = useMemo(
-    () => SORT_COLUMNS.filter((column) => columnVisibility[column.columnId]),
-    [columnVisibility],
-  )
-
   const detailTabs = useMemo(
     () => [
       {
         id: 'who',
-        label: 'Who showed up',
+        label: 'All attendance',
         count: rollup?.totalCount ?? 0,
       },
       {
         id: 'by-unit',
-        label: 'By unit',
+        label: 'Attendance by units',
         count: occurrenceDetail?.scopeSubmissions.length ?? 0,
       },
     ],
@@ -296,20 +277,6 @@ export function AttendanceOverviewDetail() {
           <OverviewMetrics
             rollup={rollup}
             pendingCount={pendingCount}
-            leading={
-              selectedMeetingType && selectedOccurrence ? (
-                <div className="flex items-center gap-2 text-sm">
-                  <CalendarDays className="size-4 shrink-0 text-primary" />
-                  <span>
-                    <span className="font-medium">{selectedMeetingType.title}</span>
-                    {' · '}
-                    <span className="font-medium">
-                      {formatServiceDate(selectedOccurrence.meetingDate)}
-                    </span>
-                  </span>
-                </div>
-              ) : undefined
-            }
             action={
               pendingCount > 0 && isScopedLeader(me.role) ? (
                 provisionalTooltip ? (
@@ -343,15 +310,15 @@ export function AttendanceOverviewDetail() {
             setPersonKind={setPersonKind}
             cellFilter={cellFilter}
             setCellFilter={setCellFilter}
-            columnVisibility={columnVisibility}
+            columnVisibility={columnVisibility as Record<WhoShowedUpColumnId, boolean>}
+            onColumnVisibilityChange={setColumnVisibility}
             toggleColumn={toggleColumn}
             parentColumnLabel={parentColumnLabel}
             unitLayerLabel={unitLayerLabel}
             loadingOccurrences={loadingOccurrences}
             loadingRollup={loadingRollup}
-            visibleSortColumns={visibleSortColumns}
             sorting={sorting}
-            toggleSort={toggleSort}
+            onSortingChange={setSorting}
             setPage={setPage}
             setPageSize={setPageSize}
             emptyTableMessage={emptyTableMessage}

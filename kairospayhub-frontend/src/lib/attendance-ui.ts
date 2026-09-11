@@ -391,16 +391,6 @@ export function formatOccurrenceLabel(occurrence: AttendanceOccurrenceSummary) {
   return `${dateLabel} · ${occurrence.status}`
 }
 
-/** Compact metrics strip — Present, Members, First-timers, Pending only. */
-export const METRICS_SUMMARY_TILE_IDS = [
-  'present',
-  'members',
-  'firstTimers',
-  'pending',
-] as const
-
-export type MetricsSummaryTileId = (typeof METRICS_SUMMARY_TILE_IDS)[number]
-
 export type MetricsDetailTabId = 'who' | 'by-unit' | 'yet-to-submit'
 
 export type WhoShowedUpColumnId =

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { StructureLayer, StructureTree } from '@/api/structure'
+import type { StructureLayer, StructureMember, StructureTree } from '@/api/structure'
 import {
+  filterTreeToSubtree,
   formatCellName,
   formatFellowshipName,
   isRosterLayerUnlocked,
   isUnitChildLayerUnlocked,
   layerParentOptions,
+  nodeById,
   rosterLayerLockReason,
 } from '@/lib/structure-tree'
 
@@ -109,6 +111,55 @@ describe('formatFellowshipName', () => {
   it('keeps names that already end with fellowship', () => {
     expect(formatFellowshipName('titans fellowship')).toBe('Titans Fellowship')
     expect(formatFellowshipName('Titans Fellowship')).toBe('Titans Fellowship')
+  })
+})
+
+function member(id: string, parentNodeId: string, name: string): StructureMember {
+  return {
+    id,
+    parentNodeId,
+    name,
+    email: null,
+    phone: null,
+    age: null,
+    dateOfBirth: null,
+    residence: null,
+    state: null,
+    occupationStatus: null,
+    schoolOrWorkplace: null,
+    workplace: null,
+    position: 'Member',
+    responsiveness: 0,
+  }
+}
+
+describe('filterTreeToSubtree', () => {
+  const fellowship = layer('fel', 0, 'Fellowship')
+  const cell = layer('cell', 1, 'Cell')
+  const fullTree: StructureTree = {
+    churchId: 'church-1',
+    churchName: 'Hilltop',
+    template: { id: 'tpl-1', name: 'Test', layers: [fellowship, cell] },
+    nodes: [
+      { id: 'f1', layerId: 'fel', parentNodeId: null, name: 'Titans Fellowship', unitNumber: '1' },
+      { id: 'f2', layerId: 'fel', parentNodeId: null, name: 'Other Fellowship', unitNumber: '2' },
+      { id: 'c1', layerId: 'cell', parentNodeId: 'f1', name: 'Smoke Cell Alpha', unitNumber: '1' },
+      { id: 'c2', layerId: 'cell', parentNodeId: 'f2', name: 'Other Cell', unitNumber: '1' },
+    ],
+    members: [
+      member('fl', 'f1', 'Fellowship Leader'),
+      member('cl', 'c1', 'Cell Leader'),
+    ],
+  }
+
+  it('keeps ancestor nodes for labels without exposing sibling units or parent members', () => {
+    const scoped = filterTreeToSubtree(fullTree, 'c1')
+
+    expect(nodeById(scoped, 'c1')?.name).toBe('Smoke Cell Alpha')
+    expect(nodeById(scoped, 'f1')?.name).toBe('Titans Fellowship')
+    expect(nodeById(scoped, 'f2')).toBeUndefined()
+    expect(nodeById(scoped, 'c2')).toBeUndefined()
+    expect(scoped.members.map((row) => row.id)).toEqual(['cl'])
   })
 })
 

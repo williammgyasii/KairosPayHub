@@ -26,6 +26,15 @@ When the next future occurrence is locked, Mark attendance SHALL surface that up
 - **THEN** the UI indicates the upcoming locked service (date + short reason)
 - **AND** the leader can still select today’s (or past) date in step 1
 
+### Requirement: Adaptive step-2 toolbar
+Step 2 SHALL use one toolbar as the sheet chrome: back, meeting title, approval status, unit and date, live count chips, and Save draft / Submit. It SHALL NOT repeat the meeting/date/unit line or a gray run-on count sentence above the grid. Count chips SHALL use the same present / absent / unmarked colors as the member grid. The unmarked (“Left”) chip SHALL hide when every member is marked. The first-timers chip SHALL hide when the count is 0.
+
+#### Scenario: Counts update as the leader marks
+- **WHEN** the leader is on the roll-call sheet
+- **THEN** they see Present, Absent, and Left chips with live counts
+- **AND** Left disappears after every member is marked
+- **AND** First timers appears only when at least one invitee is a first timer
+
 ### Requirement: Compact save and submit actions
 Step 2 SHALL offer Save draft and Submit for approval as compact, lightly rounded buttons with icons. Busy work SHALL show spinners on those buttons (or Add invitee), not a full-page blocking loading modal for save/submit.
 

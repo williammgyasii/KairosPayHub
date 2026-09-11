@@ -33,6 +33,13 @@ An actor assigned as leader of a structure node on the meeting type’s submissi
 - **THEN** they MAY submit roll call for Cell A’s occurrence sheet
 - **AND** they SHALL NOT submit for Cell B unless also assigned there
 
+#### Scenario: Fellowship leader does not mark a cell-start meeting
+- **WHEN** submission start is the Cell layer
+- **AND** the actor only leads a Fellowship (not a Cell)
+- **THEN** they SHALL NOT see Attendance → Mark attendance
+- **AND** Sunday Service (or that meeting type) SHALL NOT appear as a meeting they can mark
+- **AND** they MAY still see Attendance → Approvals
+
 #### Scenario: Pastor without unit leadership does not submit
 - **WHEN** a church manager (pastor/admin) has no roll-call scope assignment on a submission-layer unit
 - **THEN** they SHALL NOT see Attendance → Mark attendance as a submitter surface

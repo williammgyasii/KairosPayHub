@@ -12,7 +12,10 @@ public sealed record AbilityResolution(
 /// <summary>Resolves product abilities from role + optional structure layer kind.</summary>
 public class AbilityResolver
 {
-    public AbilityResolution Resolve(ChurchRole? role, StructureLayerType? layerKind = null)
+    public AbilityResolution Resolve(
+        ChurchRole? role,
+        StructureLayerType? layerKind = null,
+        IReadOnlyCollection<string>? disabledAbilities = null)
     {
         if (role is null)
             return Empty();
@@ -21,6 +24,13 @@ public class AbilityResolver
         var abilities = LayerLeadershipProfiles.FinalizeForRole(
             role.Value,
             LayerLeadershipProfiles.AbilitiesFor(profile));
+        if (role.Value != ChurchRole.Pastor && disabledAbilities is { Count: > 0 })
+        {
+            abilities = abilities
+                .Where(a => !disabledAbilities.Contains(a, StringComparer.Ordinal))
+                .ToList();
+        }
+
         var rules = PackRules(abilities);
         return new AbilityResolution(abilities, rules, profile);
     }
@@ -41,6 +51,7 @@ public class AbilityResolver
                 ProductAbilities.CreateSubCampaign => [new("create", "SubCampaign")],
                 ProductAbilities.ViewOverallGivings => [new("view", "OverallGivings")],
                 ProductAbilities.ManageRoster => [new("manage", "Roster")],
+                ProductAbilities.CreateChildUnits => [new("create", "ChildUnit")],
                 _ => Array.Empty<AbilityRuleDto>(),
             });
         }

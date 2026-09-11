@@ -35,9 +35,7 @@ import {
   formatUnitName,
   memberBelongsToUnit,
   nextUnitNumberForParent,
-  nodesUnderUnitAtLayer,
   resolveLayerParentId,
-  resolveNodeLeader,
 } from '@/lib/structure-tree'
 import { cn } from '@/lib/utils'
 
@@ -83,8 +81,6 @@ export function UnitCreateWizard({
   const [leaderProfile, setLeaderProfile] = useState<MemberProfileFormValues>(() =>
     memberProfileInitialValues({ countryCode: churchCountryCode }),
   )
-  const [firstChildName, setFirstChildName] = useState('')
-  const [leaderLeadsFirstChild, setLeaderLeadsFirstChild] = useState(true)
   const [stepError, setStepError] = useState<string | null>(null)
 
   const resolvedParentId = useMemo(
@@ -102,25 +98,6 @@ export function UnitCreateWizard({
     [name, layer.displayName],
   )
 
-  const defaultFirstChildName = unitDisplayName
-    ? `${unitDisplayName} ${policy.labels.deepestLayerName}`
-    : ''
-
-  const parentLeader = useMemo(() => {
-    if (!resolvedParentId) return { leaderMemberId: '', leaderName: '' }
-    return resolveNodeLeader(tree, resolvedParentId)
-  }, [tree, resolvedParentId])
-
-  const isFirstUnitUnderParent = useMemo(() => {
-    if (!resolvedParentId) return false
-    return nodesUnderUnitAtLayer(tree, resolvedParentId, layer.id).length === 0
-  }, [tree, resolvedParentId, layer.id])
-
-  const assignParentLeaderOnly =
-    !policy.includeFirstChildStep &&
-    isFirstUnitUnderParent &&
-    Boolean(parentLeader.leaderMemberId)
-
   const memberOptions = useMemo(() => {
     const rows = buildMemberRows(tree).filter((member) =>
       scopeUnitId ? memberBelongsToUnit(tree, scopeUnitId, member.parentNodeId) : true,
@@ -132,49 +109,27 @@ export function UnitCreateWizard({
     }))
   }, [tree, scopeUnitId])
 
-  const pickableMemberOptions = useMemo(() => {
-    if (!parentLeader.leaderMemberId) return memberOptions
-    return memberOptions.filter((member) => member.id !== parentLeader.leaderMemberId)
-  }, [memberOptions, parentLeader.leaderMemberId])
-
-  const pickMemberLocked = !assignParentLeaderOnly && pickableMemberOptions.length === 0
-  const usesExistingLeaderPicker = !policy.includeFirstChildStep
+  const pickMemberLocked = memberOptions.length === 0
 
   useEffect(() => {
-    if (!usesExistingLeaderPicker) {
+    if (!policy.includeLeaderStep) {
       setLeaderMode('new')
       setLeaderMemberId('')
       return
     }
-    if (assignParentLeaderOnly) {
-      setLeaderMode('existing')
-      setLeaderMemberId(parentLeader.leaderMemberId)
-      return
-    }
-    if (pickableMemberOptions.length > 0) {
-      setLeaderMode('existing')
-      setLeaderMemberId((current) =>
-        pickableMemberOptions.some((member) => member.id === current)
-          ? current
-          : pickableMemberOptions[0].id,
-      )
-      return
-    }
     setLeaderMode('new')
-    setLeaderMemberId('')
-  }, [
-    usesExistingLeaderPicker,
-    assignParentLeaderOnly,
-    parentLeader.leaderMemberId,
-    pickableMemberOptions,
-  ])
+    if (memberOptions.length > 0) {
+      setLeaderMemberId((current) =>
+        memberOptions.some((member) => member.id === current) ? current : memberOptions[0].id,
+      )
+    } else {
+      setLeaderMemberId('')
+    }
+  }, [policy.includeLeaderStep, memberOptions])
 
   const steps = [
     'Name & place',
-    `${policy.labels.layerName} leader`,
-    ...(policy.includeFirstChildStep && policy.labels.firstChildStepLabel
-      ? [policy.labels.firstChildStepLabel]
-      : []),
+    ...(policy.includeLeaderStep ? [`${policy.labels.layerName} leader`] : []),
   ]
   const selectedParent = policy.parentOptions.find((option) => option.id === resolvedParentId)
   const step0Ready =
@@ -182,19 +137,16 @@ export function UnitCreateWizard({
   const leaderEmailAvailability = useEmailAvailability(
     leaderEmail,
     'login',
-    leaderMode === 'new' && !assignParentLeaderOnly,
+    policy.includeLeaderStep && leaderMode === 'new',
   )
   const newLeaderReady =
     leaderName.trim().length > 0 &&
     isRequiredLeaderProfileComplete(leaderEmail, leaderProfile, churchCountryCode) &&
     !isEmailAvailabilityBlocking(leaderEmail, leaderEmailAvailability)
-  const leaderStepReady = policy.includeFirstChildStep
-    ? newLeaderReady
-    : assignParentLeaderOnly ||
-      (leaderMode === 'existing' && Boolean(leaderMemberId)) ||
-      (leaderMode === 'new' && newLeaderReady)
-  const firstChildReady = !policy.includeFirstChildStep || leaderLeadsFirstChild
-  const canCreate = leaderStepReady && firstChildReady
+  const leaderStepReady =
+    (leaderMode === 'existing' && Boolean(leaderMemberId)) ||
+    (leaderMode === 'new' && newLeaderReady)
+  const canCreate = policy.includeLeaderStep ? leaderStepReady : step0Ready
 
   if (generatedLogin) {
     return (
@@ -208,7 +160,6 @@ export function UnitCreateWizard({
   }
 
   const layerPhrase = policy.labels.layerName.toLowerCase()
-  const deepestPhrase = policy.labels.deepestLayerName.toLowerCase()
 
   return (
     <Modal
@@ -290,25 +241,60 @@ export function UnitCreateWizard({
             </div>
           )}
 
-          {step === 1 && (
+          {step === 1 && policy.includeLeaderStep && (
             <>
               <p className="text-xs text-muted-foreground">
-                {assignParentLeaderOnly
-                  ? `This is the first ${layerPhrase} under this unit. ${parentLeader.leaderName} will lead it.`
-                  : policy.includeFirstChildStep
-                    ? `Register the person who leads this ${layerPhrase}. They'll receive an email to set their password.`
-                    : `Assign who leads this ${layerPhrase}. New leaders receive an email to set their password.`}
+                Assign who leads this {layerPhrase}. New leaders receive an email to set their
+                password.
               </p>
 
-              {assignParentLeaderOnly ? (
-                <section className="space-y-3 rounded-lg border border-border/60 bg-muted/10 p-4">
-                  <p className="text-sm font-medium">{parentLeader.leaderName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    They must lead their first {layerPhrase} before running the parent unit.
-                    They&apos;ll be placed on this {layerPhrase} as its leader and first member.
-                  </p>
-                </section>
-              ) : policy.includeFirstChildStep ? (
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    {
+                      id: 'existing' as const,
+                      label: 'Pick member',
+                      disabled: pickMemberLocked,
+                    },
+                    { id: 'new' as const, label: 'New person' },
+                  ]
+                ).map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={option.disabled}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                      leaderMode === option.id
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                      option.disabled && 'opacity-40',
+                    )}
+                    onClick={() => setLeaderMode(option.id)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {pickMemberLocked && (
+                <p className="text-xs text-muted-foreground">
+                  No members to pick yet. Add a new person instead.
+                </p>
+              )}
+
+              {leaderMode === 'existing' && (
+                <SearchPicker
+                  options={memberOptions}
+                  value={leaderMemberId}
+                  onChange={setLeaderMemberId}
+                  placeholder="Search members by name or placement…"
+                  emptyMessage="No eligible members match your search."
+                  required
+                />
+              )}
+
+              {leaderMode === 'new' && (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <WizardField label="Leader name" id="leader-name" required>
@@ -333,164 +319,18 @@ export function UnitCreateWizard({
                   <MemberProfileFields
                     phoneId="leader-phone"
                     values={leaderProfile}
-                    onChange={(patch) => setLeaderProfile((current) => ({ ...current, ...patch }))}
+                    onChange={(patch) =>
+                      setLeaderProfile((current) => ({ ...current, ...patch }))
+                    }
                     churchCountryCode={churchCountryCode}
                     requirePhoneAndDob
                   />
-                </>
-              ) : (
-                <>
-                  <div className="flex flex-wrap gap-2">
-                    {(
-                      [
-                        {
-                          id: 'existing' as const,
-                          label: 'Pick member',
-                          disabled: pickMemberLocked,
-                        },
-                        { id: 'new' as const, label: 'New person' },
-                      ]
-                    ).map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        disabled={option.disabled}
-                        className={cn(
-                          'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                          leaderMode === option.id
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-                          option.disabled && 'opacity-40',
-                        )}
-                        onClick={() => setLeaderMode(option.id)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {pickMemberLocked && parentLeader.leaderName && (
-                    <p className="text-xs text-muted-foreground">
-                      Pick member is unavailable — {parentLeader.leaderName} already leads a unit.
-                      Add a new person instead.
-                    </p>
-                  )}
-
-                  {leaderMode === 'existing' && (
-                    <SearchPicker
-                      options={pickableMemberOptions}
-                      value={leaderMemberId}
-                      onChange={setLeaderMemberId}
-                      placeholder="Search members by name or placement…"
-                      emptyMessage="No eligible members match your search."
-                      required
-                    />
-                  )}
-
-                  {leaderMode === 'new' && (
-                    <>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <WizardField label="Leader name" id="leader-name" required>
-                          <Input
-                            id="leader-name"
-                            value={leaderName}
-                            onChange={(e) => setLeaderName(e.target.value)}
-                            required
-                            autoFocus
-                          />
-                        </WizardField>
-                        <EmailAvailabilityField
-                          id="leader-email"
-                          email={leaderEmail}
-                          onChange={setLeaderEmail}
-                          scope="login"
-                          required
-                          label="Leader email"
-                          placeholder="For their login invite"
-                        />
-                      </div>
-                      <MemberProfileFields
-                        phoneId="leader-phone"
-                        values={leaderProfile}
-                        onChange={(patch) =>
-                          setLeaderProfile((current) => ({ ...current, ...patch }))
-                        }
-                        churchCountryCode={churchCountryCode}
-                        requirePhoneAndDob
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {leaderName.trim() || 'The leader'} will be placed on this {layerPhrase} as
-                        its leader and first member.
-                      </p>
-                    </>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {leaderName.trim() || 'The leader'} will be placed on this {layerPhrase} as
+                    its leader and first member.
+                  </p>
                 </>
               )}
-            </>
-          )}
-
-          {step === 2 && policy.includeFirstChildStep && (
-            <>
-              <p className="text-xs text-muted-foreground">
-                Every {layerPhrase} needs at least one {deepestPhrase}. We'll create it under{' '}
-                {unitDisplayName || `this ${layerPhrase}`}.
-              </p>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <WizardField label={`${policy.labels.deepestLayerName} name`} id="first-child-name">
-                  <Input
-                    id="first-child-name"
-                    value={firstChildName}
-                    onChange={(e) => setFirstChildName(e.target.value)}
-                    placeholder={defaultFirstChildName || `e.g. ${policy.labels.deepestLayerName} 1`}
-                    autoFocus
-                  />
-                </WizardField>
-              </div>
-
-              <section className="space-y-3 rounded-lg border border-border/60 bg-muted/10 p-4">
-                <p className="text-sm font-medium">
-                  Is {leaderName.trim() || `the ${layerPhrase} leader`} the leader of this{' '}
-                  {deepestPhrase}?
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      { id: true, label: `Yes — they lead this ${deepestPhrase}` },
-                      { id: false, label: 'No' },
-                    ] as const
-                  ).map((option) => (
-                    <button
-                      key={String(option.id)}
-                      type="button"
-                      className={cn(
-                        'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                        leaderLeadsFirstChild === option.id
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-                      )}
-                      onClick={() => setLeaderLeadsFirstChild(option.id)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-
-                {!leaderLeadsFirstChild && (
-                  <div className="rounded-md border border-amber-200/80 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-950 dark:text-amber-100">
-                    The {layerPhrase} leader must lead their first {deepestPhrase} before they can
-                    run the {layerPhrase}. Create their {deepestPhrase} here first — confirm
-                    &ldquo;Yes&rdquo; above to continue.
-                  </div>
-                )}
-
-                {leaderLeadsFirstChild && (
-                  <p className="text-xs text-muted-foreground">
-                    {leaderName.trim() || 'The leader'} will be the first member on this{' '}
-                    {deepestPhrase} and its leader.
-                  </p>
-                )}
-              </section>
             </>
           )}
         </WizardStepPanel>
@@ -499,9 +339,7 @@ export function UnitCreateWizard({
           step={step}
           busy={busy || creating}
           isLastStep={step === steps.length - 1}
-          canProceed={
-            step === 0 ? step0Ready : step === 1 && policy.includeFirstChildStep ? newLeaderReady : canCreate
-          }
+          canProceed={step === 0 ? step0Ready : canCreate}
           submitLabel={policy.labels.submitLabel}
           onCancel={onClose}
           onBack={() => {
@@ -533,26 +371,9 @@ export function UnitCreateWizard({
                   clientRequestId,
                 }
 
-                if (policy.includeFirstChildStep) {
-                  const profile = memberProfilePayload(leaderProfile)
-                  payload.newLeader = {
-                    name: leaderName,
-                    email: leaderEmail.trim(),
-                    phone: profile.phone,
-                    dateOfBirth: profile.dateOfBirth,
-                    residence: profile.residence,
-                    state: profile.state,
-                    occupationStatus: profile.occupationStatus,
-                    schoolOrWorkplace: profile.schoolOrWorkplace,
-                    workplace: profile.workplace,
-                    initialCellName: firstChildName.trim() || defaultFirstChildName || null,
-                    leaderIsCellLeader: true,
-                  }
-                } else if (assignParentLeaderOnly) {
-                  payload.leaderMemberId = parentLeader.leaderMemberId
-                } else if (leaderMode === 'existing' && leaderMemberId) {
+                if (policy.includeLeaderStep && leaderMode === 'existing' && leaderMemberId) {
                   payload.leaderMemberId = leaderMemberId
-                } else if (leaderMode === 'new') {
+                } else if (policy.includeLeaderStep && leaderMode === 'new') {
                   const profile = memberProfilePayload(leaderProfile)
                   payload.newLeader = {
                     name: leaderName,
@@ -564,7 +385,6 @@ export function UnitCreateWizard({
                     occupationStatus: profile.occupationStatus,
                     schoolOrWorkplace: profile.schoolOrWorkplace,
                     workplace: profile.workplace,
-                    leaderIsCellLeader: true,
                   }
                 }
 

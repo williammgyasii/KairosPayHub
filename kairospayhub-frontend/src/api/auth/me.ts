@@ -9,6 +9,7 @@ export type ChurchRole =
 export type RollCallScope = {
   scopeNodeId: string
   scopeUnitName: string
+  layerId?: string | null
   layerName?: string | null
 }
 
@@ -53,6 +54,8 @@ export type Me =
       scopeNodeId?: string | null
       scopeUnitName?: string | null
       rollCallScopes?: RollCallScope[]
+      /** True when the actor leads a unit on a meeting type’s submission layer. */
+      canMarkAttendance?: boolean
       legacyChurchId: string | null
       email: string | null
       name: string | null
@@ -164,6 +167,8 @@ export function rosterScopeRootNodeId(me: Me): string | null {
 }
 
 export function canSubmitRollCall(me: Me): boolean {
+  if (!me.onboarded) return false
+  if (typeof me.canMarkAttendance === 'boolean') return me.canMarkAttendance
   return rollCallScopesFor(me).length > 0
 }
 

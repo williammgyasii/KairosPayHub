@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
-import { PastorRoute } from './auth/PastorRoute'
+import { PastorOnlyRoute, PastorRoute } from './auth/PastorRoute'
+import { AccessPage } from './pages/AccessPage'
 import { ScopedLeaderRoute } from './auth/ScopedLeaderRoute'
 import { DashboardRoot } from './pages/Dashboard'
 import { GivingsPage } from './pages/GivingsPage'
@@ -26,6 +27,7 @@ import { AttendanceOverviewPage } from './pages/AttendanceOverviewPage'
 import { AttendanceSubmissionsPage } from './pages/AttendanceSubmissionsPage'
 import { AttendanceMeetingTypesPage } from './pages/AttendanceMeetingTypesPage'
 import { AttendanceApproverRoute, AttendanceOverviewRoute } from './auth/AttendanceRoute'
+import { JoinPage } from './pages/JoinPage'
 import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword, SetPassword } from './pages/PasswordPages'
 import { EventsRoute } from './auth/EventsRoute'
@@ -36,6 +38,7 @@ import { SignUp } from './pages/SignUp'
 export default function App() {
   return (
     <Routes>
+      <Route path="/join/:token" element={<JoinPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/confirm-email" element={<ConfirmEmail />} />
@@ -57,6 +60,14 @@ export default function App() {
             <PastorRoute>
               <StructurePage />
             </PastorRoute>
+          }
+        />
+        <Route
+          path="access"
+          element={
+            <PastorOnlyRoute>
+              <AccessPage />
+            </PastorOnlyRoute>
           }
         />
         <Route

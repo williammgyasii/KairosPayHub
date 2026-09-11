@@ -187,6 +187,107 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Authorization.ChurchAbilityOverlay", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Ability")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("SubjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SubjectKind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChurchId");
+
+                    b.HasIndex("ChurchId", "SubjectKind", "SubjectId", "Ability")
+                        .IsUnique();
+
+                    b.ToTable("church_ability_overlays", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Account.UserTablePreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ColumnsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthUserId");
+
+                    b.HasIndex("AuthUserId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("user_table_preferences", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.UnitJoinInvite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("NodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChurchId");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("unit_join_invites", (string)null);
+                });
+
             modelBuilder.Entity("KairosPayHub.Api.Domain.Administrators.ChurchAdministrator", b =>
                 {
                     b.Property<Guid>("Id")
@@ -588,6 +689,19 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.Property<DateTimeOffset?>("GraceDeadlineAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GuestRiskLevel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("clear");
+
+                    b.Property<string>("GuestRiskReasons")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'[]'::jsonb");
 
                     b.Property<string>("LockStatus")
                         .IsRequired()
@@ -1125,6 +1239,10 @@ namespace KairosPayHub.Api.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Position")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RosterStatus")
                         .IsRequired()
                         .HasColumnType("text");
 

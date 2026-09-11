@@ -16,6 +16,28 @@ public class NotificationRecipientResolver(KairosDbContext db, GivingScopeServic
             .Distinct()
             .ToListAsync(ct);
 
+    public async Task<List<Guid>> ForChurchLeadersAndAdminsAsync(
+        Guid churchId,
+        Guid? excludeAuthUserId,
+        CancellationToken ct)
+    {
+        var recipients = new HashSet<Guid>(await PastorAuthUserIdsAsync(churchId, ct));
+        var others = await db.RoleAssignments.AsNoTracking()
+            .Where(r =>
+                r.ChurchId == churchId
+                && r.Role != ChurchRole.Member
+                && r.Role != ChurchRole.Pastor)
+            .Select(r => r.AuthUserId)
+            .ToListAsync(ct);
+        foreach (var id in others)
+            recipients.Add(id);
+
+        if (excludeAuthUserId is Guid excluded)
+            recipients.Remove(excluded);
+
+        return recipients.ToList();
+    }
+
     public async Task<List<Guid>> ForContributionApprovalAsync(
         Guid churchId,
         ChurchRole? enteredByRole,

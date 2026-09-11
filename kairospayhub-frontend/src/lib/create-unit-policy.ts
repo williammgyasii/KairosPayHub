@@ -1,12 +1,19 @@
 import type { StructureLayer, StructureTree } from '@/api/structure'
 import type { StructureParentOption } from '@/lib/structure-tree'
 import {
+  directChildLayer,
   getDeepestLayer,
   layerParentOptions,
   layerRequiresParent,
   parentLayerForLayer,
   resolveLayerParentId,
 } from '@/lib/structure-tree'
+
+export type CreateUnitActor = {
+  hasCreateChildUnits: boolean
+  churchWide: boolean
+  actorScopeNodeId?: string | null
+}
 
 export type CreateUnitPolicyLabels = {
   layerName: string
@@ -24,6 +31,7 @@ export type CreateUnitPolicy = {
   parentOptions: StructureParentOption[]
   defaultParentId: string | null
   includeFirstChildStep: boolean
+  includeLeaderStep: boolean
   labels: CreateUnitPolicyLabels
 }
 
@@ -35,6 +43,7 @@ export function createUnitPolicy(
   tree: StructureTree,
   layer: StructureLayer,
   scopeUnitId?: string | null,
+  actor?: CreateUnitActor | null,
 ): CreateUnitPolicy {
   const parentLayer = parentLayerForLayer(tree, layer)
   const deepest = getDeepestLayer(tree)
@@ -43,10 +52,12 @@ export function createUnitPolicy(
   const defaultParentId = parentRequired
     ? resolveLayerParentId(parentOptions, scopeUnitId)
     : null
-  const includeFirstChildStep = Boolean(deepest && deepest.id !== layer.id)
-  const canAdd = !parentRequired || parentOptions.length > 0
+  const includeLeaderStep = true
+  const placementOk = !parentRequired || parentOptions.length > 0
+  const actorAllows = actorAllowsLayer(tree, layer, actor)
+  const canAdd = placementOk && actorAllows
   const blockedReason =
-    canAdd || !parentLayer ? null : `Add a ${layerPhrase(parentLayer.displayName)} first`
+    placementOk || !parentLayer ? null : `Add a ${layerPhrase(parentLayer.displayName)} first`
 
   return {
     canAdd,
@@ -54,16 +65,27 @@ export function createUnitPolicy(
     parentRequired,
     parentOptions,
     defaultParentId,
-    includeFirstChildStep,
+    includeFirstChildStep: false,
+    includeLeaderStep,
     labels: {
       layerName: layer.displayName,
       parentLayerName: parentLayer?.displayName ?? null,
       deepestLayerName: deepest?.displayName ?? layer.displayName,
       title: `Add ${layerPhrase(layer.displayName)}`,
       submitLabel: `Create ${layerPhrase(layer.displayName)}`,
-      firstChildStepLabel: includeFirstChildStep
-        ? `First ${layerPhrase(deepest?.displayName ?? 'unit')}`
-        : null,
+      firstChildStepLabel: null,
     },
   }
+}
+
+function actorAllowsLayer(
+  tree: StructureTree,
+  layer: StructureLayer,
+  actor?: CreateUnitActor | null,
+): boolean {
+  if (!actor) return true
+  if (!actor.hasCreateChildUnits) return false
+  if (actor.churchWide) return true
+  if (!actor.actorScopeNodeId) return false
+  return directChildLayer(tree, actor.actorScopeNodeId)?.id === layer.id
 }

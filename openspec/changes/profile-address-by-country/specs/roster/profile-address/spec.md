@@ -1,6 +1,6 @@
 ## Purpose
 
-Member address fields follow the church country: US churches collect a state and call the street field home address; other churches keep a single residence field.
+Member address fields follow the church country: every church labels the street field **Home address**. When the church country has a region catalog, State and Home address sit on one row and the region control is a required dropdown (US State, Ghana Region, Canada Province, etc.). Countries without a catalog omit the region field.
 
 ## ADDED Requirements
 
@@ -15,12 +15,12 @@ Address labels and whether a state control appears SHALL come from the church `c
 - **THEN** a State dropdown is visible
 - **AND** the street field is labeled Home address
 
-#### Scenario: Ghana church keeps residence and hides state
+#### Scenario: Ghana church shows region dropdown beside home address
 
 - **WHEN** the church country is GH
-- **AND** a member profile form is shown
-- **THEN** there is no State dropdown
-- **AND** the street field is labeled Residence / location
+- **AND** a member profile form is shown (including the public join form)
+- **THEN** a Region dropdown and Home address field share one row
+- **AND** the phone control defaults to Ghana (+233)
 
 ### Requirement: State is stored separately from home address
 

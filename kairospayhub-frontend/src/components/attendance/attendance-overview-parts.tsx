@@ -4,7 +4,18 @@ import { ChevronRight } from 'lucide-react'
 import type { AttendanceOccurrenceRollup, AttendanceScopeSubmission } from '@/api/attendance'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  overviewMetricsChips,
+  type OverviewMetricsChipId,
+} from '@/lib/overview-metrics-chips'
 import { cn } from '@/lib/utils'
+
+const CHIP_CLASS: Record<OverviewMetricsChipId, string> = {
+  present: 'border-emerald-500/40 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100',
+  guests: 'border-violet-300/70 bg-violet-50 text-violet-900 dark:border-violet-500/40 dark:bg-violet-950/40 dark:text-violet-100',
+  firstTimers: 'border-sky-300/70 bg-sky-50 text-sky-900 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-100',
+  pending: 'border-amber-300/80 bg-amber-50 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100',
+}
 
 export function personKindLabel(kind: string) {
   switch (kind) {
@@ -66,52 +77,33 @@ export function ColumnToggleSwitch({ on }: { on: boolean }) {
 export function OverviewMetrics({
   rollup,
   pendingCount,
-  leading,
   action,
 }: {
   rollup: AttendanceOccurrenceRollup | null | undefined
   pendingCount: number
-  leading?: ReactNode
   action?: ReactNode
 }) {
-  const stats = [
-    { id: 'present', label: 'Present', value: rollup?.totalPresent ?? '—' },
-    {
-      id: 'members',
-      label: 'Members',
-      value: rollup?.membersPresent ?? '—',
-      hint: rollup ? `${rollup.membersAbsent} absent` : undefined,
-    },
-    { id: 'firstTimers', label: 'First-timers', value: rollup?.firstTimersPresent ?? '—' },
-    {
-      id: 'pending',
-      label: 'Pending',
-      value: pendingCount,
-      tone: pendingCount > 0 ? ('amber' as const) : undefined,
-    },
-  ]
+  const chips = overviewMetricsChips({
+    present: rollup?.totalPresent ?? 0,
+    guests: rollup?.guestsPresent ?? 0,
+    firstTimers: rollup?.firstTimersPresent ?? 0,
+    pending: pendingCount,
+  })
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-      {leading ? <div className="min-w-0 shrink-0 text-sm">{leading}</div> : null}
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 sm:gap-x-8">
-        {stats.map((stat) => (
-          <div key={stat.id} className="min-w-[5rem]">
-            <p className="text-eyebrow">
-              {stat.label}
-            </p>
-            <p
-              className={cn(
-                'mt-0.5 text-lg font-semibold tabular-nums leading-none',
-                stat.tone === 'amber' && 'text-amber-800 dark:text-amber-200',
-              )}
-            >
-              {stat.value}
-            </p>
-            {stat.hint ? (
-              <p className="mt-1 text-[11px] text-muted-foreground">{stat.hint}</p>
-            ) : null}
-          </div>
+    <section className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label="Attendance totals">
+        {chips.map((chip) => (
+          <span
+            key={chip.id}
+            className={cn(
+              'inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium sm:justify-start',
+              CHIP_CLASS[chip.id],
+            )}
+          >
+            <span className="tabular-nums text-sm font-semibold">{chip.count}</span>
+            {chip.label}
+          </span>
         ))}
       </div>
       {action ? <div className="flex shrink-0 flex-wrap items-center gap-3">{action}</div> : null}

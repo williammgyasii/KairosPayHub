@@ -9,7 +9,7 @@
 
 ## Decisions
 
-1. **Tiles** — Present, Members (absent hint), First-timers, Pending. Drop Guests + Approved units from strip; guests remain via type filter; approved units visible on By unit.
+1. **Chips** — Present (total), Guests, and First timers. Pending only when > 0. No Absent. Approved units stay on Attendance by units.
 2. **Tabs** — Reuse `StructurePageTabs` pattern (Who showed up | By unit). Counts: people totalCount / unit sheet count.
 3. **Parent unit** — Add `parentUnitName` on `AttendancePresentPersonDto` from structure parent node for optional column + By unit group-by parent.
 4. **Column visibility** — Local React state (session); default: name, unit, type, phone, invitedBy on; parentUnit off until toggled.

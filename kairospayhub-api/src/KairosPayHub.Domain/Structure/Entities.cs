@@ -78,9 +78,21 @@ public class Member
     public string? SchoolOrWorkplace { get; set; }
     public string? Workplace { get; set; }
     public MemberPosition Position { get; set; } = MemberPosition.Member;
+    public RosterStatus RosterStatus { get; set; } = RosterStatus.Active;
     /// <summary>Engagement priority from 1 (cold) to 5 (most active).</summary>
     public int Responsiveness { get; set; } = 3;
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public class UnitJoinInvite
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ChurchId { get; set; }
+    public Guid NodeId { get; set; }
+    public string Token { get; set; } = string.Empty;
+    public DateTimeOffset ExpiresAt { get; set; }
+    public Guid CreatedByAuthUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public class RoleAssignment

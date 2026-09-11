@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { Plus, Save, Send } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import type {
   AttendanceEntry,
   AttendanceInviteeEntry,
@@ -9,8 +9,8 @@ import { graduateCellInvitee, listCellInvitees } from '@/api/attendance'
 import { useApi } from '@/api/core'
 import { rollCallState, rollCallStatusLabel } from '@/lib/attendance-ui'
 import { AddInviteeModal } from '@/components/attendance/add-invitee-modal'
+import { AttendanceRollCallToolbar } from '@/components/attendance/attendance-roll-call-toolbar'
 import { MemberRollCallGrid } from '@/components/attendance/member-roll-call-grid'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -225,6 +225,11 @@ export function AttendanceRollCallSheet({
     return status === 'Present'
   }).length
 
+  const absentCount = entries.filter((entry) => {
+    const status = values[entry.memberId] ?? entry.status
+    return status === 'Absent'
+  }).length
+
   useEffect(() => {
     let cancelled = false
     void listCellInvitees(api, scopeNodeId)
@@ -310,10 +315,9 @@ export function AttendanceRollCallSheet({
   ]
 
   const meetingDateLabel = new Date(`${detail.meetingDate}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: 'long',
+    weekday: 'short',
     day: 'numeric',
-    month: 'long',
-    year: 'numeric',
+    month: 'short',
   })
 
   return (
@@ -328,61 +332,33 @@ export function AttendanceRollCallSheet({
         onCreated={onInviteeCreated}
       />
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold tracking-tight">{detail.meetingTypeTitle}</h2>
-            {submission ? (
-              <Badge variant="outline" className={approvalBadgeVariant(submission.approvalStatus)}>
-                {rollCallStatusLabel(
-                  submission.approvalStatus,
-                  viewerRole,
-                  submission.pendingApproverRole,
-                )}
-              </Badge>
-            ) : null}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {meetingDateLabel}
-            {cellName ? ` · ${cellName}` : ''}
-          </p>
-          {entries.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {markedCount} of {entries.length} members marked
-              {markedCount > 0 ? ` · ${presentCount} present` : ''}
-              {firstTimerCount > 0 ? ` · ${firstTimerCount} first timer${firstTimerCount === 1 ? '' : 's'}` : ''}
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="rounded-md"
-            disabled={disabled || busy}
-            loading={busyAction === 'save'}
-            loadingLabel="Saving…"
-            onClick={onSave}
-          >
-            <Save className="size-3.5" />
-            Save draft
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="rounded-md"
-            disabled={!canSubmit || busy}
-            loading={busyAction === 'submit'}
-            loadingLabel="Submitting…"
-            onClick={onSubmit}
-          >
-            <Send className="size-3.5" />
-            Submit for approval
-          </Button>
-        </div>
-      </div>
+      <AttendanceRollCallToolbar
+        meetingTitle={detail.meetingTypeTitle}
+        meetingDateLabel={meetingDateLabel}
+        unitName={cellName}
+        statusLabel={
+          submission
+            ? rollCallStatusLabel(
+                submission.approvalStatus,
+                viewerRole,
+                submission.pendingApproverRole,
+              )
+            : null
+        }
+        statusClassName={
+          submission ? approvalBadgeVariant(submission.approvalStatus) : undefined
+        }
+        present={presentCount}
+        absent={absentCount}
+        unmarked={entries.length - markedCount}
+        firstTimers={firstTimerCount}
+        disabled={disabled}
+        busy={busy}
+        busyAction={busyAction}
+        canSubmit={canSubmit}
+        onSave={onSave}
+        onSubmit={onSubmit}
+      />
 
       {blockMessage && (
         <p className={cn('text-sm', disabled ? 'text-muted-foreground' : 'text-amber-700')}>

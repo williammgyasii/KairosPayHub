@@ -62,7 +62,8 @@ public record AttendanceOccurrenceSummaryDto(
 public class AttendanceMeetingTypeService(
     KairosDbContext db,
     GivingScopeService scope,
-    AttendanceOccurrenceGenerator occurrenceGenerator)
+    AttendanceOccurrenceGenerator occurrenceGenerator,
+    MeetingTypeNotificationService meetingTypeNotifications)
 {
     public async Task<IReadOnlyList<AttendanceMeetingTypeDto>> ListAsync(Actor actor, CancellationToken ct = default)
     {
@@ -138,6 +139,13 @@ public class AttendanceMeetingTypeService(
         await occurrenceGenerator.EnsureOccurrencesAsync(meetingType.Id, ct);
         if (input.OpenNowForDemo)
             await occurrenceGenerator.OpenTodayForDemoAsync(meetingType.Id, ct);
+
+        await meetingTypeNotifications.NotifyCreatedAsync(
+            churchId,
+            meetingType.Id,
+            meetingType.Title,
+            authUserId,
+            ct);
 
         return ToDto(meetingType, await LayerNameAsync(meetingType.SubmissionLayerId, ct));
     }

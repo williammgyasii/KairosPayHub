@@ -24,6 +24,15 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
         return client;
     }
 
+    private HttpClient ClientForAuthUser(Guid authUserId, string email, string name)
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Sub", authUserId.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Email", email);
+        client.DefaultRequestHeaders.Add("X-Test-Name", name);
+        return client;
+    }
+
     [Fact]
     public async Task Pastor_creates_weekly_sunday_meeting_type_with_auto_generated_occurrences()
     {
@@ -391,5 +400,119 @@ public class AttendanceMeetingTypeApiTests(PostgresFixture fx) : IAsyncLifetime
         await using var db = fx.CreateContext();
         Assert.False(await db.AttendanceMeetingTypes.AnyAsync(t => t.Id == meetingTypeId));
         Assert.False(await db.AttendanceOccurrences.AnyAsync(o => o.MeetingTypeId == meetingTypeId));
+    }
+
+    [Fact]
+    public async Task Creating_meeting_type_notifies_leaders_and_admin_but_not_creator()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Notify Meeting Church" });
+
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+
+        var template = await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template");
+        var fellowshipLayerId = template.GetProperty("layers")[0].GetProperty("id").GetGuid();
+        var cellLayerId = template.GetProperty("layers")[1].GetProperty("id").GetGuid();
+
+        var fellowshipId = (await (await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Fellowship",
+                email = "jane.mtnotify@example.com",
+                phone = "+233241234567",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = true,
+            },
+        })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = fellowshipId,
+            name = "Cell A",
+            newLeader = new
+            {
+                name = "Bob Cell",
+                email = "bob.mtnotify@example.com",
+                phone = "+233241234568",
+                dateOfBirth = "1990-06-20",
+                leaderIsCellLeader = true,
+            },
+        });
+
+        var adminResp = await pastor.PostAsJsonAsync("/api/settings/administrators", new
+        {
+            firstName = "Mary",
+            lastName = "Admin",
+            email = "mary.mtnotify@example.com",
+            affiliationKind = "External",
+            password = "AdminPass1!",
+            sendInviteEmail = false,
+        });
+        Assert.Equal(HttpStatusCode.OK, adminResp.StatusCode);
+
+        await using var db = fx.CreateContext();
+        var cellLeader = await db.ChurchMembers.SingleAsync(m => m.Email == "bob.mtnotify@example.com");
+        var admin = await db.ChurchAdministrators.SingleAsync(a => a.Email == "mary.mtnotify@example.com");
+
+        var createResp = await pastor.PostAsJsonAsync("/api/attendance/meeting-types", new
+        {
+            title = "Sunday Service",
+            recurrenceKind = "Weekly",
+            dayOfWeek = "Sunday",
+            scopeKind = "ChurchWide",
+            opensDayOffset = 0,
+            opensTimeUtc = "14:00:00",
+            deadlineDayOffset = 1,
+            deadlineTimeUtc = "00:00:00",
+        });
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode);
+        var meetingTypeId = (await createResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var pastorNotifications = await pastor.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(0, pastorNotifications.GetProperty("unreadCount").GetInt32());
+
+        var cellClient = ClientForAuthUser(
+            cellLeader.AuthUserId!.Value,
+            "bob.mtnotify@example.com",
+            "Bob Cell");
+        var cellNotifications = await cellClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(1, cellNotifications.GetProperty("unreadCount").GetInt32());
+        var cellItem = cellNotifications.GetProperty("notifications")[0];
+        Assert.Equal("MeetingTypeCreated", cellItem.GetProperty("kind").GetString());
+        Assert.Contains("Sunday Service", cellItem.GetProperty("body").GetString());
+        Assert.Equal("attendance/submissions", cellItem.GetProperty("linkPath").GetString());
+
+        var adminClient = ClientForAuthUser(admin.AuthUserId, "mary.mtnotify@example.com", "Mary Admin");
+        var adminNotifications = await adminClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(1, adminNotifications.GetProperty("unreadCount").GetInt32());
+        Assert.Equal(
+            "MeetingTypeCreated",
+            adminNotifications.GetProperty("notifications")[0].GetProperty("kind").GetString());
+
+        var patchResp = await pastor.PatchAsJsonAsync(
+            $"/api/attendance/meeting-types/{meetingTypeId}",
+            new
+            {
+                title = "Main Sunday Service",
+                opensDayOffset = 0,
+                opensTimeUtc = "15:00:00",
+                deadlineDayOffset = 1,
+                deadlineTimeUtc = "01:00:00",
+            });
+        Assert.Equal(HttpStatusCode.OK, patchResp.StatusCode);
+
+        var afterEdit = await cellClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.Equal(1, afterEdit.GetProperty("unreadCount").GetInt32());
     }
 }

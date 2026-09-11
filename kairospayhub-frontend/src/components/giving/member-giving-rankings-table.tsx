@@ -6,7 +6,6 @@ import {
   useReactTable,
   type ColumnDef,
   type SortingState,
-  type VisibilityState,
 } from '@tanstack/react-table'
 import { ArrowUpDown, Columns3, ListTree, X } from 'lucide-react'
 import type { ApiClient } from '@/api/core'
@@ -52,10 +51,9 @@ import {
   createOverallAmountFilterRule,
   defaultOverallGivingsColumnVisibility,
   getActiveOverallAmountFilters,
-  loadOverallGivingsColumnVisibility,
   memberGivingMatchesVisibleSearch,
   memberGivingToFilterRow,
-  persistOverallGivingsColumnVisibility,
+  overallGivingsColumnsStorageKey,
   stickyColumnIdsForTier,
   stickyColumnLeft,
   stickyColumnWidth,
@@ -67,6 +65,8 @@ import {
   type OverallGivingsStickyTier,
   type MemberGivingsScopeMode,
 } from '@/lib/overall-givings-table'
+import { TABLE_PREFERENCE_KEYS } from '@/lib/table-preferences'
+import { usePersistedColumnVisibility } from '@/lib/use-persisted-column-visibility'
 import { cn } from '@/lib/utils'
 
 type SortColumn = NonNullable<MemberGivingTotalsQuery['sortBy']>
@@ -129,7 +129,6 @@ export function MemberGivingRankingsTable({
   const [filterRules, setFilterRules] = useState<MemberFilterRule[]>([])
   const [amountRules, setAmountRules] = useState<OverallAmountFilterRule[]>([])
   const [sorting, setSorting] = useState<SortingState>([{ id: 'lastDateSent', desc: true }])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [fetchedRows, setFetchedRows] = useState<MemberGivingTotal[]>([])
   const [serverTotalCount, setServerTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -158,6 +157,18 @@ export function MemberGivingRankingsTable({
   }, [isCampaignScope, lockedProgramId, campaigns])
 
   const campaignColumns = useMemo(() => collectCampaignColumns(fetchedRows), [fetchedRows])
+  const givingDefaults = useMemo(
+    () => defaultOverallGivingsColumnVisibility(structureColumns, campaignColumns),
+    [structureColumns, campaignColumns],
+  )
+  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
+    scopeMode === 'campaign' ? TABLE_PREFERENCE_KEYS.givingCampaign : TABLE_PREFERENCE_KEYS.givingOverall,
+    givingDefaults,
+    {
+      alwaysOn: ['memberName', 'actions'],
+      migrateStorageKey: overallGivingsColumnsStorageKey(scopeMode),
+    },
+  )
 
   const activeFilters = useMemo(() => getActiveFilterRules(filterRules), [filterRules])
   const activeAmountFilters = useMemo(
@@ -186,23 +197,6 @@ export function MemberGivingRankingsTable({
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, campaignId, pageSize, sorting, filtersActive, activeAmountFilters.length])
-
-  useEffect(() => {
-    const storage = typeof localStorage !== 'undefined' ? localStorage : null
-    setColumnVisibility((prev) => ({
-      ...loadOverallGivingsColumnVisibility(structureColumns, campaignColumns, storage, scopeMode),
-      ...prev,
-    }))
-  }, [structureColumns, campaignColumns, scopeMode])
-
-  useEffect(() => {
-    const storage = typeof localStorage !== 'undefined' ? localStorage : null
-    persistOverallGivingsColumnVisibility(
-      columnVisibility as Record<string, boolean>,
-      storage,
-      scopeMode,
-    )
-  }, [columnVisibility, scopeMode])
 
   const sortBy = (sorting[0]?.id as SortColumn | undefined) ?? 'lastDateSent'
   const sortDir = sorting[0]?.desc === false ? 'asc' : 'desc'
@@ -481,7 +475,10 @@ export function MemberGivingRankingsTable({
       columnVisibility,
     },
     onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: (updater) => {
+      const next = typeof updater === 'function' ? updater(columnVisibility) : updater
+      setColumnVisibility(next)
+    },
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
     manualPagination: true,

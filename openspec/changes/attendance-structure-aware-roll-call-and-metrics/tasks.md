@@ -41,3 +41,8 @@
 - [x] 8.1 Rename Submissions nav/page to Mark attendance; verify label
 - [x] 8.2 Occurrence generation and FE “today” use church timezone; verify late Saturday Toronto still creates/selects that Saturday
 - [x] 8.3 Metrics empty states explain mark → approve flow; verify copy
+
+## 9. Submission-layer Mark attendance gate
+
+- [x] 9.1 `/me` `canMarkAttendance` is true only when the actor leads a node on an active meeting type’s submission layer; verify fellowship-only leader is false for a Cell-start type
+- [x] 9.2 Hide Mark attendance nav and meeting picker unless the actor can mark that type; verify dual-hat still sees cell-start meetings

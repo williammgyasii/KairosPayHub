@@ -38,8 +38,14 @@ import {
   type StructureMemberRow,
   type StructureUnitNodeRow,
 } from '@/lib/structure-table-rows'
-import { createUnitPolicy } from '@/lib/create-unit-policy'
+import { createUnitPolicy, type CreateUnitActor } from '@/lib/create-unit-policy'
+import { GenerateJoinLinkDialog } from '@/components/structure/generate-join-link-dialog'
+import { MembershipJoinHeaderActions } from '@/components/structure/membership-join-header-actions'
+import { membershipPrimaryAction, type MembershipRosterTab } from '@/lib/join-link-policy'
+import { isPendingRosterStatus } from '@/lib/member-row-actions'
+import { sortMembershipRows } from '@/lib/membership-row-presentation'
 import { unitEditPolicy } from '@/lib/unit-edit-policy'
+import { toast } from 'sonner'
 import {
   countCellsUnderUnit,
   countMembersUnderUnit,
@@ -68,6 +74,8 @@ interface RosterUnitViewProps {
   scopeRootNodeId?: string | null
   canManageChurch?: boolean
   actorScopeNodeId?: string | null
+  createActor?: CreateUnitActor | null
+  currentMemberId?: string | null
 }
 
 export function RosterUnitView({
@@ -81,6 +89,8 @@ export function RosterUnitView({
   scopeRootNodeId = null,
   canManageChurch = !readOnly,
   actorScopeNodeId = null,
+  createActor = null,
+  currentMemberId = null,
 }: RosterUnitViewProps) {
   const api = useApi()
   const navigate = useNavigate()
@@ -119,7 +129,15 @@ export function RosterUnitView({
   const [filterRules, setFilterRules] = useState<MemberFilterRule[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchField, setSearchField] = useState<MemberFilterField | 'all'>('all')
+  const [joinOpen, setJoinOpen] = useState(false)
+  const [rosterTab, setRosterTab] = useState<MembershipRosterTab>('all')
   const [memberSheet, setMemberSheet] = useState<MemberSheetState | null>(null)
+  const primaryAction = membershipPrimaryAction({
+    tree,
+    canManageRoster: !membersReadOnly,
+    canManageChurch,
+    actorScopeNodeId,
+  })
   const [deleteMember, setDeleteMember] = useState<StructureMemberRow | null>(null)
   const [nodeSheet, setNodeSheet] = useState<UnitNodeSheetState | null>(null)
   const [createWizardOpen, setCreateWizardOpen] = useState(false)
@@ -128,16 +146,24 @@ export function RosterUnitView({
 
   const memberRows = useMemo(() => {
     if (!unit) return []
-    return buildMemberRows(tree).filter((row) =>
-      memberBelongsToUnit(tree, unit.id, row.parentNodeId),
+    return sortMembershipRows(
+      buildMemberRows(tree).filter((row) => memberBelongsToUnit(tree, unit.id, row.parentNodeId)),
     )
   }, [tree, unit])
+
+  const pendingCount = useMemo(
+    () => memberRows.filter((row) => isPendingRosterStatus(row.rosterStatus)).length,
+    [memberRows],
+  )
 
   const filteredMemberRows = useMemo(() => {
     let rows = applyMemberFilterRules(memberRows, filterRules)
     rows = applyMemberSearch(rows, searchQuery, searchField)
+    if (rosterTab === 'pending') {
+      rows = rows.filter((row) => isPendingRosterStatus(row.rosterStatus))
+    }
     return rows
-  }, [memberRows, filterRules, searchQuery, searchField])
+  }, [memberRows, filterRules, searchQuery, searchField, rosterTab])
 
   const tabFromUrl = searchParams.get('tab')
   const presetFromUrl = searchParams.get('preset')
@@ -208,7 +234,7 @@ export function RosterUnitView({
   }
 
   const createPolicy =
-    activeTab?.kind === 'layer' ? createUnitPolicy(tree, activeTab.layer, unit.id) : null
+    activeTab?.kind === 'layer' ? createUnitPolicy(tree, activeTab.layer, unit.id, createActor) : null
 
   const deleteImpact = useMemo(
     () => (deleteTarget ? unitDeleteImpact(tree, deleteTarget.id) : null),
@@ -255,16 +281,25 @@ export function RosterUnitView({
               </Button>
             )}
 
-            {activeTab?.kind === 'layer' && !readOnly && createPolicy && (
+            {activeTab?.kind === 'layer' && createPolicy?.canAdd && (
               <AddFellowshipButton
                 label={`Add new ${activeTab.layer.displayName.toLowerCase()}`}
-                disabled={busy || !createPolicy.canAdd}
+                disabled={busy}
                 title={createPolicy.blockedReason ?? undefined}
                 onClick={openCreateNode}
               />
             )}
 
-            {activeTab?.kind === 'members' && !membersReadOnly && (
+            {activeTab?.kind === 'members' && primaryAction === 'generate-join-link' && actorScopeNodeId && (
+              <MembershipJoinHeaderActions
+                tab={rosterTab}
+                onTabChange={setRosterTab}
+                pendingCount={pendingCount}
+                onGenerateJoinLink={() => setJoinOpen(true)}
+              />
+            )}
+
+            {activeTab?.kind === 'members' && primaryAction === 'add-member' && (
               <Button className="shrink-0" onClick={() => setMemberSheet({ mode: 'create' })}>
                 <Plus className="size-4" />
                 Add member
@@ -293,10 +328,13 @@ export function RosterUnitView({
           embedded
           readOnly={readOnly}
           canManageChurch={canManageChurch}
+          hasCreateChildUnits={Boolean(createActor?.hasCreateChildUnits)}
           actorScopeNodeId={actorScopeNodeId}
           onEdit={(row) => {
             const policy = unitEditPolicy({
+              tree,
               canManageChurch,
+              hasCreateChildUnits: createActor?.hasCreateChildUnits,
               actorScopeNodeId,
               unitId: row.id,
             })
@@ -326,7 +364,17 @@ export function RosterUnitView({
         <StructureMemberTable
           rows={filteredMemberRows}
           structureLayers={getLayers(tree)}
-          emptyMessage={`No members under ${unit.name} yet.${membersReadOnly ? '' : ' Add cells first if needed, then click Add member.'}`}
+          emptyMessage={
+            rosterTab === 'pending'
+              ? 'No pending join requests.'
+              : `No members under ${unit.name} yet.${
+                  membersReadOnly
+                    ? ''
+                    : primaryAction === 'generate-join-link'
+                      ? ' Share a join link so people can request to join.'
+                      : ' Add cells first if needed, then click Add member.'
+                }`
+          }
           onEdit={
             membersReadOnly
               ? undefined
@@ -342,6 +390,27 @@ export function RosterUnitView({
             navigate(`/roster/members/${member.id}${suffix}`)
           }}
           onDelete={membersReadOnly ? undefined : (member) => setDeleteMember(member)}
+          onAccept={
+            membersReadOnly
+              ? undefined
+              : (member) => {
+                  void submit(async () => {
+                    await api.post(`/api/structure/members/${member.id}/accept-join`, {})
+                    toast.success(`${member.member} is now a member`)
+                  })
+                }
+          }
+          onDecline={
+            membersReadOnly
+              ? undefined
+              : (member) => {
+                  void submit(async () => {
+                    await api.post(`/api/structure/members/${member.id}/decline-join`, {})
+                    toast.success(`${member.member} was declined`)
+                  })
+                }
+          }
+          currentMemberId={currentMemberId}
           compactLayout
           embedded
           readOnly={membersReadOnly}
@@ -389,7 +458,7 @@ export function RosterUnitView({
         />
       )}
 
-      {!readOnly && createWizardOpen && activeTab?.kind === 'layer' && (
+      {createPolicy?.canAdd && createWizardOpen && activeTab?.kind === 'layer' && (
         <UnitCreateWizard
           tree={tree}
           layer={activeTab.layer}
@@ -421,12 +490,20 @@ export function RosterUnitView({
         />
       )}
 
-      {!readOnly && deleteTarget && (
+      {deleteTarget && (
         <UnitDeleteModal
           impact={deleteImpact}
           busy={busy}
           onConfirm={confirmDeleteNode}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {actorScopeNodeId && (
+        <GenerateJoinLinkDialog
+          open={joinOpen}
+          onOpenChange={setJoinOpen}
+          nodeId={actorScopeNodeId}
         />
       )}
     </div>

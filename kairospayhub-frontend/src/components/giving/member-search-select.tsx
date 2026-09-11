@@ -48,6 +48,7 @@ export function MemberSearchSelect({
         sortDir: 'asc',
         parentNodeId: scopeNodeId ?? undefined,
         includeDescendants: scopeNodeId ? true : undefined,
+        rosterStatus: 'Active',
       })
       const list = await api.get<StructureMemberListResponse>(`/api/structure/members${qs}`)
       setMembers(

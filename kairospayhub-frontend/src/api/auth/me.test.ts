@@ -269,6 +269,35 @@ describe('canSubmitRollCall', () => {
       }),
     ).toBe(true)
   })
+
+  it('is true when the API says they can mark even if scopes exist', () => {
+    expect(
+      canSubmitRollCall({
+        ...onboarded,
+        role: 'CellLeader',
+        canMarkAttendance: true,
+        rollCallScopes: [{ scopeNodeId: 'cell-1', scopeUnitName: 'Cell A', layerName: 'Cell' }],
+      }),
+    ).toBe(true)
+  })
+
+  it('is false for a fellowship leader when the API says they cannot mark', () => {
+    expect(
+      canSubmitRollCall({
+        ...onboarded,
+        role: 'FellowshipLeader',
+        canMarkAttendance: false,
+        rollCallScopes: [
+          {
+            scopeNodeId: 'fellow-1',
+            scopeUnitName: 'Titans',
+            layerId: 'layer-fellowship',
+            layerName: 'Fellowship',
+          },
+        ],
+      }),
+    ).toBe(false)
+  })
 })
 
 describe('canApproveAttendance', () => {

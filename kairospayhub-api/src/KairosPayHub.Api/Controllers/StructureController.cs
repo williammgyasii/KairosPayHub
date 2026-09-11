@@ -77,6 +77,7 @@ public class StructureController(
             return BadRequest(new { error = "LayerId is required" });
 
         var actor = await current.RequireAsync(ct);
+        Guid.TryParse(current.Sub, out var authUserId);
         return Ok(await nodes.CreateNodeAsync(
             actor,
             request.LayerId,
@@ -86,6 +87,7 @@ public class StructureController(
             request.LeaderMemberId,
             request.NewLeader,
             request.ClientRequestId,
+            authUserId,
             ct));
     }
 
@@ -118,7 +120,9 @@ public class StructureController(
     public async Task<IActionResult> DeleteNode(Guid nodeId, CancellationToken ct)
     {
         var actor = await current.RequireAsync(ct);
-        await nodes.DeleteNodeAsync(actor, nodeId, ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized();
+        await nodes.DeleteNodeAsync(actor, authUserId, nodeId, ct);
         return NoContent();
     }
 
@@ -141,6 +145,7 @@ public class StructureController(
         [FromQuery] string? search = null,
         [FromQuery] Guid? parentNodeId = null,
         [FromQuery] bool includeDescendants = true,
+        [FromQuery] string? rosterStatus = null,
         CancellationToken ct = default)
     {
         var actor = await current.RequireAsync(ct);
@@ -157,6 +162,7 @@ public class StructureController(
             search,
             parentNodeId,
             includeDescendants,
+            rosterStatus,
             ct));
     }
 

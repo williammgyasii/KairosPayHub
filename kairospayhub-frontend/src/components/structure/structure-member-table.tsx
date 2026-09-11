@@ -11,7 +11,7 @@ import {
   type SortingState,
   type VisibilityState,
 } from '@tanstack/react-table'
-import { ArrowUpDown, Coins, Eye, FileText, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { ArrowUpDown } from 'lucide-react'
 import type { StructureLayer } from '@/api/structure'
 import { formatOccupationStatus } from '@/lib/member-filters'
 import { defaultMembershipColumnVisibility, membershipColumnMinWidthClass } from '@/lib/membership-table-columns'
@@ -22,18 +22,22 @@ import {
 import type { StructureMemberRow } from '@/lib/structure-table-rows'
 import { ResponsivenessBadge } from '@/components/structure/responsiveness-badge'
 import { RoleBadge, StructureSegmentBadge } from '@/components/structure/structure-badges'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import {
+  membershipNewBadgeClass,
+  membershipYouBadgeClass,
+  membershipRowTone,
+  membershipRowToneClass,
+  membershipStickyRowClass,
+} from '@/lib/membership-row-presentation'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import {
+  MemberRowMenu,
+  type MemberViewDestination,
+} from '@/components/structure/structure-member-row-menu'
 
-export type MemberViewDestination = 'profile' | 'attendance' | 'givings'
+export type { MemberViewDestination }
 
 interface StructureMemberTableProps {
   rows: StructureMemberRow[]
@@ -44,6 +48,9 @@ interface StructureMemberTableProps {
   onEdit?: (member: StructureMemberRow) => void
   onView?: (member: StructureMemberRow, destination?: MemberViewDestination) => void
   onDelete?: (member: StructureMemberRow) => void
+  onAccept?: (member: StructureMemberRow) => void
+  onDecline?: (member: StructureMemberRow) => void
+  currentMemberId?: string | null
   showSearch?: boolean
   /** @deprecated Prefer columnVisibility; true seeds full profile columns with defaults. */
   extendedColumns?: boolean
@@ -80,6 +87,9 @@ export function StructureMemberTable({
   onEdit,
   onView,
   onDelete,
+  onAccept,
+  onDecline,
+  currentMemberId = null,
   showSearch = true,
   extendedColumns = false,
   columnVisibility: columnVisibilityProp,
@@ -132,10 +142,10 @@ export function StructureMemberTable({
     () =>
       createMemberColumns(
         structureLayers,
-        { onEdit, onView, onDelete, readOnly },
+        { onEdit, onView, onDelete, onAccept, onDecline, readOnly, currentMemberId },
         { toggleableProfile: useToggleableColumns, compactLayout },
       ),
-    [structureLayers, onEdit, onView, onDelete, useToggleableColumns, compactLayout, readOnly],
+    [structureLayers, onEdit, onView, onDelete, onAccept, onDecline, currentMemberId, useToggleableColumns, compactLayout, readOnly],
   )
 
   const table = useReactTable({
@@ -171,18 +181,19 @@ export function StructureMemberTable({
       ? `${rows.length} of ${totalCount}`
       : `${rows.length}`
 
-  function stickyClasses(columnId: string, kind: 'th' | 'td', rowTone?: 'even' | 'odd') {
+  function stickyClasses(
+    columnId: string,
+    kind: 'th' | 'td',
+    rowTone?: ReturnType<typeof membershipRowTone>,
+    odd = false,
+  ) {
     const left = membershipStickyColumnLeft(columnId)
     if (left == null) return 'relative z-0'
     return cn(
       'sticky border-border bg-clip-padding border-r-2 border-r-border shadow-[6px_0_10px_-6px_rgba(15,23,42,0.35)] dark:shadow-[6px_0_10px_-6px_rgba(0,0,0,0.65)]',
       kind === 'th' && 'z-[45] !bg-muted',
       kind === 'td' && 'z-[35]',
-      kind === 'td' && (rowTone === 'odd' ? '!bg-muted' : '!bg-card'),
-      kind === 'td' &&
-        (rowTone === 'odd'
-          ? 'group-hover:!bg-sky-100 dark:group-hover:!bg-sky-950'
-          : 'group-hover:!bg-sky-50 dark:group-hover:!bg-sky-950'),
+      kind === 'td' && membershipStickyRowClass(rowTone ?? 'default', odd),
     )
   }
 
@@ -278,21 +289,26 @@ export function StructureMemberTable({
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row, rowIndex) => (
+              table.getRowModel().rows.map((row, rowIndex) => {
+                const tone = membershipRowTone({
+                  ...row.original,
+                  memberId: row.original.id,
+                  currentMemberId,
+                })
+                return (
                 <tr
                   key={row.id}
-                  className="group border-b border-border/40 last:border-0 hover:bg-muted/10"
+                  className={cn(
+                    'group border-b border-border/40 last:border-0',
+                    membershipRowToneClass(tone) || 'hover:bg-muted/10',
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
                       className={cn(
                         'px-5 py-3 align-middle',
-                        stickyClasses(
-                          cell.column.id,
-                          'td',
-                          rowIndex % 2 === 1 ? 'odd' : 'even',
-                        ),
+                        stickyClasses(cell.column.id, 'td', tone, rowIndex % 2 === 1),
                         membershipColumnMinWidthClass(cell.column.id),
                       )}
                       style={stickyStyle(cell.column.id)}
@@ -301,7 +317,8 @@ export function StructureMemberTable({
                     </td>
                   ))}
                 </tr>
-              ))
+                )
+              })
             )}
           </tbody>
         </table>
@@ -318,12 +335,17 @@ function createMemberColumns(
     onEdit?: (member: StructureMemberRow) => void
     onView?: (member: StructureMemberRow, destination?: MemberViewDestination) => void
     onDelete?: (member: StructureMemberRow) => void
+    onAccept?: (member: StructureMemberRow) => void
+    onDecline?: (member: StructureMemberRow) => void
+    currentMemberId?: string | null
     readOnly?: boolean
   },
   options: { toggleableProfile: boolean; compactLayout: boolean },
 ) {
   const helper = createColumnHelper<StructureMemberRow>()
-  const showActions = Boolean(actions.onView || actions.onDelete || actions.onEdit)
+  const showActions = Boolean(
+    actions.onView || actions.onDelete || actions.onEdit || actions.onAccept || actions.onDecline,
+  )
 
   const structureColumns = options.compactLayout
     ? []
@@ -471,83 +493,32 @@ function createMemberColumns(
     helper.accessor('member', {
       header: 'Name',
       enableHiding: false,
-      cell: ({ row, getValue }) => (
-        <div className="flex min-w-0 items-center gap-0.5">
+      cell: ({ row, getValue }) => {
+        const tone = membershipRowTone({
+          ...row.original,
+          memberId: row.original.id,
+          currentMemberId: actions.currentMemberId,
+        })
+        return (
+        <div className="flex min-w-0 items-center gap-1.5">
           <span className="min-w-0 flex-1 truncate font-medium">{getValue()}</span>
+          {tone === 'pending' ? (
+            <Badge className="ml-0.5 shrink-0 border-amber-200 bg-amber-100 text-amber-950 hover:bg-amber-100">
+              Pending
+            </Badge>
+          ) : null}
+          {tone === 'you' ? (
+            <Badge className={cn('ml-0.5 shrink-0', membershipYouBadgeClass())}>You</Badge>
+          ) : null}
+          {tone === 'new' ? (
+            <Badge className={cn('ml-0.5 shrink-0', membershipNewBadgeClass())}>New</Badge>
+          ) : null}
           {showActions ? <MemberRowMenu member={row.original} {...actions} /> : null}
         </div>
-      ),
+        )
+      },
     }),
     ...profileColumns,
     ...structureColumns,
   ]
-}
-
-function MemberRowMenu({
-  member,
-  onEdit,
-  onView,
-  onDelete,
-  readOnly = false,
-}: {
-  member: StructureMemberRow
-  onEdit?: (member: StructureMemberRow) => void
-  onView?: (member: StructureMemberRow, destination?: MemberViewDestination) => void
-  onDelete?: (member: StructureMemberRow) => void
-  readOnly?: boolean
-}) {
-  const canEdit = !readOnly && Boolean(onEdit)
-  const canDelete = !readOnly && Boolean(onDelete)
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8 text-muted-foreground hover:text-foreground"
-          aria-label={`Actions for ${member.member}`}
-        >
-          <MoreHorizontal className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        {onView && (
-          <>
-            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'profile')}>
-              <Eye className="size-4" />
-              View profile
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'attendance')}>
-              <FileText className="size-4" />
-              View attendance
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" onClick={() => onView(member, 'givings')}>
-              <Coins className="size-4" />
-              View givings
-            </DropdownMenuItem>
-          </>
-        )}
-        {canEdit && (
-          <DropdownMenuItem className="gap-2" onClick={() => onEdit?.(member)}>
-            <Pencil className="size-4" />
-            Edit profile
-          </DropdownMenuItem>
-        )}
-        {canDelete && (
-          <>
-            {(onView || canEdit) && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              className="gap-2 text-destructive focus:text-destructive"
-              onClick={() => onDelete?.(member)}
-            >
-              <Trash2 className="size-4" />
-              Remove member
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
 }

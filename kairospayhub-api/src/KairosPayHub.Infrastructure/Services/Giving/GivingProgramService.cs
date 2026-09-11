@@ -261,7 +261,11 @@ public class GivingProgramService(
         var cellCount = layerTypes.Count(t => t == StructureLayerType.Cell);
 
         var memberCount = await db.ChurchMembers.AsNoTracking()
-            .CountAsync(m => m.ChurchId == churchId && subtreeSet.Contains(m.ParentNodeId), ct);
+            .CountAsync(
+                m => m.ChurchId == churchId
+                     && subtreeSet.Contains(m.ParentNodeId)
+                     && m.RosterStatus == RosterStatus.Active,
+                ct);
 
         var roots = await db.GivingPrograms.AsNoTracking()
             .Where(p => p.ChurchId == churchId && p.ParentProgramId == null && p.Status == ProgramStatus.Open)
@@ -388,7 +392,11 @@ public class GivingProgramService(
         };
 
         var memberCount = await db.ChurchMembers.AsNoTracking()
-            .CountAsync(m => m.ChurchId == churchId && subtreeSet.Contains(m.ParentNodeId), ct);
+            .CountAsync(
+                m => m.ChurchId == churchId
+                     && subtreeSet.Contains(m.ParentNodeId)
+                     && m.RosterStatus == RosterStatus.Active,
+                ct);
 
         var roots = await db.GivingPrograms.AsNoTracking()
             .Where(p => p.ChurchId == churchId && p.ParentProgramId == null && p.Status == ProgramStatus.Open)

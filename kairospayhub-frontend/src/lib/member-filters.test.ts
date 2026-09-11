@@ -18,6 +18,7 @@ const sampleRows: StructureMemberRow[] = [
     parentNodeId: 'cell-1',
     position: 'Member',
     responsiveness: 3,
+    rosterStatus: 'Active',
     structure: [
       {
         layerId: 'pfcc',
@@ -48,6 +49,7 @@ const sampleRows: StructureMemberRow[] = [
     parentNodeId: 'cell-1',
     position: 'CellLeader',
     responsiveness: 5,
+    rosterStatus: 'Active',
     structure: [
       {
         layerId: 'pfcc',

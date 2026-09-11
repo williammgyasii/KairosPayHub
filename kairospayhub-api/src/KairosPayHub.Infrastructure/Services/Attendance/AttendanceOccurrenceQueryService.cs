@@ -178,7 +178,9 @@ public class AttendanceOccurrenceQueryService(
             occurrence.MeetingDate,
             submission.ApprovalStatus.ToString(),
             entryDtos,
-            inviteeEntries);
+            inviteeEntries,
+            submission.GuestRiskLevel,
+            GuestRiskService.ParseReasons(submission.GuestRiskReasons));
     }
 
     public async Task<AttendanceOccurrenceRollupDto> GetOccurrenceRollupAsync(

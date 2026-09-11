@@ -1,0 +1,37 @@
+---
+description: Never mutate production unless the user names prod explicitly
+alwaysApply: true
+---
+
+# Production is sacred
+
+Default every data read **and** write to **dev**. Production is off-limits unless the user writes the word **production** or **prod** in the same message as the action.
+
+## Environments
+
+| Env | Neon project | Database | How you reach it |
+|-----|--------------|----------|------------------|
+| **Dev** (default) | `kairospayhub-dev` | `kairospayhub_dev` | `.env` `ConnectionStrings__Default` |
+| **Prod** | `kairospayhub-prod` | `kairospayhub` | `neonctl` project `wandering-snow-35159158` |
+
+Before any `DELETE` / `UPDATE` / `INSERT` / restore, print `current_database()` and abort if it is not the intended env.
+
+## What does **not** count as prod consent
+
+- The agent mentioned prod as extra context, then the user said “delete them”, “also”, “do it”, “yes”
+- “the churches”, “that one”, “clean it up” with no env named
+- A prior turn that talked about prod
+
+```text
+❌ BAD — user: "okay we only have TPH USA right?" / agent: "yes on dev; prod still has 3" / user: "delete them also"
+   → delete TPH USA on DEV only. Do not touch prod.
+
+✅ GOOD — user: "delete Canada Int Ministries on production"
+   → confirm the church name + `kairospayhub`, then proceed
+```
+
+## If they want prod
+
+1. Repeat back: env, church/user names, that it is irreversible.
+2. Wait for a second explicit yes in a new message.
+3. Never reuse a prod connection string from an earlier turn without re-checking `current_database()`.

@@ -1,9 +1,11 @@
-import { ArrowUpDown, Columns3 } from 'lucide-react'
+import type { OnChangeFn, SortingState, VisibilityState } from '@tanstack/react-table'
+import { Columns3 } from 'lucide-react'
 import type { AttendanceOccurrenceDetail, AttendanceOccurrenceRollup } from '@/api/attendance'
+import { AttendanceAllTable } from '@/components/attendance/attendance-all-table'
+import { AttendanceAllToolbar } from '@/components/attendance/attendance-all-toolbar'
 import {
   approvalStatusLabel,
   ColumnToggleSwitch,
-  personKindLabel,
 } from '@/components/attendance/attendance-overview-parts'
 import { StructurePageTabs } from '@/components/structure/structure-page-tabs'
 import type { StructurePageTab } from '@/components/structure/structure-page-tabs'
@@ -18,10 +20,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { TablePagination } from '@/components/ui/table-pagination'
 import {
   BY_UNIT_COLUMN_LABELS,
-  WHO_SHOWED_UP_COLUMN_LABELS,
   type ByUnitColumnId,
   type MetricsDetailTabId,
   type WhoShowedUpColumnId,
@@ -30,10 +30,6 @@ import { cn } from '@/lib/utils'
 
 const selectClassName =
   'flex h-9 min-w-[10rem] rounded-md border border-input bg-background px-3 text-sm shadow-sm'
-
-type SortColumn = 'name' | 'cell' | 'parent' | 'type' | 'phone' | 'invitedBy'
-
-type SortCol = { id: SortColumn; columnId: WhoShowedUpColumnId; label: string }
 
 export type AttendanceOverviewDetailTabsProps = {
   detailTabs: StructurePageTab[]
@@ -47,14 +43,14 @@ export type AttendanceOverviewDetailTabsProps = {
   cellFilter: string
   setCellFilter: (v: string) => void
   columnVisibility: Record<WhoShowedUpColumnId, boolean>
+  onColumnVisibilityChange: (next: VisibilityState) => void
   toggleColumn: (id: WhoShowedUpColumnId) => void
   parentColumnLabel: string
   unitLayerLabel: string
   loadingOccurrences: boolean
   loadingRollup: boolean
-  visibleSortColumns: SortCol[]
-  sorting: { id: SortColumn; desc: boolean }
-  toggleSort: (column: SortColumn) => void
+  sorting: SortingState
+  onSortingChange: OnChangeFn<SortingState>
   setPage: (p: number) => void
   setPageSize: (s: number) => void
   emptyTableMessage: string
@@ -74,187 +70,68 @@ export type AttendanceOverviewDetailTabsProps = {
 export function AttendanceOverviewDetailTabs(p: AttendanceOverviewDetailTabsProps) {
   const {
     detailTabs, detailTab, setDetailTab, rollup, search, setSearch, personKind, setPersonKind,
-    cellFilter, setCellFilter, columnVisibility, toggleColumn, parentColumnLabel, unitLayerLabel,
-    loadingOccurrences, loadingRollup, visibleSortColumns, sorting, toggleSort,
+    cellFilter, setCellFilter, columnVisibility, onColumnVisibilityChange, toggleColumn, parentColumnLabel, unitLayerLabel,
+    loadingOccurrences, loadingRollup, sorting, onSortingChange,
     setPage, setPageSize, emptyTableMessage, unitSearch, setUnitSearch, unitStatusFilter,
     setUnitStatusFilter, byUnitColumnVisibility, toggleByUnitColumn, loadingDetail,
     occurrenceDetail, filteredUnits, metricsGroups, draftUnits,
   } = p
 
   return (
-          <section className="space-y-4 rounded-lg border">
-            <div className="px-4 pt-2">
-              <StructurePageTabs
-                tabs={detailTabs}
-                activeId={detailTab}
-                onChange={(id) => setDetailTab(id as MetricsDetailTabId)}
-              />
-            </div>
+          <section className="space-y-4">
+            <StructurePageTabs
+              tabs={detailTabs}
+              activeId={detailTab}
+              onChange={(id) => setDetailTab(id as MetricsDetailTabId)}
+            />
 
             {detailTab === 'who' ? (
-              <>
-                <div className="flex flex-col gap-3 px-4 pb-2 lg:flex-row lg:items-end lg:justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    {rollup
-                      ? `${rollup.totalCount} people marked present for this service`
-                      : 'Select a service date above'}
-                  </p>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                    <Input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search name, phone, unit…"
-                      className="h-9 w-full sm:w-56"
-                    />
-                    <select
-                      value={personKind}
-                      onChange={(e) =>
-                        setPersonKind(e.target.value as '' | 'Member' | 'Invitee' | 'FirstTimer')
-                      }
-                      className={cn(selectClassName, 'sm:w-40')}
-                    >
-                      <option value="">All types</option>
-                      <option value="Member">Members</option>
-                      <option value="Invitee">Invitees / guests</option>
-                      <option value="FirstTimer">First timers</option>
-                    </select>
-                    <Input
-                      value={cellFilter}
-                      onChange={(e) => setCellFilter(e.target.value)}
-                      placeholder="Filter by unit"
-                      className="h-9 w-full sm:w-40"
-                    />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5">
-                          <Columns3 className="size-3.5" />
-                          Columns
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel>Show columns</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {(Object.keys(WHO_SHOWED_UP_COLUMN_LABELS) as WhoShowedUpColumnId[]).map(
-                          (columnId) => (
-                            <DropdownMenuItem
-                              key={columnId}
-                              disabled={columnId === 'name'}
-                              className="justify-between gap-3"
-                              onSelect={(event) => {
-                                event.preventDefault()
-                                toggleColumn(columnId)
-                              }}
-                            >
-                              {columnId === 'parentUnit'
-                                ? parentColumnLabel
-                                : columnId === 'unit'
-                                  ? unitLayerLabel
-                                  : WHO_SHOWED_UP_COLUMN_LABELS[columnId]}
-                              <ColumnToggleSwitch on={columnVisibility[columnId]} />
-                            </DropdownMenuItem>
-                          ),
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-
-                {loadingOccurrences || (loadingRollup && !rollup) ? (
-                  <div className="px-4 py-10">
-                    <Spinner label="Loading attendance…" />
-                  </div>
-                ) : rollup && rollup.totalPresent > 0 ? (
-                  <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px] text-sm">
-                        <thead>
-                          <tr className="border-b text-left text-xs text-muted-foreground">
-                            {visibleSortColumns.map((column) => (
-                              <th
-                                key={column.id}
-                                className={cn(
-                                  'px-4 py-2 font-medium',
-                                  column.id === 'name' && 'min-w-[9rem]',
-                                )}
-                              >
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center gap-1 hover:text-foreground"
-                                  onClick={() => toggleSort(column.id)}
-                                >
-                                  {column.columnId === 'parentUnit'
-                                    ? parentColumnLabel
-                                    : column.columnId === 'unit'
-                                      ? unitLayerLabel
-                                      : column.label}
-                                  <ArrowUpDown
-                                    className={cn(
-                                      'size-3',
-                                      sorting.id === column.id ? 'opacity-100' : 'opacity-40',
-                                    )}
-                                  />
-                                </button>
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {rollup.items.map((person) => (
-                            <tr
-                              key={`${person.scopeNodeId}:${person.name}:${person.personKind}:${person.phone ?? ''}`}
-                            >
-                              {columnVisibility.name ? (
-                                <td className="max-w-[14rem] truncate px-4 py-3 font-medium whitespace-nowrap">
-                                  {person.name}
-                                </td>
-                              ) : null}
-                              {columnVisibility.unit ? (
-                                <td className="px-4 py-3 text-muted-foreground">{person.cellName}</td>
-                              ) : null}
-                              {columnVisibility.parentUnit ? (
-                                <td className="px-4 py-3 text-muted-foreground">
-                                  {person.parentUnitName || '—'}
-                                </td>
-                              ) : null}
-                              {columnVisibility.type ? (
-                                <td className="px-4 py-3">{personKindLabel(person.personKind)}</td>
-                              ) : null}
-                              {columnVisibility.phone ? (
-                                <td className="px-4 py-3 text-muted-foreground">
-                                  {person.phone || '—'}
-                                </td>
-                              ) : null}
-                              {columnVisibility.invitedBy ? (
-                                <td className="px-4 py-3 text-muted-foreground">
-                                  {person.invitedByMemberName || '—'}
-                                </td>
-                              ) : null}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <TablePagination
-                      page={rollup.page}
-                      pageSize={rollup.pageSize}
-                      totalCount={rollup.totalCount}
-                      onPageChange={setPage}
-                      onPageSizeChange={(size) => {
-                        setPageSize(size)
-                        setPage(1)
-                      }}
-                      disabled={loadingRollup}
-                    />
-                  </>
-                ) : (
-                  <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    {emptyTableMessage}
-                  </p>
-                )}
-              </>
+              <div className="space-y-3">
+                <AttendanceAllToolbar
+                  search={search}
+                  setSearch={setSearch}
+                  personKind={personKind}
+                  setPersonKind={setPersonKind}
+                  cellFilter={cellFilter}
+                  setCellFilter={setCellFilter}
+                  columnVisibility={columnVisibility}
+                  toggleColumn={toggleColumn}
+                  parentColumnLabel={parentColumnLabel}
+                  unitLayerLabel={unitLayerLabel}
+                  countLabel={
+                    rollup
+                      ? `${rollup.totalCount} people in attendance for this service`
+                      : 'Select a service date above'
+                  }
+                />
+                <AttendanceAllTable
+                  rows={rollup?.items ?? []}
+                  loading={loadingOccurrences || (loadingRollup && !rollup)}
+                  emptyMessage={emptyTableMessage}
+                  parentColumnLabel={parentColumnLabel}
+                  unitLayerLabel={unitLayerLabel}
+                  columnVisibility={columnVisibility}
+                  onColumnVisibilityChange={(updater) => {
+                    const next =
+                      typeof updater === 'function' ? updater(columnVisibility) : updater
+                    onColumnVisibilityChange(next)
+                  }}
+                  sorting={sorting}
+                  onSortingChange={onSortingChange}
+                  page={rollup?.page ?? 1}
+                  pageSize={rollup?.pageSize ?? 25}
+                  totalCount={rollup?.totalCount ?? 0}
+                  onPageChange={setPage}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size)
+                    setPage(1)
+                  }}
+                  pagingDisabled={loadingRollup}
+                />
+              </div>
             ) : detailTab === 'by-unit' ? (
-              <>
-                <div className="flex flex-col gap-3 px-4 pb-2 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <p className="text-sm text-muted-foreground">
                     How many each {unitLayerLabel.toLowerCase()} brought, nested under{' '}
                     {parentColumnLabel.toLowerCase()} when available.
@@ -307,11 +184,11 @@ export function AttendanceOverviewDetailTabs(p: AttendanceOverviewDetailTabsProp
                 </div>
 
                 {loadingOccurrences || (loadingDetail && !occurrenceDetail) ? (
-                  <div className="px-4 py-10">
+                  <div className="rounded-lg border px-4 py-10">
                     <Spinner label="Loading units…" />
                   </div>
                 ) : filteredUnits.length > 0 ? (
-                  <div className="space-y-5 overflow-x-auto px-0 pb-4">
+                  <div className="space-y-5 overflow-hidden rounded-lg border">
                     {metricsGroups.map((group) => (
                       <div key={group.groupLabel || 'flat'} className="space-y-0">
                         {group.groupLabel ? (
@@ -401,7 +278,7 @@ export function AttendanceOverviewDetailTabs(p: AttendanceOverviewDetailTabsProp
                     ))}
                   </div>
                 ) : (
-                  <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <p className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
                     {(occurrenceDetail?.scopeSubmissions.length ?? 0) === 0
                       ? 'No unit sheets for this service yet. Sheets appear when the meeting occurrence is generated.'
                       : unitSearch || unitStatusFilter
@@ -409,7 +286,7 @@ export function AttendanceOverviewDetailTabs(p: AttendanceOverviewDetailTabsProp
                         : 'No unit roll calls yet. Leaders mark attendance from Mark attendance, then parent leaders approve.'}
                   </p>
                 )}
-              </>
+              </div>
             ) : (
               <>
                 <div className="flex flex-col gap-3 px-4 pb-2 lg:flex-row lg:items-end lg:justify-between">

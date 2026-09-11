@@ -43,6 +43,7 @@ public sealed class PostgresFixture : IAsyncLifetime
               structure_templates, structure_cells,
               structure_fellowships, pfccs, church_tenants,
               refresh_tokens, one_time_tokens, email_confirmation_codes,
+              user_table_preferences, church_ability_overlays, unit_join_invites,
               "AspNetRoleClaims", "AspNetUserClaims", "AspNetUserLogins",
               "AspNetUserRoles", "AspNetUserTokens", "AspNetUsers", "AspNetRoles"
             RESTART IDENTITY CASCADE;

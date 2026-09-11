@@ -1,5 +1,6 @@
 import type { MemberPosition, StructureLayer, StructureLayerType, StructureNode, StructureTree } from '@/api/structure'
 import { ApiError } from '@/api/core'
+import { isPendingRosterStatus } from '@/lib/member-row-actions'
 
 export function hasTemplate(tree: StructureTree | null): boolean {
   return (tree?.template?.layers.length ?? 0) > 0
@@ -135,11 +136,15 @@ export function collectSubtreeNodeIds(tree: StructureTree, rootId: string): Set<
 }
 
 export function filterTreeToSubtree(tree: StructureTree, rootNodeId: string): StructureTree {
-  const nodeIds = collectSubtreeNodeIds(tree, rootNodeId)
+  const subtreeIds = collectSubtreeNodeIds(tree, rootNodeId)
+  const ancestorIds = parentChain(tree, rootNodeId)
+    .slice(0, -1)
+    .map((node) => node.id)
+  const labelIds = new Set([...subtreeIds, ...ancestorIds])
   return {
     ...tree,
-    nodes: tree.nodes.filter((node) => nodeIds.has(node.id)),
-    members: tree.members.filter((member) => nodeIds.has(member.parentNodeId)),
+    nodes: tree.nodes.filter((node) => labelIds.has(node.id)),
+    members: tree.members.filter((member) => subtreeIds.has(member.parentNodeId)),
   }
 }
 
@@ -398,8 +403,11 @@ export function nodesUnderUnitAtLayer(
 }
 
 export function countMembersUnderUnit(tree: StructureTree, unitNodeId: string) {
-  return tree.members.filter((member) => memberBelongsToUnit(tree, unitNodeId, member.parentNodeId))
-    .length
+  return tree.members.filter(
+    (member) =>
+      !isPendingRosterStatus(member.rosterStatus) &&
+      memberBelongsToUnit(tree, unitNodeId, member.parentNodeId),
+  ).length
 }
 
 export function memberStructureSegments(tree: StructureTree, memberParentNodeId: string) {

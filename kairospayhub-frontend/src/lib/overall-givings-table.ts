@@ -222,6 +222,7 @@ export function memberGivingToFilterRow(
     parentNodeId: row.memberParentNodeId,
     position: 'Member',
     responsiveness: 0,
+    rosterStatus: 'Active',
     structure,
   }
 }

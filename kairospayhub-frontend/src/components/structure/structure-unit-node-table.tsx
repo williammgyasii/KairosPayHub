@@ -37,6 +37,7 @@ interface StructureUnitNodeTableProps {
   className?: string
   readOnly?: boolean
   canManageChurch?: boolean
+  hasCreateChildUnits?: boolean
   actorScopeNodeId?: string | null
 }
 
@@ -55,6 +56,7 @@ export function StructureUnitNodeTable({
   className,
   readOnly = false,
   canManageChurch = !readOnly,
+  hasCreateChildUnits = false,
   actorScopeNodeId = null,
 }: StructureUnitNodeTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
@@ -66,7 +68,7 @@ export function StructureUnitNodeTable({
         tree,
         layer,
         childLayer,
-        { hidePathColumn, hideParentColumn, canManageChurch, actorScopeNodeId },
+        { hidePathColumn, hideParentColumn, canManageChurch, hasCreateChildUnits, actorScopeNodeId },
         { onEdit, onDelete, onChangeLeader },
       ),
     [
@@ -75,6 +77,7 @@ export function StructureUnitNodeTable({
       childLayer,
       hidePathColumn,
       hideParentColumn,
+      hasCreateChildUnits,
       onEdit,
       onDelete,
       onChangeLeader,
@@ -188,6 +191,7 @@ function createUnitNodeColumns(
     hidePathColumn: boolean
     hideParentColumn: boolean
     canManageChurch: boolean
+    hasCreateChildUnits?: boolean
     actorScopeNodeId?: string | null
   },
   actions: {
@@ -275,7 +279,9 @@ function createUnitNodeColumns(
       header: '',
       cell: ({ row }) => {
         const policy = unitEditPolicy({
+          tree,
           canManageChurch: options.canManageChurch,
+          hasCreateChildUnits: options.hasCreateChildUnits,
           actorScopeNodeId: options.actorScopeNodeId,
           unitId: row.original.id,
         })
@@ -291,9 +297,7 @@ function createUnitNodeColumns(
                 : undefined
             }
             onEdit={policy.canRename ? () => actions.onEdit(row.original) : undefined}
-            onDelete={
-              options.canManageChurch ? () => actions.onDelete(row.original) : undefined
-            }
+            onDelete={policy.canDelete ? () => actions.onDelete(row.original) : undefined}
           />
         )
       },

@@ -178,6 +178,8 @@ export type AttendanceScopeRollCallReview = {
   approvalStatus: string
   entries: AttendanceEntry[]
   inviteeEntries: AttendanceInviteeEntry[]
+  guestRiskLevel?: string
+  guestRiskReasons?: string[]
 }
 
 export function getScopeRollCallReview(
@@ -314,6 +316,8 @@ export type AttendanceApprovalQueueItem = {
   presentCount: number
   absentCount: number
   memberCount: number
+  guestRiskLevel?: string
+  guestRiskReasons?: string[]
 }
 
 export type AttendanceMySubmission = {

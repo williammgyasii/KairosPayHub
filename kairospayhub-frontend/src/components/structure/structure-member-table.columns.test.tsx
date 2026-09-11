@@ -30,6 +30,7 @@ const row: StructureMemberRow = {
   parentNodeId: 'n1',
   position: 'Member',
   responsiveness: 3,
+  rosterStatus: 'Active',
   structure: [
     { layerId: 'cell', layerName: 'Cell', standardType: 'Cell', nodeName: 'Cell 1' },
   ],
@@ -68,6 +69,59 @@ function Harness() {
     />
   )
 }
+
+describe('membership row marks', () => {
+  it('shows a New mark next to a recently added member', () => {
+    render(
+      <StructureMemberTable
+        rows={[
+          {
+            ...row,
+            createdAt: new Date().toISOString(),
+          },
+        ]}
+        structureLayers={layers}
+        showSearch={false}
+        hideHeader
+      />,
+    )
+
+    expect(screen.getByText('New')).toBeTruthy()
+  })
+
+  it('shows You instead of New on the current member row', () => {
+    render(
+      <StructureMemberTable
+        rows={[
+          {
+            ...row,
+            createdAt: new Date().toISOString(),
+          },
+        ]}
+        structureLayers={layers}
+        currentMemberId={row.id}
+        showSearch={false}
+        hideHeader
+      />,
+    )
+
+    expect(screen.getByText('You')).toBeTruthy()
+    expect(screen.queryByText('New')).toBeNull()
+  })
+
+  it('shows a Pending mark for join requests', () => {
+    render(
+      <StructureMemberTable
+        rows={[{ ...row, rosterStatus: 'Pending' }]}
+        structureLayers={layers}
+        showSearch={false}
+        hideHeader
+      />,
+    )
+
+    expect(screen.getByText('Pending')).toBeTruthy()
+  })
+})
 
 describe('membership column toggles', () => {
   it('hides State by default and shows it after Columns toggle', async () => {

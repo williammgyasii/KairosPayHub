@@ -8,7 +8,6 @@ import {
   groupScopeSubmissions,
   isFutureServiceDate,
   isRollCallEditable,
-  METRICS_SUMMARY_TILE_IDS,
   nextUpcomingOccurrence,
   pickNearestOccurrence,
   rollCallState,
@@ -32,15 +31,6 @@ describe('approvedUnitsTileLabel', () => {
 })
 
 describe('metrics detail helpers', () => {
-  it('keeps the summary strip to four tile ids', () => {
-    expect([...METRICS_SUMMARY_TILE_IDS]).toEqual([
-      'present',
-      'members',
-      'firstTimers',
-      'pending',
-    ])
-  })
-
   it('defaults parent unit column off', () => {
     expect(DEFAULT_WHO_SHOWED_UP_COLUMN_VISIBILITY.parentUnit).toBe(false)
     expect(DEFAULT_WHO_SHOWED_UP_COLUMN_VISIBILITY.name).toBe(true)

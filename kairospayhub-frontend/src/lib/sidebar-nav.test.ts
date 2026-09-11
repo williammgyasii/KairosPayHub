@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSidebarNavItemActive } from '@/lib/sidebar-nav'
+import { isSidebarNavItemActive, shouldShowAccessNav } from '@/lib/sidebar-nav'
 
 describe('isSidebarNavItemActive', () => {
   it('highlights roster units on list and unit detail routes', () => {
@@ -75,6 +75,17 @@ describe('isSidebarNavItemActive', () => {
   it('uses exact matching for overview', () => {
     expect(isSidebarNavItemActive('/', { to: '.', end: true })).toBe(true)
     expect(isSidebarNavItemActive('/givings', { to: '.', end: true })).toBe(false)
+  })
+
+  it('shows Access only for the pastor', () => {
+    expect(shouldShowAccessNav('Pastor')).toBe(true)
+    expect(shouldShowAccessNav('ChurchAdmin')).toBe(false)
+    expect(shouldShowAccessNav('FellowshipLeader')).toBe(false)
+  })
+
+  it('highlights Access on /access', () => {
+    expect(isSidebarNavItemActive('/access', { to: 'access', end: true })).toBe(true)
+    expect(isSidebarNavItemActive('/settings', { to: 'access', end: true })).toBe(false)
   })
 
   it('highlights events only on /events', () => {

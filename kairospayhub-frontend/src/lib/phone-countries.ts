@@ -1,3 +1,5 @@
+import { normalizeCountryCode } from '@/lib/church-country'
+
 export type PhoneCountry = {
   code: string
   dialCode: string
@@ -97,9 +99,10 @@ export const PHONE_COUNTRIES: PhoneCountry[] = [
 export const DEFAULT_PHONE_COUNTRY = PHONE_COUNTRIES[0]
 
 export function phoneCountryForCode(code: string | null | undefined): PhoneCountry {
-  if (!code?.trim()) return DEFAULT_PHONE_COUNTRY
+  const normalized = normalizeCountryCode(code)
+  if (!normalized) return DEFAULT_PHONE_COUNTRY
   return (
-    PHONE_COUNTRIES.find((country) => country.code.toUpperCase() === code.trim().toUpperCase()) ??
+    PHONE_COUNTRIES.find((country) => country.code.toUpperCase() === normalized) ??
     DEFAULT_PHONE_COUNTRY
   )
 }

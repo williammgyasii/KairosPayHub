@@ -31,10 +31,23 @@ describe('isRequiredLeaderProfileComplete', () => {
     ).toBe(true)
   })
 
-  it('does not require state for Ghana', () => {
+  it('requires a Ghana region when the church country has a dropdown', () => {
     expect(isRequiredLeaderProfileComplete('lead@example.com', completeUsLeader(), 'GH')).toBe(
-      true,
+      false,
     )
+    expect(
+      isRequiredLeaderProfileComplete(
+        'lead@example.com',
+        { ...completeUsLeader(), state: 'GAR' },
+        'GH',
+      ),
+    ).toBe(true)
+  })
+
+  it('defaults phone to the church country dial code', () => {
+    expect(memberProfileInitialValues({ countryCode: 'US' }).phoneDialCode).toBe('1')
+    expect(memberProfileInitialValues({ countryCode: 'USA' }).phoneDialCode).toBe('1')
+    expect(memberProfileInitialValues({ countryCode: 'GH' }).phoneDialCode).toBe('233')
   })
 })
 

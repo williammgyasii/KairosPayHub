@@ -39,7 +39,7 @@ export function LogContributionForm({
       try {
         const res = await api.get<{
           items: { id: string; name: string; email: string | null }[]
-        }>(`/api/structure/members${buildMembersQuery({ page: 1, pageSize: 100, sortBy: 'name' })}`)
+        }>(`/api/structure/members${buildMembersQuery({ page: 1, pageSize: 100, sortBy: 'name', rosterStatus: 'Active' })}`)
         setMembers(res.items)
       } catch {
         setMembers([])

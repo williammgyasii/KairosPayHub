@@ -73,6 +73,7 @@ export function GivingMemberPicker({
         sortDir: 'asc',
         parentNodeId: scopeNodeId ?? undefined,
         includeDescendants: scopeNodeId ? true : undefined,
+        rosterStatus: 'Active',
       })
       setList(await api.get<StructureMemberListResponse>(`/api/structure/members${query}`))
     } catch (err) {

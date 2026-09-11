@@ -20,6 +20,7 @@ public class MeController(
     CurrentActor current,
     KairosDbContext db,
     AbilityResolver abilities,
+    LayerAccessService layerAccess,
     UserManager<ApplicationUser> users,
     ChurchReadCache readCache,
     UserAvatarService avatars) : ControllerBase
@@ -108,6 +109,7 @@ public class MeController(
         string? scopeUnitName = null;
         StructureLayerType? scopeLayerKind = null;
         object rollCallScopes = Array.Empty<object>();
+        var canMarkAttendance = false;
         if (actor.StructureRole is not null
             && actor.StructureChurchId != default
             && Guid.TryParse(current.Sub, out var authUserId))
@@ -133,7 +135,7 @@ public class MeController(
                 scopeLayerKind = nodeInfo?.StandardType;
             }
 
-            rollCallScopes = await (
+            var scopeRows = await (
                 from assignment in db.RoleAssignments.AsNoTracking()
                 join node in db.StructureNodes.AsNoTracking()
                     on assignment.ScopeNodeId equals node.Id
@@ -147,12 +149,27 @@ public class MeController(
                 {
                     scopeNodeId = node.Id,
                     scopeUnitName = node.Name,
+                    layerId = layer.Id,
                     layerName = layer.DisplayName,
                 })
                 .ToListAsync(ct);
+            rollCallScopes = scopeRows;
+
+            if (scopeRows.Count > 0)
+            {
+                var ledLayerIds = scopeRows.Select(s => s.layerId).Distinct().ToList();
+                canMarkAttendance = await db.AttendanceMeetingTypes.AsNoTracking()
+                    .AnyAsync(
+                        t => t.ChurchId == actor.StructureChurchId
+                            && t.IsActive
+                            && t.SubmissionLayerId != null
+                            && ledLayerIds.Contains(t.SubmissionLayerId.Value),
+                        ct);
+            }
         }
 
-        var resolved = abilities.Resolve(actor.StructureRole, scopeLayerKind);
+        Guid.TryParse(current.Sub, out var resolveAuthUserId);
+        var resolved = await layerAccess.ResolveForAsync(actor, resolveAuthUserId, ct);
         var linked = churchId is Guid linkedChurchId
             ? await FindLinkedMemberAsync(linkedChurchId, ct)
             : null;
@@ -177,6 +194,7 @@ public class MeController(
             scopeNodeId,
             scopeUnitName,
             rollCallScopes,
+            canMarkAttendance,
             legacyChurchId = actor.ChurchId,
             email = current.Email,
             name = linked?.Name ?? current.Name,

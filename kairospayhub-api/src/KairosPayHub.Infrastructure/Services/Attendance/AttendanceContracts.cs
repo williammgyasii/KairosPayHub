@@ -44,7 +44,9 @@ public record AttendanceApprovalQueueItemDto(
     string? EnteredByRole,
     int PresentCount,
     int AbsentCount,
-    int MemberCount);
+    int MemberCount,
+    string GuestRiskLevel,
+    IReadOnlyList<string> GuestRiskReasons);
 
 public record AttendanceMySubmissionDto(
     Guid OccurrenceId,
@@ -75,7 +77,9 @@ public record AttendanceScopeRollCallReviewDto(
     DateOnly MeetingDate,
     string ApprovalStatus,
     IReadOnlyList<AttendanceEntryDto> Entries,
-    IReadOnlyList<AttendanceInviteeEntryDto> InviteeEntries);
+    IReadOnlyList<AttendanceInviteeEntryDto> InviteeEntries,
+    string GuestRiskLevel,
+    IReadOnlyList<string> GuestRiskReasons);
 
 public record AttendancePresentPersonDto(
     string Name,

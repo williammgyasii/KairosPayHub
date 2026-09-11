@@ -15,7 +15,8 @@ public class AttendanceSubmissionService(
     AttendanceScopeService scope,
     AttendanceRollCallExtrasService rollCallExtras,
     NotificationService notifications,
-    AttendanceSubmissionSupport support)
+    AttendanceSubmissionSupport support,
+    GuestRiskService guestRisk)
 {
     public async Task PutEntriesAsync(
         Actor actor,
@@ -128,6 +129,8 @@ public class AttendanceSubmissionService(
         submission.SubmittedAt = DateTimeOffset.UtcNow;
         submission.SubmittedByAuthUserId = authUserId;
         submission.EnteredByRole = actor.StructureRole ?? ChurchRole.CellLeader;
+
+        await guestRisk.ApplyOnSubmitAsync(occurrenceId, scopeNodeId, ct);
 
         await db.SaveChangesAsync(ct);
 

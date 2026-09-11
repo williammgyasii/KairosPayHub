@@ -14,6 +14,7 @@ interface AuthLayoutProps {
   footer?: ReactNode
   /** `split` = marketing sidebar (signup, etc.). `centered` = single-column auth (login). */
   variant?: 'split' | 'centered'
+  maxWidth?: 'sm' | 'lg' | 'xl' | '2xl'
 }
 
 export function AuthLayout({
@@ -22,10 +23,11 @@ export function AuthLayout({
   children,
   footer,
   variant = 'split',
+  maxWidth = 'sm',
 }: AuthLayoutProps) {
   if (variant === 'centered') {
     return (
-      <CenteredPageShell>
+      <CenteredPageShell maxWidth={maxWidth}>
         <motion.div
           variants={authStagger}
           initial="hidden"

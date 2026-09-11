@@ -7,8 +7,9 @@ import {
   getSortedRowModel,
   useReactTable,
   type SortingState,
+  type VisibilityState,
 } from '@tanstack/react-table'
-import { ArrowUpDown } from 'lucide-react'
+import { ArrowUpDown, Columns3 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useApi } from '@/api/core'
 import type { StructureLayer, StructureTree } from '@/api/structure'
@@ -25,9 +26,18 @@ import {
   UnitNodeFormSheet,
   type UnitNodeSheetState,
 } from '@/components/structure/unit-node-form-sheet'
+import { ColumnToggleSwitch } from '@/components/attendance/attendance-overview-parts'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { createUnitPolicy } from '@/lib/create-unit-policy'
+import { createUnitPolicy, type CreateUnitActor } from '@/lib/create-unit-policy'
 import { buildNodeRows, type StructureNodeRow, type StructureUnitNodeRow } from '@/lib/structure-table-rows'
 import {
   displayUnitNumber,
@@ -40,6 +50,15 @@ import {
   unitDeleteImpact,
 } from '@/lib/structure-tree'
 import { unitEditMenuLabel, unitEditPolicy } from '@/lib/unit-edit-policy'
+import { TABLE_PREFERENCE_KEYS } from '@/lib/table-preferences'
+import { usePersistedColumnVisibility } from '@/lib/use-persisted-column-visibility'
+import {
+  UNITS_ALWAYS_VISIBLE_COLUMN_IDS,
+  UNITS_TOGGLEABLE_COLUMN_IDS,
+  defaultUnitsColumnVisibility,
+  mergeUnitsColumnVisibility,
+  unitsColumnLabel,
+} from '@/lib/units-table-columns'
 
 interface RosterViewProps {
   tree: StructureTree
@@ -50,6 +69,7 @@ interface RosterViewProps {
   canManageChurch?: boolean
   scopeRootNodeId?: string | null
   actorScopeNodeId?: string | null
+  createActor?: CreateUnitActor | null
 }
 
 function nodeRowToUnitEditRow(
@@ -82,6 +102,7 @@ export function RosterView({
   canManageChurch = !readOnly,
   scopeRootNodeId = null,
   actorScopeNodeId = null,
+  createActor = null,
 }: RosterViewProps) {
   const api = useApi()
   const layers = useMemo(
@@ -93,18 +114,21 @@ export function RosterView({
   const [deleteTarget, setDeleteTarget] = useState<StructureNodeRow | null>(null)
   const [changeLeaderTarget, setChangeLeaderTarget] = useState<ChangeLeadershipTarget | null>(null)
   const [nodeSheet, setNodeSheet] = useState<UnitNodeSheetState | null>(null)
+  const unitsDefaults = useMemo(() => defaultUnitsColumnVisibility(), [])
+  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
+    TABLE_PREFERENCE_KEYS.units,
+    unitsDefaults,
+    { alwaysOn: UNITS_ALWAYS_VISIBLE_COLUMN_IDS },
+  )
   const activeLayer = layers.find((l) => l.id === tab) ?? layers[0]
   const createPolicy = activeLayer
-    ? createUnitPolicy(tree, activeLayer, scopeRootNodeId)
+    ? createUnitPolicy(tree, activeLayer, scopeRootNodeId, createActor)
     : null
 
   const deleteImpact = useMemo(
     () => (deleteTarget ? unitDeleteImpact(tree, deleteTarget.id) : null),
     [deleteTarget, tree],
   )
-
-  const canDeleteLayerUnits = (layer: StructureLayer) =>
-    layer.standardType === 'Fellowship' || layer.standardType === 'Cell'
 
   const tabs = useMemo(
     () =>
@@ -136,10 +160,10 @@ export function RosterView({
           <StructurePageTabs tabs={tabs} activeId={tab} onChange={setTab} />
         </div>
 
-        {canManageChurch && createPolicy && (
+        {createPolicy?.canAdd && (
           <AddFellowshipButton
             label={`Add new ${activeLayer.displayName.toLowerCase()}`}
-            disabled={busy || !createPolicy.canAdd}
+            disabled={busy}
             title={createPolicy.blockedReason ?? undefined}
             onClick={() => setCreateWizardOpen(true)}
           />
@@ -156,12 +180,16 @@ export function RosterView({
         tree={tree}
         layer={activeLayer}
         canManageChurch={canManageChurch}
+        hasCreateChildUnits={Boolean(createActor?.hasCreateChildUnits)}
         actorScopeNodeId={actorScopeNodeId}
-        canDelete={canManageChurch && canDeleteLayerUnits(activeLayer)}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
         onDelete={(row) => setDeleteTarget(row)}
         onEdit={(row) => {
           const policy = unitEditPolicy({
+            tree,
             canManageChurch,
+            hasCreateChildUnits: createActor?.hasCreateChildUnits,
             actorScopeNodeId,
             unitId: row.id,
           })
@@ -185,7 +213,7 @@ export function RosterView({
         }}
       />
 
-      {canManageChurch && deleteTarget && (
+      {deleteTarget && (
         <UnitDeleteModal
           impact={deleteImpact}
           busy={busy}
@@ -210,7 +238,7 @@ export function RosterView({
         />
       )}
 
-      {canManageChurch && createWizardOpen && (
+      {createPolicy?.canAdd && createWizardOpen && (
         <UnitCreateWizard
           tree={tree}
           layer={activeLayer}
@@ -239,8 +267,10 @@ function LayerRosterTable({
   tree,
   layer,
   canManageChurch,
+  hasCreateChildUnits,
   actorScopeNodeId,
-  canDelete,
+  columnVisibility,
+  onColumnVisibilityChange,
   onDelete,
   onEdit,
   onChangeLeader,
@@ -248,8 +278,10 @@ function LayerRosterTable({
   tree: StructureTree
   layer: StructureLayer
   canManageChurch: boolean
+  hasCreateChildUnits: boolean
   actorScopeNodeId: string | null
-  canDelete: boolean
+  columnVisibility: VisibilityState
+  onColumnVisibilityChange: (visibility: VisibilityState) => void
   onDelete: (row: StructureNodeRow) => void
   onEdit: (row: StructureNodeRow) => void
   onChangeLeader: (row: StructureNodeRow) => void
@@ -259,13 +291,13 @@ function LayerRosterTable({
     () =>
       createRosterNodeColumns(tree, layer, {
         canManageChurch,
+        hasCreateChildUnits,
         actorScopeNodeId,
-        canDelete,
         onDelete,
         onEdit,
         onChangeLeader,
       }),
-    [tree, layer, canManageChurch, actorScopeNodeId, canDelete, onDelete, onEdit, onChangeLeader],
+    [tree, layer, canManageChurch, hasCreateChildUnits, actorScopeNodeId, onDelete, onEdit, onChangeLeader],
   )
 
   return (
@@ -276,6 +308,8 @@ function LayerRosterTable({
       columns={columns}
       searchPlaceholder={`Search ${layer.displayName.toLowerCase()}…`}
       emptyMessage={`No ${layer.displayName.toLowerCase()} yet. Use Add new ${layer.displayName} above.`}
+      columnVisibility={columnVisibility}
+      onColumnVisibilityChange={onColumnVisibilityChange}
     />
   )
 }
@@ -299,8 +333,8 @@ function createRosterNodeColumns(
   layer: StructureLayer,
   actions: {
     canManageChurch: boolean
+    hasCreateChildUnits: boolean
     actorScopeNodeId: string | null
-    canDelete: boolean
     onDelete: (row: StructureNodeRow) => void
     onEdit: (row: StructureNodeRow) => void
     onChangeLeader: (row: StructureNodeRow) => void
@@ -310,6 +344,7 @@ function createRosterNodeColumns(
 
   return [
     nodeHelper.accessor('name', {
+      enableHiding: false,
       header: 'Name',
       cell: ({ row, getValue }) => (
         <Link
@@ -334,10 +369,13 @@ function createRosterNodeColumns(
     }),
     nodeHelper.display({
       id: 'actions',
+      enableHiding: false,
       header: '',
       cell: ({ row }) => {
         const policy = unitEditPolicy({
+          tree,
           canManageChurch: actions.canManageChurch,
+          hasCreateChildUnits: actions.hasCreateChildUnits,
           actorScopeNodeId: actions.actorScopeNodeId,
           unitId: row.original.id,
         })
@@ -351,7 +389,7 @@ function createRosterNodeColumns(
               policy.canChangeLeader ? () => actions.onChangeLeader(row.original) : undefined
             }
             onEdit={policy.canRename ? () => actions.onEdit(row.original) : undefined}
-            onDelete={actions.canDelete ? () => actions.onDelete(row.original) : undefined}
+            onDelete={policy.canDelete ? () => actions.onDelete(row.original) : undefined}
           />
         )
       },
@@ -366,6 +404,8 @@ function RosterDataTable({
   columns,
   searchPlaceholder,
   emptyMessage,
+  columnVisibility,
+  onColumnVisibilityChange,
 }: {
   title: string
   description: string
@@ -373,6 +413,8 @@ function RosterDataTable({
   columns: ReturnType<typeof createRosterNodeColumns>
   searchPlaceholder: string
   emptyMessage: string
+  columnVisibility: VisibilityState
+  onColumnVisibilityChange: (visibility: VisibilityState) => void
 }) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
@@ -380,9 +422,13 @@ function RosterDataTable({
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, globalFilter: filter },
+    state: { sorting, globalFilter: filter, columnVisibility },
     onSortingChange: setSorting,
     onGlobalFilterChange: setFilter,
+    onColumnVisibilityChange: (updater) => {
+      const next = typeof updater === 'function' ? updater(columnVisibility) : updater
+      onColumnVisibilityChange(mergeUnitsColumnVisibility(columnVisibility, next))
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -395,12 +441,47 @@ function RosterDataTable({
           <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         </div>
-        <Input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder={searchPlaceholder}
-          className="h-9 w-full max-w-xs"
-        />
+        <div className="flex w-full max-w-md items-center gap-2">
+          <Input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-9 w-full"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 gap-1.5">
+                <Columns3 className="size-3.5" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled className="justify-between gap-3 opacity-100">
+                Name
+                <ColumnToggleSwitch on />
+              </DropdownMenuItem>
+              {UNITS_TOGGLEABLE_COLUMN_IDS.map((columnId) => (
+                <DropdownMenuItem
+                  key={columnId}
+                  className="justify-between gap-3"
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    onColumnVisibilityChange(
+                      mergeUnitsColumnVisibility(columnVisibility, {
+                        [columnId]: !columnVisibility[columnId],
+                      }),
+                    )
+                  }}
+                >
+                  {unitsColumnLabel(columnId)}
+                  <ColumnToggleSwitch on={Boolean(columnVisibility[columnId])} />
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

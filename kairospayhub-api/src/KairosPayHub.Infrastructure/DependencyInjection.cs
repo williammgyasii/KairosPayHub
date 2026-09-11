@@ -57,10 +57,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ChurchService>();
         services.AddScoped<StructureLeaderAccountService>();
         services.AddScoped<StructureMemberService>();
+        services.AddScoped<UnitJoinInviteService>();
         services.AddScoped<StructureTemplateService>();
         services.AddScoped<StructureTemplateEvolveService>();
         services.AddScoped<StructureTreeService>();
         services.AddScoped<StructureNodeService>();
+        services.AddScoped<LayerAccessService>();
         services.AddScoped<GivingProgramService>();
         services.AddScoped<GivingScopeService>();
         services.AddScoped<ContributionService>();
@@ -72,6 +74,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AttendanceSubmissionSupport>();
         services.AddScoped<AttendanceOccurrenceQueryService>();
         services.AddScoped<AttendanceSubmissionService>();
+        services.AddScoped<GuestRiskService>();
         services.AddScoped<AttendanceApprovalService>();
         services.AddScoped<AttendanceMemberHistoryService>();
         services.AddScoped<ChurchAdministratorService>();
@@ -79,8 +82,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<NotificationInboxService>();
         services.AddScoped<NotificationRecipientResolver>();
         services.AddScoped<NotificationService>();
+        services.AddScoped<MeetingTypeNotificationService>();
         services.AddScoped<ChurchBrandingService>();
         services.AddScoped<UserAvatarService>();
+        services.AddScoped<UserTablePreferenceService>();
         services.AddScoped<LeaderInviteService>();
         services.AddScoped<CalendarEventService>();
 

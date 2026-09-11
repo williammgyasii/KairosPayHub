@@ -9,6 +9,7 @@
 - [x] 2.2 Upcoming locked banner beside Mark attendance header
 - [x] 2.3 Compact Save draft / Submit with icons + button spinners; no full-page save modal
 - [x] 2.4 After submit, return to step 1; Your submissions table on step 1; Go back label + short chrome on step 2
+- [x] 2.5 Adaptive toolbar on step 2 (live colored chips; hide Left / First timers at 0; no duplicate gray counts)
 
 ## 3. Sheet content
 

@@ -6,6 +6,7 @@ export const baseApi = createApi({
   baseQuery: baseQueryWithAuth,
   tagTypes: [
     'Me',
+    'TablePreferences',
     'Structure',
     'Notifications',
     'Calendar',

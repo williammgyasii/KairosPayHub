@@ -21,6 +21,7 @@ import {
   rollCallScopesFor,
   rosterScopeRootNodeId,
 } from '@/api/auth'
+import { hasProductAbility, PRODUCT_ABILITIES } from '@/lib/abilities'
 import { canAccessEvents } from '@/lib/calendar-events-ui'
 import { useAuth } from '@/auth/AuthContext'
 import { filterTreeToSubtree } from '@/lib/structure-tree'
@@ -30,7 +31,10 @@ import {
   resolveMemberWizardMode,
 } from '@/components/structure/member-wizard-steps'
 import { RosterEmptyState, RosterView } from '@/components/structure/roster-view'
+import { GenerateJoinLinkDialog } from '@/components/structure/generate-join-link-dialog'
+import { MembershipJoinHeaderActions } from '@/components/structure/membership-join-header-actions'
 import { RosterUnitView } from '@/components/structure/roster-unit-view'
+import { membershipPrimaryAction, type MembershipRosterTab } from '@/lib/join-link-policy'
 import { StructureActionsMenu } from '@/components/structure/structure-actions-menu'
 import { StructureCanvas } from '@/components/structure/structure-canvas'
 import { StructureLayerEditModal } from '@/components/structure/structure-layer-edit-modal'
@@ -431,6 +435,14 @@ export function StructurePage() {
   )
 }
 
+function rosterCreateActor(me: DashboardOutletContext['me']) {
+  return {
+    hasCreateChildUnits: hasProductAbility(me.abilities, PRODUCT_ABILITIES.createChildUnits),
+    churchWide: canManageChurch(me.role),
+    actorScopeNodeId: rosterScopeRootNodeId(me),
+  }
+}
+
 export function RosterPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
@@ -490,6 +502,7 @@ export function RosterPage() {
         canManageChurch={canManageChurch(me.role)}
         scopeRootNodeId={rosterScopeRootNodeId(me)}
         actorScopeNodeId={rosterScopeRootNodeId(me)}
+        createActor={rosterCreateActor(me)}
       />
     </div>
   )
@@ -531,6 +544,8 @@ export function RosterUnitPage() {
       scopeRootNodeId={rosterScopeRootNodeId(me)}
       canManageChurch={canManageChurch(me.role)}
       actorScopeNodeId={rosterScopeRootNodeId(me)}
+      createActor={rosterCreateActor(me)}
+      currentMemberId={me.onboarded ? me.memberId : null}
     />
   )
 }
@@ -539,12 +554,23 @@ export function MembershipPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
   const { tree, error, busy, loading, load, submit } = useStructureTree()
   const [addOpen, setAddOpen] = useState(false)
+  const [joinOpen, setJoinOpen] = useState(false)
+  const [rosterTab, setRosterTab] = useState<MembershipRosterTab>('all')
+  const [pendingCount, setPendingCount] = useState(0)
   const canManage = canManageMembers(me)
   const cellScope = isCellLeader(me.role)
     ? rollCallScopesFor(me)[0]?.scopeNodeId ?? me.scopeNodeId
     : me.scopeNodeId
   const scopeParentNodeId = canManageChurch(me.role) ? null : cellScope
   const displayTree = useMemo(() => scopedRosterTree(tree, me), [tree, me])
+  const primaryAction = displayTree
+    ? membershipPrimaryAction({
+        tree: displayTree,
+        canManageRoster: canManage,
+        canManageChurch: canManageChurch(me.role),
+        actorScopeNodeId: scopeParentNodeId,
+      })
+    : null
 
   useEffect(() => {
     void load({ includeMembers: false })
@@ -593,7 +619,14 @@ export function MembershipPage() {
         titleSize="hero"
         description={membershipPageDescription(membershipMode, scopeLabel, canManage)}
         actions={
-          canManage && hasRosterUnits ? (
+          primaryAction === 'generate-join-link' && hasRosterUnits && scopeParentNodeId ? (
+            <MembershipJoinHeaderActions
+              tab={rosterTab}
+              onTabChange={setRosterTab}
+              pendingCount={pendingCount}
+              onGenerateJoinLink={() => setJoinOpen(true)}
+            />
+          ) : primaryAction === 'add-member' && hasRosterUnits ? (
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="size-4" />
               Add member
@@ -613,7 +646,19 @@ export function MembershipPage() {
           wizardOpen={addOpen}
           onWizardOpenChange={setAddOpen}
           readOnly={!canManage}
+          hideAddMemberHint={primaryAction === 'generate-join-link'}
           scopeParentNodeId={scopeParentNodeId}
+          currentMemberId={me.onboarded ? me.memberId : null}
+          rosterTab={primaryAction === 'generate-join-link' ? rosterTab : 'all'}
+          onPendingCountChange={setPendingCount}
+        />
+      )}
+
+      {scopeParentNodeId && (
+        <GenerateJoinLinkDialog
+          open={joinOpen}
+          onOpenChange={setJoinOpen}
+          nodeId={scopeParentNodeId}
         />
       )}
     </div>

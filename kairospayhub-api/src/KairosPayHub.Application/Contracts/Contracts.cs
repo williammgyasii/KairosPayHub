@@ -58,13 +58,39 @@ public record StructureMemberDto(
     string Position,
     int Responsiveness,
     string? State = null,
-    string? Workplace = null);
+    string? Workplace = null,
+    string RosterStatus = "Active",
+    DateTimeOffset? CreatedAt = null);
+
+public record MintJoinInviteRequest(int ExpiresInDays);
+
+public record JoinInviteDto(string Token, DateTimeOffset ExpiresAt);
+
+public record JoinInvitePreviewDto(
+    string ChurchName,
+    string UnitName,
+    string? CountryCode,
+    DateTimeOffset ExpiresAt);
+
+public record JoinSubmitAckDto(bool Submitted = true);
+
+public record SubmitJoinInviteRequest(
+    string Name,
+    string? Email,
+    string? Phone,
+    DateOnly? DateOfBirth,
+    string? Residence,
+    string? State,
+    string? OccupationStatus,
+    string? SchoolOrWorkplace,
+    string? Workplace);
 
 public record StructureMemberListResponse(
     IReadOnlyList<StructureMemberDto> Items,
     int TotalCount,
     int Page,
-    int PageSize);
+    int PageSize,
+    int PendingCount = 0);
 
 public record MemberAttendanceHistoryItemDto(
     Guid EntryId,
@@ -446,6 +472,26 @@ public record NotificationListResponse(
     int UnreadCount);
 
 public record NotificationUnreadCountResponse(int UnreadCount);
+
+public record AccessAbilityColumnDto(string Id, string Label);
+
+public record AccessCellDto(string Ability, bool DefaultOn, bool EffectiveOn, bool Locked);
+
+public record AccessRowDto(
+    string SubjectKind,
+    Guid? SubjectId,
+    string Label,
+    IReadOnlyList<AccessCellDto> Cells);
+
+public record AccessGridResponse(
+    IReadOnlyList<AccessAbilityColumnDto> Abilities,
+    IReadOnlyList<AccessRowDto> Rows);
+
+public record AccessChangeRequest(string SubjectKind, Guid? SubjectId, string Ability, bool Enabled);
+
+public record SaveAccessRequest(IReadOnlyList<AccessChangeRequest> Changes);
+
+public record SaveTablePreferenceRequest(Dictionary<string, bool>? Columns);
 
 public static class Mapping
 {

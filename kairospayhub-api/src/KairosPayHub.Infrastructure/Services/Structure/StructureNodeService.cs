@@ -20,7 +20,8 @@ public class StructureNodeService(
     IEmailSender email,
     IOptions<EmailOptions> emailOptions,
     GivingScopeService givingScope,
-    ChurchReadCache readCache)
+    ChurchReadCache readCache,
+    LayerAccessService layerAccess)
 {
     public async Task<CreateStructureNodeResponse> CreateNodeAsync(
         Actor actor,
@@ -31,9 +32,9 @@ public class StructureNodeService(
         Guid? leaderMemberId,
         NewStructureNodeLeaderRequest? newLeader,
         Guid? clientRequestId = null,
+        Guid? actorAuthUserId = null,
         CancellationToken ct = default)
     {
-        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
 
         var template = await LoadTemplateWithLayersAsync(churchId, ct)
@@ -42,6 +43,13 @@ public class StructureNodeService(
         var layer = template.Layers.SingleOrDefault(l => l.Id == layerId)
             ?? throw new BadRequestException("Layer not found in your structure template");
 
+        await layerAccess.EnsureCanCreateNodeAsync(
+            actor,
+            actorAuthUserId ?? Guid.Empty,
+            layerId,
+            parentNodeId,
+            template.Layers,
+            ct);
         await ValidateNodeParentAsync(churchId, layer, parentNodeId, ct);
 
         var requestKey = clientRequestId is { } key && key != Guid.Empty ? key : (Guid?)null;
@@ -187,10 +195,12 @@ public class StructureNodeService(
             throw new BadRequestException("A unit with this name already exists under the same parent");
     }
 
-    public async Task DeleteNodeAsync(Actor actor, Guid nodeId, CancellationToken ct = default)
+    public async Task DeleteNodeAsync(Actor actor, Guid authUserId, Guid nodeId, CancellationToken ct = default)
     {
-        RequireChurchManager(actor);
         var churchId = RequireStructureChurch(actor);
+        var template = await LoadTemplateWithLayersAsync(churchId, ct)
+            ?? throw new BadRequestException("Structure template is not defined");
+        await layerAccess.EnsureCanDeleteNodeAsync(actor, authUserId, nodeId, template.Layers, ct);
 
         var node = await db.StructureNodes
             .SingleOrDefaultAsync(n => n.Id == nodeId && n.ChurchId == churchId, ct)
@@ -207,8 +217,6 @@ public class StructureNodeService(
             await SaveStructureChangesAsync(churchId, ct);
         }
 
-        var template = await LoadTemplateWithLayersAsync(churchId, ct)
-            ?? throw new BadRequestException("Structure template is not defined");
         var layerOrder = template.Layers.ToDictionary(l => l.Id, l => l.SortOrder);
 
         var nodes = await db.StructureNodes
@@ -340,7 +348,6 @@ public class StructureNodeService(
         if (leaderMemberId is not null && newLeader is not null)
             throw new BadRequestException("Choose an existing leader or create a new one, not both");
 
-        var deepestLayer = template.Layers.OrderByDescending(l => l.SortOrder).First();
         var leaderPosition = LeaderPositionForLayer(layer.StandardType);
 
         if (newLeader is not null)
@@ -353,33 +360,8 @@ public class StructureNodeService(
                 throw new BadRequestException("Leader phone is required");
             if (newLeader.DateOfBirth is null)
                 throw new BadRequestException("Leader date of birth is required");
-            if (!newLeader.LeaderIsCellLeader)
-                throw new BadRequestException(
-                    "The fellowship leader must lead their first cell. Confirm they are the cell leader to continue.");
 
-            Guid memberParentNodeId;
-            StructureNode? autoCell = null;
-            if (layer.Id == deepestLayer.Id)
-            {
-                memberParentNodeId = node.Id;
-            }
-            else
-            {
-                var cellName = string.IsNullOrWhiteSpace(newLeader.InitialCellName)
-                    ? $"{node.Name.Trim()} Cell"
-                    : newLeader.InitialCellName.Trim();
-                autoCell = new StructureNode
-                {
-                    ChurchId = churchId,
-                    LayerId = deepestLayer.Id,
-                    ParentNodeId = node.Id,
-                    Name = cellName,
-                    UnitNumber = await NextUnitNumberAsync(churchId, deepestLayer.Id, node.Id, ct),
-                };
-                db.StructureNodes.Add(autoCell);
-                await SaveStructureChangesAsync(churchId, ct);
-                memberParentNodeId = autoCell.Id;
-            }
+            var memberParentNodeId = node.Id;
 
             var member = new Member
             {
@@ -407,16 +389,6 @@ public class StructureNodeService(
                 newLeader.Email,
                 ct);
             generatedLogin = new GeneratedLeaderLoginDto(newLeader.Email.Trim());
-
-            if (autoCell is not null)
-            {
-                autoCell.LeaderMemberId = member.Id;
-                leaderAccounts.AssignLeaderRole(
-                    churchId,
-                    authUserId,
-                    ChurchRole.CellLeader,
-                    autoCell.Id);
-            }
 
             db.ChurchMembers.Add(member);
             await SaveStructureChangesAsync(churchId, ct);

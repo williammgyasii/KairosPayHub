@@ -62,6 +62,8 @@ export type StructureMember = {
   workplace: string | null
   position: MemberPosition | string
   responsiveness: number
+  rosterStatus?: 'Active' | 'Pending' | string
+  createdAt?: string | null
 }
 
 export type StructureTree = {
@@ -80,6 +82,7 @@ export type StructureMemberListParams = {
   search?: string
   parentNodeId?: string
   includeDescendants?: boolean
+  rosterStatus?: 'Active' | 'Pending' | string
 }
 
 export type StructureMemberListResponse = {
@@ -87,6 +90,7 @@ export type StructureMemberListResponse = {
   totalCount: number
   page: number
   pageSize: number
+  pendingCount?: number
 }
 
 export function buildMembersQuery(params: StructureMemberListParams): string {
@@ -100,6 +104,7 @@ export function buildMembersQuery(params: StructureMemberListParams): string {
   if (params.includeDescendants != null) {
     qs.set('includeDescendants', String(params.includeDescendants))
   }
+  if (params.rosterStatus) qs.set('rosterStatus', params.rosterStatus)
   const query = qs.toString()
   return query ? `?${query}` : ''
 }

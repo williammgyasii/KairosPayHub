@@ -29,7 +29,7 @@ public class AttendanceRollCallSyncService(KairosDbContext db, GivingScopeServic
             .ToListAsync(ct);
 
         var members = await db.ChurchMembers.AsNoTracking()
-            .Where(m => m.ChurchId == meetingType.ChurchId)
+            .Where(m => m.ChurchId == meetingType.ChurchId && m.RosterStatus == RosterStatus.Active)
             .Select(m => new { m.Id, m.ParentNodeId })
             .ToListAsync(ct);
 

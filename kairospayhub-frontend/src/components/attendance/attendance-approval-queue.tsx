@@ -2,6 +2,7 @@ import { Check, Eye } from 'lucide-react'
 import type { AttendanceApprovalQueueItem } from '@/api/attendance'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { guestRiskQueueHint } from '@/lib/guest-risk-warning'
 
 function formatServiceDate(meetingDate: string) {
   const parsed = new Date(`${meetingDate}T12:00:00`)
@@ -55,6 +56,7 @@ export function AttendanceApprovalQueue({
           {items.map((item) => {
             const rowKey = `${item.occurrenceId}:${item.scopeNodeId}`
             const busy = busyKey === rowKey
+            const riskHint = guestRiskQueueHint(item.guestRiskLevel, item.guestRiskReasons)
             return (
               <tr key={rowKey} className="align-middle">
                 <td className="px-3 py-2.5">
@@ -68,7 +70,10 @@ export function AttendanceApprovalQueue({
                   {formatServiceDate(item.meetingDate)}
                 </td>
                 <td className="px-3 py-2.5 text-muted-foreground">
-                  {item.presentCount} present · {item.absentCount} absent
+                  <p>
+                    {item.presentCount} present · {item.absentCount} absent
+                  </p>
+                  {riskHint ? <p className="mt-1 text-xs text-amber-700">{riskHint}</p> : null}
                 </td>
                 <td className="px-3 py-2.5">
                   <div className="flex justify-end gap-1.5">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Lock } from 'lucide-react'
+import { ArrowRight, Lock } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
@@ -17,6 +17,7 @@ import {
   type AttendanceOccurrenceSummary,
 } from '@/api/attendance'
 import { canManageChurch, canSubmitRollCall, isScopedLeader, rollCallScopesFor } from '@/api/auth'
+import { markableMeetingTypes, rollCallScopesForMeeting } from '@/lib/roll-call-submit-policy'
 import {
   AttendanceRollCallSheet,
   buildEntryValues,
@@ -74,29 +75,48 @@ export function AttendanceSubmissionsPage() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
+  const markableTypes = useMemo(
+    () => markableMeetingTypes(meetingTypes, rollCallScopes),
+    [meetingTypes, rollCallScopes],
+  )
+
+  const selectedMeetingType = useMemo(
+    () => markableTypes.find((type) => type.id === selectedTypeId) ?? null,
+    [markableTypes, selectedTypeId],
+  )
+
+  const scopesForSelected = useMemo(
+    () => (selectedMeetingType ? rollCallScopesForMeeting(rollCallScopes, selectedMeetingType) : []),
+    [rollCallScopes, selectedMeetingType],
+  )
+
   useEffect(() => {
-    if (rollCallScopes.length === 0) {
+    setSelectedTypeId((current) =>
+      markableTypes.some((type) => type.id === current) ? current : markableTypes[0]?.id ?? '',
+    )
+  }, [markableTypes])
+
+  useEffect(() => {
+    if (scopesForSelected.length === 0) {
       setSelectedScopeNodeId('')
       return
     }
     setSelectedScopeNodeId((current) =>
-      rollCallScopes.some((scope) => scope.scopeNodeId === current)
+      scopesForSelected.some((scope) => scope.scopeNodeId === current)
         ? current
-        : rollCallScopes[0].scopeNodeId,
+        : scopesForSelected[0].scopeNodeId,
     )
-  }, [rollCallScopes])
+  }, [scopesForSelected])
 
   const selectedCell = useMemo(() => {
-    return rollCallScopes.find((scope) => scope.scopeNodeId === selectedScopeNodeId) ?? null
-  }, [rollCallScopes, selectedScopeNodeId])
+    return scopesForSelected.find((scope) => scope.scopeNodeId === selectedScopeNodeId) ?? null
+  }, [scopesForSelected, selectedScopeNodeId])
 
   const loadTypes = useCallback(async () => {
     setLoadingTypes(true)
     setError(null)
     try {
-      const types = await listMeetingTypes(api)
-      setMeetingTypes(types)
-      setSelectedTypeId((current) => current || types[0]?.id || '')
+      setMeetingTypes(await listMeetingTypes(api))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load meeting types')
     } finally {
@@ -271,16 +291,6 @@ export function AttendanceSubmissionsPage() {
     [nextUpcomingOccurrenceRow],
   )
 
-  const selectedMeetingType = useMemo(
-    () => meetingTypes.find((type) => type.id === selectedTypeId) ?? null,
-    [meetingTypes, selectedTypeId],
-  )
-
-  const selectedOccurrence = useMemo(
-    () => selectableOccurrenceRows.find((row) => row.id === selectedOccurrenceId) ?? null,
-    [selectableOccurrenceRows, selectedOccurrenceId],
-  )
-
   const cellEntries = useMemo(() => {
     if (!detail) return []
     return detail.entries.filter((entry) => entry.memberScopeNodeId === selectedScopeNodeId)
@@ -292,7 +302,7 @@ export function AttendanceSubmissionsPage() {
   const pageDescription = canRollCall
     ? step === 'pick'
       ? 'Choose the meeting and service date, then continue to mark attendance.'
-      : 'Mark members and invitees, then save a draft or submit for approval.'
+      : null
     : churchManager
       ? 'Unit leaders mark attendance. Use Meeting types and Metrics from here.'
       : scopedLeader
@@ -311,8 +321,16 @@ export function AttendanceSubmissionsPage() {
           title="Mark attendance"
           description={pageDescription}
           className="flex-1"
+          onBack={
+            step === 'mark'
+              ? () => {
+                  setStep('pick')
+                  setMessage(null)
+                }
+              : undefined
+          }
         />
-        {upcomingLockMessage ? (
+        {step === 'pick' && upcomingLockMessage ? (
           <div className="flex max-w-md gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs dark:border-amber-500/30 dark:bg-amber-500/10 lg:mt-1">
             <Lock className="mt-0.5 size-3.5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
             <div className="min-w-0">
@@ -351,7 +369,7 @@ export function AttendanceSubmissionsPage() {
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <InlineSpinner /> Loading meetings…
         </p>
-      ) : meetingTypes.length === 0 ? (
+      ) : markableTypes.length === 0 ? (
         <AttendanceEmptyState
           title="No meetings yet"
           description={
@@ -362,7 +380,7 @@ export function AttendanceSubmissionsPage() {
         />
       ) : step === 'pick' ? (
         <section className="space-y-5">
-          {rollCallScopes.length > 1 && (
+          {scopesForSelected.length > 1 && (
             <div className="max-w-md space-y-1.5">
               <Label htmlFor="cell-scope" className="text-xs text-muted-foreground">
                 Logging for (choose your unit)
@@ -373,7 +391,7 @@ export function AttendanceSubmissionsPage() {
                 onChange={(e) => setSelectedScopeNodeId(e.target.value)}
                 className={selectClassName}
               >
-                {rollCallScopes.map((scope) => (
+                {scopesForSelected.map((scope) => (
                   <option key={scope.scopeNodeId} value={scope.scopeNodeId}>
                     {scope.layerName
                       ? `${scope.layerName}: ${scope.scopeUnitName}`
@@ -398,7 +416,7 @@ export function AttendanceSubmissionsPage() {
                 }}
                 className={selectClassName}
               >
-                {meetingTypes.map((type) => (
+                {markableTypes.map((type) => (
                   <option key={type.id} value={type.id}>
                     {type.title}
                   </option>
@@ -510,36 +528,6 @@ export function AttendanceSubmissionsPage() {
         </section>
       ) : (
         <section className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="rounded-md"
-              onClick={() => {
-                setStep('pick')
-                setMessage(null)
-              }}
-            >
-              <ArrowLeft className="mr-1.5 size-3.5" />
-              Go back
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              {[
-                selectedMeetingType?.title,
-                selectedOccurrence
-                  ? new Date(`${selectedOccurrence.meetingDate}T12:00:00`).toLocaleDateString(
-                      undefined,
-                      { month: 'short', day: 'numeric' },
-                    )
-                  : null,
-                selectedCell?.scopeUnitName,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-          </div>
-
           {loadingDetail ? (
             <p className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
               <InlineSpinner /> Loading attendance sheet…

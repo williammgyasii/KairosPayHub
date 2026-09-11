@@ -36,10 +36,11 @@ describe('MemberProfileFields', () => {
     expect(screen.getByLabelText(/^state/i)).toBeTruthy()
   })
 
-  it('keeps residence and hides state for Ghana', () => {
+  it('shows home address and a region dropdown for Ghana', () => {
     render(<Harness countryCode="GH" />)
-    expect(screen.getByLabelText(/residence \/ location/i)).toBeTruthy()
-    expect(screen.queryByLabelText(/^state/i)).toBeNull()
+    expect(screen.getByLabelText(/home address/i)).toBeTruthy()
+    expect(screen.getByLabelText(/^region/i)).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'Greater Accra' })).toBeTruthy()
   })
 
   it('shows school and workplace when status is student and working', async () => {
@@ -48,6 +49,45 @@ describe('MemberProfileFields', () => {
     await user.selectOptions(screen.getByLabelText(/^status/i), 'StudentAndWorking')
     expect(screen.getByLabelText(/school \/ institution/i)).toBeTruthy()
     expect(screen.getByLabelText(/^workplace/i)).toBeTruthy()
+  })
+
+  it('puts state and home address on the same row in grid layout', () => {
+    const { container } = render(
+      <MemberProfileFields
+        layout="grid"
+        requirePhoneAndDob
+        churchCountryCode="US"
+        values={memberProfileInitialValues({ countryCode: 'US' })}
+        onChange={() => undefined}
+      />,
+    )
+    const stateField = screen.getByLabelText(/^state/i).closest('.space-y-1\\.5')
+    const addressField = screen.getByLabelText(/home address/i).closest('.space-y-1\\.5')
+    expect(stateField?.parentElement).toBe(addressField?.parentElement)
+    expect(container.querySelector('.sm\\:grid-cols-2')).toBeTruthy()
+  })
+
+  it('lays identity and contact fields in a two-column grid', () => {
+    const { container } = render(
+      <MemberProfileFields
+        layout="grid"
+        requirePhoneAndDob
+        requireEmail
+        churchCountryCode="GH"
+        values={memberProfileInitialValues({ countryCode: 'GH' })}
+        onChange={() => undefined}
+        identity={{
+          name: '',
+          email: '',
+          onName: () => undefined,
+          onEmail: () => undefined,
+        }}
+      />,
+    )
+    expect(container.querySelector('.sm\\:grid-cols-2')).toBeTruthy()
+    expect(screen.getByLabelText(/full name/i)).toBeTruthy()
+    expect(screen.getByLabelText(/^email/i)).toBeTruthy()
+    expect(screen.getByLabelText(/phone number/i)).toBeTruthy()
   })
 
   it('shows not working / unemployed as a persistable status', () => {

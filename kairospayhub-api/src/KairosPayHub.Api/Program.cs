@@ -5,9 +5,11 @@ using KairosPayHub.Api.Services;
 using KairosPayHub.Api.Web;
 using KairosPayHub.Application;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 // Render starter containers hit Linux inotify limits when appsettings reload is enabled.
 Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
@@ -70,6 +72,33 @@ builder.Services
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            """{"error":"Too many attempts. Try again later."}""",
+            token);
+    };
+    options.AddPolicy("join-submit", httpContext =>
+    {
+        var routeToken = httpContext.Request.RouteValues.TryGetValue("token", out var value)
+            ? value?.ToString() ?? ""
+            : "";
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"{routeToken}:{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
+    });
+});
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 var corsPolicyName = "AppCors";
@@ -91,6 +120,7 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.UseCors(corsPolicyName);
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

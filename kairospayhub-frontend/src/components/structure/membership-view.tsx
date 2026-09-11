@@ -21,12 +21,16 @@ import {
   type MemberFilterRule,
 } from '@/lib/member-filters'
 import {
+  MEMBERSHIP_ALWAYS_VISIBLE_COLUMN_IDS,
   defaultMembershipColumnVisibility,
-  mergeMembershipColumnVisibility,
 } from '@/lib/membership-table-columns'
+import { TABLE_PREFERENCE_KEYS } from '@/lib/table-preferences'
+import { usePersistedColumnVisibility } from '@/lib/use-persisted-column-visibility'
 import { buildMemberRows } from '@/lib/structure-table-rows'
+import type { MembershipRosterTab } from '@/lib/join-link-policy'
 import { getLayers } from '@/lib/structure-tree'
 import { formatApiError } from '@/lib/structure-tree'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { TablePagination } from '@/components/ui/table-pagination'
@@ -39,7 +43,11 @@ interface MembershipViewProps {
   wizardOpen?: boolean
   onWizardOpenChange?: (open: boolean) => void
   readOnly?: boolean
+  hideAddMemberHint?: boolean
   scopeParentNodeId?: string | null
+  currentMemberId?: string | null
+  rosterTab?: MembershipRosterTab
+  onPendingCountChange?: (count: number) => void
 }
 
 function sortFieldFromColumn(columnId: string): StructureMemberListParams['sortBy'] {
@@ -86,7 +94,11 @@ export function MembershipView({
   wizardOpen: wizardOpenProp,
   onWizardOpenChange,
   readOnly = false,
+  hideAddMemberHint = false,
   scopeParentNodeId = null,
+  currentMemberId = null,
+  rosterTab = 'all',
+  onPendingCountChange,
 }: MembershipViewProps) {
   const api = useApi()
   const navigate = useNavigate()
@@ -115,7 +127,7 @@ export function MembershipView({
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, pageSize])
+  }, [debouncedSearch, pageSize, rosterTab])
 
   const loadMembers = useCallback(async () => {
     setListLoading(true)
@@ -129,15 +141,18 @@ export function MembershipView({
         search: debouncedSearch || undefined,
         parentNodeId: scopeParentNodeId ?? undefined,
         includeDescendants: scopeParentNodeId ? true : undefined,
+        rosterStatus: rosterTab === 'pending' ? 'Pending' : undefined,
       })
-      setList(await api.get<StructureMemberListResponse>(`/api/structure/members${query}`))
+      const next = await api.get<StructureMemberListResponse>(`/api/structure/members${query}`)
+      setList(next)
+      onPendingCountChange?.(next.pendingCount ?? 0)
     } catch (err) {
       setListError(formatApiError(err))
       setList(null)
     } finally {
       setListLoading(false)
     }
-  }, [api, page, pageSize, sortBy, sortDir, debouncedSearch, scopeParentNodeId])
+  }, [api, page, pageSize, sortBy, sortDir, debouncedSearch, scopeParentNodeId, rosterTab, onPendingCountChange])
 
   useEffect(() => {
     void loadMembers()
@@ -153,17 +168,18 @@ export function MembershipView({
     () => structureLayers.map((layer) => layer.id).join('|'),
     [structureLayers],
   )
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() =>
-    defaultMembershipColumnVisibility(structureLayers),
+  const membershipDefaults = useMemo(
+    () => defaultMembershipColumnVisibility(structureLayers),
+    [structureLayerKey, structureLayers],
   )
-
-  useEffect(() => {
-    setColumnVisibility((current) =>
-      mergeMembershipColumnVisibility(defaultMembershipColumnVisibility(structureLayers), current),
-    )
-    // Re-seed when template layers change; keep user toggles for shared keys.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- structureLayerKey captures layer identity
-  }, [structureLayerKey])
+  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
+    TABLE_PREFERENCE_KEYS.membership,
+    membershipDefaults,
+    { alwaysOn: MEMBERSHIP_ALWAYS_VISIBLE_COLUMN_IDS },
+  )
+  const handleColumnVisibilityChange: OnChangeFn<VisibilityState> = (updater) => {
+    setColumnVisibility(typeof updater === 'function' ? updater(columnVisibility) : updater)
+  }
 
   const filteredRows = useMemo(() => {
     if (filterRules.length === 0) return rows
@@ -193,6 +209,7 @@ export function MembershipView({
   )
 
   const tableTitle = useMemo(() => {
+    if (rosterTab === 'pending') return 'Pending members'
     if (!scopeParentNodeId) return 'All members'
     switch (wizardMode) {
       case 'cell':
@@ -202,10 +219,11 @@ export function MembershipView({
       default:
         return 'Members in your scope'
     }
-  }, [scopeParentNodeId, wizardMode])
+  }, [scopeParentNodeId, wizardMode, rosterTab])
 
-  const emptyAddHint =
-    wizardMode === 'cell'
+  const emptyAddHint = hideAddMemberHint
+    ? 'No members in this unit yet. Share a join link so people can request to join.'
+    : wizardMode === 'cell'
       ? 'No members in this cell yet. Click Add member to register someone.'
       : wizardMode === 'fellowship'
         ? 'No members in this fellowship yet. Click Add member to register someone.'
@@ -232,10 +250,12 @@ export function MembershipView({
         title={tableTitle}
         extendedColumns
         columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
+        onColumnVisibilityChange={handleColumnVisibilityChange}
         totalCount={totalCount}
         emptyMessage={
-          totalCount === 0
+          rosterTab === 'pending'
+            ? 'No pending join requests.'
+            : totalCount === 0
             ? readOnly
               ? wizardMode === 'cell'
                 ? 'No members in this cell yet.'
@@ -251,6 +271,7 @@ export function MembershipView({
         sorting={sorting}
         onSortingChange={handleSortingChange}
         readOnly={readOnly}
+        currentMemberId={currentMemberId}
         toolbar={
           <MemberTableToolbar
             rows={rows}
@@ -264,7 +285,7 @@ export function MembershipView({
             filteredCount={filteredRows.length}
             totalCount={totalCount}
             columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
+            onColumnVisibilityChange={handleColumnVisibilityChange}
           />
         }
         footer={
@@ -297,6 +318,26 @@ export function MembershipView({
             : (member) => navigate(`/roster/members/${member.id}/edit`)
         }
         onDelete={readOnly ? undefined : (member) => setDeleteMember(member)}
+        onAccept={
+          readOnly
+            ? undefined
+            : (member) => {
+                void submitAndRefresh(async () => {
+                  await api.post(`/api/structure/members/${member.id}/accept-join`, {})
+                  toast.success(`${member.member} is now a member`)
+                })
+              }
+        }
+        onDecline={
+          readOnly
+            ? undefined
+            : (member) => {
+                void submitAndRefresh(async () => {
+                  await api.post(`/api/structure/members/${member.id}/decline-join`, {})
+                  toast.success(`${member.member} was declined`)
+                })
+              }
+        }
       />
 
       {!readOnly && activeSheet && (

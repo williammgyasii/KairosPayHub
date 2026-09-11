@@ -5,6 +5,7 @@ import {
   buildInviteeDrafts,
   type InviteeRollCallDraft,
 } from '@/components/attendance/attendance-roll-call-sheet'
+import { GuestRiskBanner } from '@/components/attendance/guest-risk-banner'
 import { MemberRollCallGrid } from '@/components/attendance/member-roll-call-grid'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
@@ -205,6 +206,11 @@ export function AttendanceApprovalDetailModal({
               <dd className="mt-1.5 text-sm">{item.submittedByName ?? '—'}</dd>
             </div>
           </dl>
+
+          <GuestRiskBanner
+            level={review.guestRiskLevel ?? item.guestRiskLevel}
+            reasons={review.guestRiskReasons ?? item.guestRiskReasons}
+          />
 
           <div className="flex flex-wrap gap-x-1 gap-y-2 border-b">
             {tabs.map((entry) => (

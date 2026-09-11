@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createAbilityFromAbilityIds,
   createAbilityFromRules,
   createAppAbility,
   hasProductAbility,
@@ -39,5 +40,13 @@ describe('hasProductAbility', () => {
       true,
     )
     expect(hasProductAbility([], PRODUCT_ABILITIES.viewMemberGivings)).toBe(false)
+  })
+
+  it('recognizes createChildUnits without a role name', () => {
+    expect(hasProductAbility([PRODUCT_ABILITIES.createChildUnits], PRODUCT_ABILITIES.createChildUnits)).toBe(
+      true,
+    )
+    const ability = createAbilityFromAbilityIds([PRODUCT_ABILITIES.createChildUnits])
+    expect(ability.can('create', 'ChildUnit')).toBe(true)
   })
 })

@@ -245,4 +245,179 @@ public class StructureNodeCreateApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Null(member.SchoolOrWorkplace);
         Assert.Null(member.Workplace);
     }
+
+    [Fact]
+    public async Task New_fellowship_leader_sits_on_the_fellowship_and_creates_no_cell()
+    {
+        var client = PastorClient();
+        var onboard = await client.PostAsJsonAsync("/api/onboarding", OnboardingTestHelper.Payload("TPH Test"));
+        Assert.Equal(HttpStatusCode.OK, onboard.StatusCode);
+
+        var template = await client.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, template.StatusCode);
+
+        var layers = (await client.GetFromJsonAsync<JsonElement>("/api/structure/template"))!
+            .GetProperty("layers");
+        var fellowshipLayerId = layers[0].GetProperty("id").GetGuid();
+        var cellLayerId = layers[1].GetProperty("id").GetGuid();
+
+        var created = await client.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = (Guid?)null,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "Jane Fellowship",
+                email = "jane.fellowship-only@example.com",
+                phone = "+14437622773",
+                dateOfBirth = "1995-03-15",
+                leaderIsCellLeader = false,
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        var fellowshipId = (await created.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("node").GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        Assert.Equal(1, await db.StructureNodes.CountAsync());
+        Assert.Equal(0, await db.StructureNodes.CountAsync(n => n.LayerId == cellLayerId));
+
+        var leader = await db.ChurchMembers.SingleAsync(m => m.Email == "jane.fellowship-only@example.com");
+        Assert.Equal(fellowshipId, leader.ParentNodeId);
+        var fellowship = await db.StructureNodes.SingleAsync(n => n.Id == fellowshipId);
+        Assert.Equal(leader.Id, fellowship.LeaderMemberId);
+    }
+
+    [Fact]
+    public async Task Fellowship_leader_can_create_immediate_child_in_scope_only()
+    {
+        var pastor = PastorClient();
+        await pastor.PostAsJsonAsync("/api/onboarding", OnboardingTestHelper.Payload("Create Scope"));
+        await pastor.PutAsJsonAsync("/api/structure/template", new
+        {
+            layers = new[]
+            {
+                new { standardType = "Fellowship", displayName = "Fellowship" },
+                new { standardType = "Cell", displayName = "Cell" },
+            },
+        });
+        var layers = (await pastor.GetFromJsonAsync<JsonElement>("/api/structure/template"))!.GetProperty("layers");
+        var fellowshipLayerId = layers[0].GetProperty("id").GetGuid();
+        var cellLayerId = layers[1].GetProperty("id").GetGuid();
+
+        var first = await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = (Guid?)null,
+            name = "Titans",
+            newLeader = new
+            {
+                name = "FL One",
+                email = "fl.one@example.com",
+                phone = "+14437622773",
+                dateOfBirth = "1995-03-15",
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var titansId = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var second = await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = (Guid?)null,
+            name = "Alpha",
+        });
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        var alphaId = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        await using var db = fx.CreateContext();
+        var flAuth = await db.ChurchMembers
+            .Where(m => m.Email == "fl.one@example.com")
+            .Select(m => m.AuthUserId)
+            .SingleAsync();
+        Assert.NotNull(flAuth);
+
+        var fl = _factory.CreateClient();
+        fl.DefaultRequestHeaders.Add("X-Test-Sub", flAuth!.Value.ToString());
+        fl.DefaultRequestHeaders.Add("X-Test-Email", "fl.one@example.com");
+        fl.DefaultRequestHeaders.Add("X-Test-Name", "FL One");
+
+        var inScope = await fl.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = titansId,
+            name = "Cell A",
+        });
+        Assert.Equal(HttpStatusCode.OK, inScope.StatusCode);
+        var cellAId = (await inScope.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("node").GetProperty("id").GetGuid();
+
+        var deleted = await fl.DeleteAsync($"/api/structure/nodes/{cellAId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+
+        var ownUnit = await fl.DeleteAsync($"/api/structure/nodes/{titansId}");
+        Assert.Equal(HttpStatusCode.Forbidden, ownUnit.StatusCode);
+
+        var recreate = await fl.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = titansId,
+            name = "Cell A",
+        });
+        Assert.Equal(HttpStatusCode.OK, recreate.StatusCode);
+
+        var ownLayer = await fl.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = (Guid?)null,
+            name = "Other Fel",
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, ownLayer.StatusCode);
+
+        var outside = await fl.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = alphaId,
+            name = "Cell B",
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, outside.StatusCode);
+
+        var overlay = await pastor.PutAsJsonAsync("/api/access", new
+        {
+            changes = new[]
+            {
+                new
+                {
+                    subjectKind = "layer",
+                    subjectId = fellowshipLayerId,
+                    ability = KairosPayHub.Api.Authorization.ProductAbilities.CreateChildUnits,
+                    enabled = false,
+                },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, overlay.StatusCode);
+
+        var blocked = await fl.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = cellLayerId,
+            parentNodeId = titansId,
+            name = "Cell C",
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
+
+        var pastorStill = await pastor.PostAsJsonAsync("/api/structure/nodes", new
+        {
+            layerId = fellowshipLayerId,
+            parentNodeId = (Guid?)null,
+            name = "Beta",
+        });
+        Assert.Equal(HttpStatusCode.OK, pastorStill.StatusCode);
+    }
 }

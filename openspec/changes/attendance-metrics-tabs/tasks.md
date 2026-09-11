@@ -5,7 +5,7 @@
 
 ## 2. Metrics UI
 
-- [x] 2.1 Slim OverviewMetrics to Present, Members, First-timers, Pending
+- [x] 2.1 Slim OverviewMetrics to adaptive chips: Present, Absent; Guests / First timers / Pending only when > 0
 - [x] 2.2 Tab shell: Who showed up | By unit (StructurePageTabs)
 - [x] 2.3 Who showed up: filters + column visibility (incl. parent unit)
 - [x] 2.4 By unit: former unit table + group by unit / parent

@@ -46,6 +46,7 @@ public static class LayerLeadershipProfiles
                 ProductAbilities.CreateSubCampaign,
                 ProductAbilities.ViewOverallGivings,
                 ProductAbilities.ManageRoster,
+                ProductAbilities.CreateChildUnits,
             ],
             LeadershipProfileKind.Intermediate =>
             [
@@ -56,6 +57,7 @@ public static class LayerLeadershipProfiles
                 ProductAbilities.CreateSubCampaign,
                 ProductAbilities.ViewOverallGivings,
                 ProductAbilities.ManageRoster,
+                ProductAbilities.CreateChildUnits,
             ],
             LeadershipProfileKind.Leaf =>
             [

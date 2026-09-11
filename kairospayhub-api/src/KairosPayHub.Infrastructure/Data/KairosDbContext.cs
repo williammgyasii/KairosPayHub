@@ -21,6 +21,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
     public DbSet<Domain.Structure.Fellowship> StructureFellowships => Set<Domain.Structure.Fellowship>();
     public DbSet<Domain.Structure.Cell> StructureCells => Set<Domain.Structure.Cell>();
     public DbSet<Domain.Structure.Member> ChurchMembers => Set<Domain.Structure.Member>();
+    public DbSet<Domain.Structure.UnitJoinInvite> UnitJoinInvites => Set<Domain.Structure.UnitJoinInvite>();
     public DbSet<Domain.Structure.RoleAssignment> RoleAssignments => Set<Domain.Structure.RoleAssignment>();
     public DbSet<Domain.Structure.StructureTemplate> StructureTemplates => Set<Domain.Structure.StructureTemplate>();
     public DbSet<Domain.Structure.StructureLayer> StructureLayers => Set<Domain.Structure.StructureLayer>();
@@ -50,6 +51,10 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         Set<Domain.Administrators.ChurchAdministrator>();
     public DbSet<Domain.Events.ChurchCalendarEvent> ChurchCalendarEvents =>
         Set<Domain.Events.ChurchCalendarEvent>();
+    public DbSet<Domain.Authorization.ChurchAbilityOverlay> ChurchAbilityOverlays =>
+        Set<Domain.Authorization.ChurchAbilityOverlay>();
+    public DbSet<Domain.Account.UserTablePreference> UserTablePreferences =>
+        Set<Domain.Account.UserTablePreference>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -122,6 +127,45 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         ConfigureNotifications(b);
         ConfigureAttendance(b);
         ConfigureAdministrators(b);
+        ConfigureAbilityOverlays(b);
+        ConfigureUserTablePreferences(b);
+        ConfigureUnitJoinInvites(b);
+    }
+
+    private static void ConfigureUnitJoinInvites(ModelBuilder b)
+    {
+        b.Entity<Domain.Structure.UnitJoinInvite>(e =>
+        {
+            e.ToTable("unit_join_invites");
+            e.Property(x => x.Token).IsRequired().HasMaxLength(128);
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasIndex(x => x.ChurchId);
+        });
+    }
+
+    private static void ConfigureUserTablePreferences(ModelBuilder b)
+    {
+        b.Entity<Domain.Account.UserTablePreference>(e =>
+        {
+            e.ToTable("user_table_preferences");
+            e.Property(x => x.Key).IsRequired().HasMaxLength(80);
+            e.Property(x => x.ColumnsJson).IsRequired().HasColumnType("jsonb");
+            e.HasIndex(x => new { x.AuthUserId, x.Key }).IsUnique();
+            e.HasIndex(x => x.AuthUserId);
+        });
+    }
+
+    private static void ConfigureAbilityOverlays(ModelBuilder b)
+    {
+        b.Entity<Domain.Authorization.ChurchAbilityOverlay>(e =>
+        {
+            e.ToTable("church_ability_overlays");
+            e.Property(x => x.SubjectKind).HasConversion<string>().IsRequired();
+            e.Property(x => x.Ability).IsRequired().HasMaxLength(80);
+            e.HasIndex(x => new { x.ChurchId, x.SubjectKind, x.SubjectId, x.Ability }).IsUnique();
+            e.HasIndex(x => x.ChurchId);
+        });
     }
 
     private static void ConfigureAdministrators(ModelBuilder b)
@@ -198,6 +242,8 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.ApprovalStatus).HasConversion<string>().IsRequired();
             e.Property(x => x.LockStatus).HasConversion<string>().IsRequired();
             e.Property(x => x.EnteredByRole).HasConversion<string>();
+            e.Property(x => x.GuestRiskLevel).HasMaxLength(20).HasDefaultValue("clear");
+            e.Property(x => x.GuestRiskReasons).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
             e.HasIndex(x => x.OccurrenceId);
             e.HasIndex(x => new { x.OccurrenceId, x.ScopeNodeId }).IsUnique();
             e.HasOne(x => x.Occurrence)
@@ -419,6 +465,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.SchoolOrWorkplace).HasMaxLength(200);
             e.Property(x => x.Workplace).HasMaxLength(200);
             e.Property(x => x.Position).HasConversion<string>().IsRequired();
+            e.Property(x => x.RosterStatus).HasConversion<string>().IsRequired();
             e.Property(x => x.Responsiveness).HasDefaultValue(3);
             e.HasIndex(x => x.ChurchId);
             e.HasIndex(x => x.ParentNodeId);

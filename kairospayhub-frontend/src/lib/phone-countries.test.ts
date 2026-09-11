@@ -11,6 +11,7 @@ import {
 describe('phoneCountryForCode', () => {
   it('maps a church ISO country to the matching dial code', () => {
     expect(phoneCountryForCode('US').dialCode).toBe('1')
+    expect(phoneCountryForCode('USA').dialCode).toBe('1')
     expect(phoneCountryForCode('GH').dialCode).toBe('233')
   })
 

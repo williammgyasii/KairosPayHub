@@ -12,6 +12,19 @@ public static class ProductAbilities
     public const string CreateSubCampaign = "createSubCampaign";
     public const string ViewOverallGivings = "viewOverallGivings";
     public const string ManageRoster = "manageRoster";
+    public const string CreateChildUnits = "createChildUnits";
+
+    public static IReadOnlyList<string> Editable { get; } =
+    [
+        CreateChildUnits,
+        ManageRoster,
+        ViewMemberGivings,
+        LogGiving,
+        ApproveGiving,
+        ViewOverallGivings,
+        CreateCampaign,
+        CreateSubCampaign,
+    ];
 
     public static IReadOnlyList<string> All { get; } =
     [
@@ -24,5 +37,6 @@ public static class ProductAbilities
         CreateSubCampaign,
         ViewOverallGivings,
         ManageRoster,
+        CreateChildUnits,
     ];
 }
