@@ -1,0 +1,54 @@
+---
+description: Frontend code lives in feature folders; only cross-feature engines go in shared
+globs: kairospayhub-frontend/**
+alwaysApply: true
+---
+
+# Frontend feature folders
+
+Colocate by **product feature**, not by layer name. A screen, its manager, its API client, and its tests travel together.
+
+## Layout
+
+```text
+src/features/<feature>/   api, lib (managers), components, pages, *.test.ts
+src/shared/ui             primitives + engines (Modal, PhoneList, shadcn)
+src/shared/lib            cross-feature helpers (cn, abilities, structure-tree)
+src/shared/api            HTTP core / auth session only
+src/shared/layout         shell, sidebar, topbar
+src/app                   App.tsx, routes, main.tsx
+```
+
+Features: `attendance`, `giving`, `roster`, `events`, `access`, `settings`, `account`, `auth`, `overview`, `notifications`.
+
+## What is shared vs feature
+
+| Shared | Feature |
+|--------|---------|
+| Used by two+ features with the **same** API | One feature’s screens, adapters, policies |
+| Primitive / engine (PhoneList chrome) | Adapter (`membershipPhoneCard`, guest-risk banner) |
+| Domain kernel (`structure-tree`, `createUnitPolicy`) | Page + RTK endpoints for that page |
+
+If Church → Cell and Giving → Cell would copy an `if`, that helper is **shared** (or a missing manager) — not a second copy inside giving.
+
+```ts
+// ❌ BAD — attendance policy parked in a global dump
+// src/lib/guest-risk-warning.ts
+// src/lib/phone-list-adapters.ts  (membership + attendance + giving in one file)
+
+// ✅ GOOD
+// src/features/attendance/lib/guest-risk-warning.ts
+// src/features/roster/lib/membership-phone-card.ts
+// src/shared/ui/phone-list.tsx          // engine only
+```
+
+## Before adding a file
+
+1. Name the feature. Put the file there (`features/<feature>/…`).
+2. If two features need it, move the **engine** to `shared/` and leave adapters in each feature.
+3. Do not add new modules under the old flat `src/lib` or `src/pages` — migrate the neighbor when you touch it.
+4. Tests sit next to the module. Barrel (`index.ts`) only for the feature’s public exports.
+
+## With other rules
+
+Volatility-decomposition still applies **inside** a feature (manager vs engine). No-god-files still applies (≤400 / 600). A feature folder is not a new dump site.
