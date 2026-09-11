@@ -6,18 +6,18 @@ import {
   deleteCalendarEvent,
   getCalendarFeed,
   type CalendarEvent,
-} from '@/api/events'
+} from '@/features/events/api'
 import { canManageChurch } from '@/api/auth'
-import { useApi } from '@/api/core'
-import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
-import { EventsCalendarGrid } from '@/components/events/events-calendar-grid'
-import { EventsDaySheet } from '@/components/events/events-day-sheet'
-import { defaultEventScopeNodeId, eventsForDay } from '@/lib/calendar-events-ui'
-import { formatApiError } from '@/lib/structure-tree'
+import { useApi } from '@/shared/api'
+import type { DashboardOutletContext } from '@/shared/layout/dashboard-layout'
+import { EventsCalendarGrid } from '@/features/events/components/events-calendar-grid'
+import { EventsDaySheet } from '@/features/events/components/events-day-sheet'
+import { defaultEventScopeNodeId, eventsForDay } from '@/features/events/lib/calendar-events-ui'
+import { formatApiError } from '@/shared/lib/structure-tree'
 import { useAppDispatch } from '@/store/hooks'
 import { invalidateNotificationTags } from '@/store/notificationsApi'
-import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
+import { Button } from '@/shared/ui/button'
+import { Spinner } from '@/shared/ui/spinner'
 
 export function EventsPage() {
   const { me } = useOutletContext<DashboardOutletContext>()

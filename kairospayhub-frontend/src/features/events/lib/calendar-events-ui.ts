@@ -1,5 +1,5 @@
 import { canManageChurch, isCellLeader, isScopedLeader, type Me } from '@/api/auth'
-import type { CalendarEvent, CalendarEventKind } from '@/api/events'
+import type { CalendarEvent, CalendarEventKind } from '@/features/events/api'
 
 export type CalendarEventAlertOption = {
   notifyLeadersUp: boolean

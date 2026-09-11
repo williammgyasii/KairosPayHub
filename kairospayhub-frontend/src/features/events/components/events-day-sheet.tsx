@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { Cake, ClipboardCheck, Plus, Star, Trash2 } from 'lucide-react'
-import type { CalendarEvent, CalendarEventKind } from '@/api/events'
+import type { CalendarEvent, CalendarEventKind } from '@/features/events/api'
 import {
   calendarEventAlertOptions,
   eventKindLabel,
   eventKindTone,
   type CalendarEventAlertOption,
-} from '@/lib/calendar-events-ui'
+} from '@/features/events/lib/calendar-events-ui'
 import type { Me } from '@/api/auth'
-import { SideSheet } from '@/components/ui/side-sheet'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { SideSheet } from '@/shared/ui/side-sheet'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { cn } from '@/shared/lib/utils'
 
 function kindIcon(kind: CalendarEventKind) {
   switch (kind) {

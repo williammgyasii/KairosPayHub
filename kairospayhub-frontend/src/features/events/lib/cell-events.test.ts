@@ -5,7 +5,7 @@ import {
   meetingEventsForMonth,
   mergeCellEvents,
   upcomingEvents,
-} from '@/lib/cell-events'
+} from '@/features/events/lib/cell-events'
 
 describe('birthdayEventsForMonth', () => {
   it('maps members with DOB in the month', () => {

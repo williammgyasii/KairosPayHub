@@ -12,10 +12,10 @@ import {
 } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo } from 'react'
-import type { CalendarEvent } from '@/api/events'
-import { eventKindLabel, eventKindTone } from '@/lib/calendar-events-ui'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import type { CalendarEvent } from '@/features/events/api'
+import { eventKindLabel, eventKindTone } from '@/features/events/lib/calendar-events-ui'
+import { Button } from '@/shared/ui/button'
+import { cn } from '@/shared/lib/utils'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 

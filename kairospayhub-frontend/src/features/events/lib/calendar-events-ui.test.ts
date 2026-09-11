@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { CalendarEvent } from '@/api/events'
-import { upcomingCalendarEvents } from '@/lib/calendar-events-ui'
+import type { CalendarEvent } from '@/features/events/api'
+import { upcomingCalendarEvents } from '@/features/events/lib/calendar-events-ui'
 
 const sampleEvents: CalendarEvent[] = [
   {

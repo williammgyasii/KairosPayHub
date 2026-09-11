@@ -1,4 +1,4 @@
-import type { CalendarEvent, CalendarFeedResponse, CreateCalendarEventInput } from '@/api/events'
+import type { CalendarEvent, CalendarFeedResponse, CreateCalendarEventInput } from '@/features/events/api'
 import { baseApi } from '@/store/baseApi'
 
 export type CalendarFeedArg = {
