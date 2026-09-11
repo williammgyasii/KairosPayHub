@@ -1,4 +1,4 @@
-import type { ApiClient } from '@/api/core/client'
+import type { ApiClient } from '@/shared/api/client'
 
 export type ChurchAdminAffiliationKind = 'InChurch' | 'External'
 

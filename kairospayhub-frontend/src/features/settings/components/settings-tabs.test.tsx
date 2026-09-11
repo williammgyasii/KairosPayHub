@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import type { Me } from '@/api/auth'
-import { SettingsTabs } from '@/components/settings/settings-tabs'
-import { SettingsLayout } from '@/components/settings/settings-layout'
+import { SettingsTabs } from '@/features/settings/components/settings-tabs'
+import { SettingsLayout } from '@/features/settings/components/settings-layout'
 
 const pastor: Me & { onboarded: true } = {
   onboarded: true,

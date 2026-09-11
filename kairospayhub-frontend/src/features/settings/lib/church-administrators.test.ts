@@ -4,7 +4,7 @@ import {
   churchAdminAffiliationLabel,
   churchAdminStatusLabel,
   isActiveChurchAdministrator,
-} from '@/lib/church-administrators'
+} from '@/features/settings/lib/church-administrators'
 
 describe('church-administrators helpers', () => {
   it('labels affiliation without magic branches at call sites', () => {

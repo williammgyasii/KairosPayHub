@@ -1,14 +1,14 @@
 import { useOutletContext } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
-import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { ChurchBrand } from '@/components/layout/church-brand'
+import type { DashboardOutletContext } from '@/shared/layout/dashboard-layout'
+import { DashboardPageHeader } from '@/shared/layout/dashboard-page-header'
+import { ChurchBrand } from '@/shared/layout/church-brand'
 import { getAccessToken } from '@/auth/client'
-import { apiBaseUrl } from '@/lib/api-base'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { apiBaseUrl } from '@/shared/api/api-base'
+import { Button } from '@/shared/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
 
 export function SettingsPage() {
   const { me, reloadMe } = useOutletContext<DashboardOutletContext>()

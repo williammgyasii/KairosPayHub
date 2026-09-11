@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import type { Me } from '@/api/auth'
-import { AccountProfilePage } from '@/pages/AccountProfilePage'
+import { AccountProfilePage } from '@/features/account'
 
 const reloadMe = vi.fn(async () => undefined)
 const patchMe = vi.fn()

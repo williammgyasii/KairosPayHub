@@ -14,16 +14,16 @@ import {
 import { toast } from 'sonner'
 import { canEditSelfProfile, canManageChurch, type Me } from '@/api/auth'
 import { MEMBER_OCCUPATION_OPTIONS, type MemberOccupationStatus } from '@/api/structure'
-import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
-import { roleDisplayInfo } from '@/components/layout/role-badge'
-import { ChurchLogoSettingsSection } from '@/components/settings/church-logo-settings-section'
-import { ProfileAvatarSettingsSection } from '@/components/settings/profile-avatar-settings-section'
+import type { DashboardOutletContext } from '@/shared/layout/dashboard-layout'
+import { roleDisplayInfo } from '@/shared/layout/role-badge'
+import { ChurchLogoSettingsSection } from '@/features/settings/components/church-logo-settings-section'
+import { ProfileAvatarSettingsSection } from '@/features/account/components/profile-avatar-settings-section'
 import {
   memberProfileInitialValues,
   memberProfilePayload,
 } from '@/components/structure/member-profile-fields'
-import { Button } from '@/components/ui/button'
-import { DatePicker } from '@/components/ui/date-picker'
+import { Button } from '@/shared/ui/button'
+import { DatePicker } from '@/shared/ui/date-picker'
 import {
   Form,
   FormControl,
@@ -31,21 +31,21 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { PhoneInput } from '@/components/ui/phone-input'
+} from '@/shared/ui/form'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { PhoneInput } from '@/shared/ui/phone-input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/shared/ui/select'
 import { formatPhoneE164 } from '@/lib/phone-countries'
-import { formatApiError } from '@/lib/structure-tree'
+import { formatApiError } from '@/shared/lib/structure-tree'
 import { usePatchMeMutation } from '@/store/meApi'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 type ProfileFormValues = {
   name: string

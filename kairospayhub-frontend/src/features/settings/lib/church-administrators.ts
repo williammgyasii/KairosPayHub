@@ -1,4 +1,4 @@
-import type { ChurchAdminAffiliationKind } from '@/api/administrators'
+import type { ChurchAdminAffiliationKind } from '@/features/settings/api'
 
 export const CHURCH_ADMIN_AFFILIATION = {
   External: 'External',

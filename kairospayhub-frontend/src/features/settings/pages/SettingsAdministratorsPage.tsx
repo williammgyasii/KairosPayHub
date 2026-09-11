@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useOutletContext } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
-import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
-import { useApi } from '@/api/core'
+import type { DashboardOutletContext } from '@/shared/layout/dashboard-layout'
+import { useApi } from '@/shared/api'
 import {
   createAdministrator,
   deactivateAdministrator,
@@ -11,14 +11,14 @@ import {
   suggestAdminEmail,
   type ChurchAdministrator,
   type ChurchAdminAffiliationKind,
-} from '@/api/administrators'
+} from '@/features/settings/api'
 import {
   CHURCH_ADMIN_AFFILIATION,
   churchAdminAffiliationLabel,
   churchAdminStatusLabel,
-} from '@/lib/church-administrators'
-import { SettingsSection } from '@/components/settings/settings-section'
-import { Button } from '@/components/ui/button'
+} from '@/features/settings/lib/church-administrators'
+import { SettingsSection } from '@/features/settings/components/settings-section'
+import { Button } from '@/shared/ui/button'
 import {
   Form,
   FormControl,
@@ -26,15 +26,15 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Spinner } from '@/components/ui/spinner'
+} from '@/shared/ui/form'
+import { Input } from '@/shared/ui/input'
+import { Spinner } from '@/shared/ui/spinner'
 import {
   EmailAvailabilityField,
   isEmailAvailabilityBlocking,
   useEmailAvailability,
-} from '@/components/structure/email-availability-field'
-import { cn } from '@/lib/utils'
+} from '@/shared/ui/email-availability-field'
+import { cn } from '@/shared/lib/utils'
 
 type AdminFormValues = {
   firstName: string

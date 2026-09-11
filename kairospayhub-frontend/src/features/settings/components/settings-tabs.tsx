@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import { canManageChurch, type Me } from '@/api/auth'
 
 const PERSONAL_TABS = [

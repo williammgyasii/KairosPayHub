@@ -3,20 +3,20 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import type { Me } from '@/api/auth'
-import type { ChurchAdministrator } from '@/api/administrators'
-import { SettingsAdministratorsPage } from '@/pages/SettingsAdministratorsPage'
+import type { ChurchAdministrator } from '@/features/settings/api'
+import { SettingsAdministratorsPage } from '@/features/settings'
 
 const listAdministrators = vi.fn()
 const createAdministrator = vi.fn()
 const deactivateAdministrator = vi.fn()
 const suggestAdminEmail = vi.fn()
 
-vi.mock('@/api/core', () => ({
+vi.mock('@/shared/api', () => ({
   useApi: () => ({}),
 }))
 
-vi.mock('@/api/administrators', async () => {
-  const actual = await vi.importActual<typeof import('@/api/administrators')>('@/api/administrators')
+vi.mock('@/features/settings/api', async () => {
+  const actual = await vi.importActual<typeof import('@/features/settings/api')>('@/features/settings/api')
   return {
     ...actual,
     listAdministrators: (...args: unknown[]) => listAdministrators(...args),
@@ -26,7 +26,7 @@ vi.mock('@/api/administrators', async () => {
   }
 })
 
-vi.mock('@/components/structure/email-availability-field', () => ({
+vi.mock('@/shared/ui/email-availability-field', () => ({
   useEmailAvailability: () => ({ status: 'available' as const }),
   isEmailAvailabilityBlocking: () => false,
   EmailAvailabilityField: ({

@@ -1,7 +1,7 @@
 import { Outlet, useOutletContext } from 'react-router-dom'
-import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
-import { DashboardPageHeader } from '@/components/layout/dashboard-page-header'
-import { SettingsTabs } from '@/components/settings/settings-tabs'
+import type { DashboardOutletContext } from '@/shared/layout/dashboard-layout'
+import { DashboardPageHeader } from '@/shared/layout/dashboard-page-header'
+import { SettingsTabs } from '@/features/settings/components/settings-tabs'
 
 export function SettingsLayout() {
   const context = useOutletContext<DashboardOutletContext>()

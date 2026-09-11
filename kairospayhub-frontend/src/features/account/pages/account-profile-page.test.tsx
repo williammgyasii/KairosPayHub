@@ -3,10 +3,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import type { Me } from '@/api/auth'
-import { SettingsLayout } from '@/components/settings/settings-layout'
-import { AccountNotificationsPage } from '@/pages/AccountNotificationsPage'
-import { AccountProfilePage } from '@/pages/AccountProfilePage'
-import { AccountSecurityPage } from '@/pages/AccountSecurityPage'
+import { SettingsLayout } from '@/features/settings/components/settings-layout'
+import { AccountNotificationsPage } from '@/features/account'
+import { AccountProfilePage } from '@/features/account'
+import { AccountSecurityPage } from '@/features/account'
 
 const patchMe = vi.fn()
 const toastSuccess = vi.fn()
