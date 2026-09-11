@@ -37,6 +37,7 @@ const me = {
   churchId: 'c1',
   churchName: 'Grace Assembly',
   churchLogoUrl: null,
+  avatarUrl: null as string | null,
   organizationId: 'o1',
   role: 'Pastor' as const,
   legacyChurchId: null,
@@ -44,10 +45,10 @@ const me = {
   name: 'Pastor Paul',
 } satisfies Me & { onboarded: true }
 
-function renderTopbar() {
+function renderTopbar(overrides?: Partial<typeof me>) {
   return render(
     <MemoryRouter>
-      <DashboardTopbar me={me} />
+      <DashboardTopbar me={{ ...me, ...overrides }} />
     </MemoryRouter>,
   )
 }
@@ -73,5 +74,17 @@ describe('DashboardTopbar', () => {
     await user.click(screen.getByRole('button', { name: /Pastor Paul/i }))
     const menu = await screen.findByRole('menu')
     expect(within(menu).getByText('Pastor')).toBeTruthy()
+  })
+
+  it('marks the user avatar when me.avatarUrl is set', () => {
+    renderTopbar({
+      avatarUrl: 'https://cdn.example.com/users/u1/avatar.jpg',
+    })
+    expect(screen.getByTestId('user-avatar').getAttribute('data-has-image')).toBe('true')
+  })
+
+  it('marks the user avatar without image when avatarUrl is null', () => {
+    renderTopbar({ avatarUrl: null })
+    expect(screen.getByTestId('user-avatar').getAttribute('data-has-image')).toBe('false')
   })
 })

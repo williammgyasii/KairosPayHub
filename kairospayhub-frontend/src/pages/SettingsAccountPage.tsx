@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom'
 
-/** @deprecated Use /account routes. Kept so old /settings/account links still land on Profile. */
+/** @deprecated Use /settings/profile. Kept so old /settings/account links still land on Profile. */
 export function SettingsAccountPage() {
-  return <Navigate to="/account" replace />
+  return <Navigate to="/settings/profile" replace />
 }

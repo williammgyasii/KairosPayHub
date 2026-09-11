@@ -12,10 +12,12 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { canEditSelfProfile, type Me } from '@/api/auth'
+import { canEditSelfProfile, canManageChurch, type Me } from '@/api/auth'
 import { MEMBER_OCCUPATION_OPTIONS, type MemberOccupationStatus } from '@/api/structure'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { roleDisplayInfo } from '@/components/layout/role-badge'
+import { ChurchLogoSettingsSection } from '@/components/settings/church-logo-settings-section'
+import { ProfileAvatarSettingsSection } from '@/components/settings/profile-avatar-settings-section'
 import {
   memberProfileInitialValues,
   memberProfilePayload,
@@ -111,6 +113,9 @@ export function AccountProfilePage() {
 
   return (
     <div className="space-y-6 sm:space-y-8">
+      <ProfileAvatarSettingsSection me={me} />
+      {canManageChurch(me.role) ? <ChurchLogoSettingsSection /> : null}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <IdentityChips me={me} />
         {canEdit && !editing ? (

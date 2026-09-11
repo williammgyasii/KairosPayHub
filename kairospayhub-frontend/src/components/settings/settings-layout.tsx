@@ -14,7 +14,7 @@ export function SettingsLayout() {
           { label: 'Settings' },
         ]}
         title="Settings"
-        description="Church branding, your account, and administrator access."
+        description="Church logo (for managers), your account, and administrator access."
       />
 
       <SettingsTabs me={context.me} />

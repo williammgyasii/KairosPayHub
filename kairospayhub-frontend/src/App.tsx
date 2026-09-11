@@ -16,12 +16,11 @@ import {
   MemberProfilePage,
 } from './pages/MemberDetailPages'
 import { SettingsLayout } from './components/settings/settings-layout'
-import { SettingsBrandingPage } from './pages/SettingsBrandingPage'
-import { AccountLayout } from './pages/AccountLayout'
 import { AccountNotificationsPage } from './pages/AccountNotificationsPage'
 import { AccountProfilePage } from './pages/AccountProfilePage'
 import { AccountSecurityPage } from './pages/AccountSecurityPage'
 import { SettingsAdministratorsPage } from './pages/SettingsAdministratorsPage'
+import { SettingsIndexPage } from './pages/SettingsIndexPage'
 import { AttendanceApprovalsPage } from './pages/AttendanceApprovalsPage'
 import { AttendanceOverviewPage } from './pages/AttendanceOverviewPage'
 import { AttendanceSubmissionsPage } from './pages/AttendanceSubmissionsPage'
@@ -166,23 +165,27 @@ export default function App() {
             </PastorRoute>
           }
         />
-        <Route path="account" element={<AccountLayout />}>
-          <Route index element={<AccountProfilePage />} />
+        <Route path="account" element={<Navigate to="/settings/profile" replace />} />
+        <Route path="account/security" element={<Navigate to="/settings/security" replace />} />
+        <Route
+          path="account/notifications"
+          element={<Navigate to="/settings/notifications" replace />}
+        />
+        <Route path="settings" element={<SettingsLayout />}>
+          <Route index element={<SettingsIndexPage />} />
+          <Route path="branding" element={<Navigate to="/settings/profile" replace />} />
+          <Route path="profile" element={<AccountProfilePage />} />
           <Route path="security" element={<AccountSecurityPage />} />
           <Route path="notifications" element={<AccountNotificationsPage />} />
-        </Route>
-        <Route
-          path="settings"
-          element={
-            <PastorRoute>
-              <SettingsLayout />
-            </PastorRoute>
-          }
-        >
-          <Route index element={<SettingsBrandingPage />} />
-          <Route path="branding" element={<Navigate to="/settings" replace />} />
-          <Route path="account" element={<Navigate to="/account" replace />} />
-          <Route path="administrators" element={<SettingsAdministratorsPage />} />
+          <Route path="account" element={<Navigate to="/settings/profile" replace />} />
+          <Route
+            path="administrators"
+            element={
+              <PastorRoute>
+                <SettingsAdministratorsPage />
+              </PastorRoute>
+            }
+          />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

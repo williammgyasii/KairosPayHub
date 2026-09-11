@@ -4,6 +4,7 @@ using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
 using KairosPayHub.Api.Domain.Structure;
 using KairosPayHub.Api.Services;
+using KairosPayHub.Api.Storage;
 using KairosPayHub.Api.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -20,7 +21,8 @@ public class MeController(
     KairosDbContext db,
     AbilityResolver abilities,
     UserManager<ApplicationUser> users,
-    ChurchReadCache readCache) : ControllerBase
+    ChurchReadCache readCache,
+    UserAvatarService avatars) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -155,6 +157,10 @@ public class MeController(
             ? await FindLinkedMemberAsync(linkedChurchId, ct)
             : null;
 
+        string? avatarUrl = null;
+        if (Guid.TryParse(current.Sub, out var meAuthUserId))
+            avatarUrl = await avatars.GetAvatarUrlAsync(meAuthUserId);
+
         return Ok(new
         {
             onboarded = true,
@@ -162,6 +168,7 @@ public class MeController(
             churchId,
             churchName,
             churchLogoUrl,
+            avatarUrl,
             countryCode,
             defaultCurrency,
             timeZoneId,
@@ -185,6 +192,39 @@ public class MeController(
             abilityRules = resolved.Rules,
             leadershipProfile = resolved.Profile.ToString(),
         });
+    }
+
+    [HttpPost("avatar")]
+    [RequestSizeLimit(2_621_440)]
+    public async Task<IActionResult> UploadAvatar(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "File is required" });
+
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized();
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var url = await avatars.UploadAvatarAsync(
+                authUserId,
+                current.Email,
+                current.Name,
+                stream,
+                file.ContentType,
+                file.Length,
+                ct);
+            return Ok(new { avatarUrl = url });
+        }
+        catch (ObjectStorageNotConfiguredException)
+        {
+            return StatusCode(503, new { error = "File storage is not configured on the server" });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpPatch]

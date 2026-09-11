@@ -74,7 +74,8 @@ public class ChurchAdministratorService(
         if (await users.FindByEmailAsync(email) is not null)
             throw new BadRequestException("A login account with this email already exists");
 
-        if (input.AffiliationKind.Equals("InChurch", StringComparison.OrdinalIgnoreCase))
+        var affiliation = ParseAffiliation(input.AffiliationKind);
+        if (affiliation == ChurchAdminAffiliationKind.InChurch)
         {
             if (input.MemberId is null)
                 throw new BadRequestException("MemberId is required for in-church administrators");
@@ -107,7 +108,6 @@ public class ChurchAdministratorService(
         if (!createResult.Succeeded)
             throw new BadRequestException(string.Join("; ", createResult.Errors.Select(e => e.Description)));
 
-        var affiliation = ParseAffiliation(input.AffiliationKind);
         var admin = new ChurchAdministrator
         {
             ChurchId = churchId,
@@ -215,7 +215,26 @@ public class ChurchAdministratorService(
             .ToListAsync(ct);
         db.RoleAssignments.RemoveRange(assignments);
 
+        // Admin create also inserts a legacy AppUsers row with Pastor — remove it so
+        // CurrentActor cannot keep elevating a deactivated admin.
+        var authSubject = admin.AuthUserId.ToString();
+        var legacyUsers = await db.AppUsers.Where(u => u.AuthSubject == authSubject).ToListAsync(ct);
+        db.AppUsers.RemoveRange(legacyUsers);
+
+        var refreshTokens = await db.RefreshTokens
+            .Where(t => t.UserId == admin.AuthUserId && !t.Revoked)
+            .ToListAsync(ct);
+        foreach (var token in refreshTokens)
+            token.Revoked = true;
+
         await db.SaveChangesAsync(ct);
+
+        var identityUser = await users.FindByIdAsync(admin.AuthUserId.ToString());
+        if (identityUser is not null)
+        {
+            await users.SetLockoutEnabledAsync(identityUser, true);
+            await users.SetLockoutEndDateAsync(identityUser, DateTimeOffset.MaxValue);
+        }
     }
 
     private static ChurchAdminAffiliationKind ParseAffiliation(string value)

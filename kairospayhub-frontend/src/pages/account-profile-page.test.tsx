@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import type { Me } from '@/api/auth'
-import { AccountLayout } from '@/pages/AccountLayout'
+import { SettingsLayout } from '@/components/settings/settings-layout'
 import { AccountNotificationsPage } from '@/pages/AccountNotificationsPage'
 import { AccountProfilePage } from '@/pages/AccountProfilePage'
 import { AccountSecurityPage } from '@/pages/AccountSecurityPage'
@@ -38,7 +38,7 @@ const cellLeader: Me & { onboarded: true } = {
   schoolOrWorkplace: 'Kairos',
 }
 
-function renderAccount(path = '/account') {
+function renderAccount(path = '/settings/profile') {
   function Shell() {
     return <Outlet context={{ me: cellLeader, reloadMe: async () => undefined }} />
   }
@@ -47,8 +47,8 @@ function renderAccount(path = '/account') {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route element={<Shell />}>
-          <Route path="account" element={<AccountLayout />}>
-            <Route index element={<AccountProfilePage />} />
+          <Route path="settings" element={<SettingsLayout />}>
+            <Route path="profile" element={<AccountProfilePage />} />
             <Route path="security" element={<AccountSecurityPage />} />
             <Route path="notifications" element={<AccountNotificationsPage />} />
           </Route>
@@ -62,6 +62,13 @@ describe('Account profile', () => {
   beforeEach(() => {
     patchMe.mockReset()
     toastSuccess.mockReset()
+  })
+
+  it('shows personal photo upload on profile', () => {
+    renderAccount()
+
+    expect(screen.getByText('Your photo')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Upload photo' })).toBeTruthy()
   })
 
   it('opens in view mode with Edit and read-only email', () => {
@@ -90,13 +97,16 @@ describe('Account profile', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy()
   })
 
-  it('links to security and notifications pages', () => {
+  it('links to security and notifications pages at settings top level', () => {
     renderAccount()
 
-    expect(screen.getByRole('link', { name: 'Security' })).toHaveAttribute('href', '/account/security')
+    expect(screen.getByRole('link', { name: 'Security' })).toHaveAttribute(
+      'href',
+      '/settings/security',
+    )
     expect(screen.getByRole('link', { name: 'Notifications' })).toHaveAttribute(
       'href',
-      '/account/notifications',
+      '/settings/notifications',
     )
   })
 

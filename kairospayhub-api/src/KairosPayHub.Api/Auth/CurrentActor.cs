@@ -59,6 +59,17 @@ public class CurrentActor(IHttpContextAccessor http, KairosDbContext db)
         var legacyUser = await db.AppUsers.AsNoTracking()
             .FirstOrDefaultAsync(u => u.AuthSubject == sub, ct);
 
+        if (assignment is null && authUserId is not null)
+        {
+            var adminStates = await db.ChurchAdministrators.AsNoTracking()
+                .Where(a => a.AuthUserId == authUserId)
+                .Select(a => a.IsActive)
+                .ToListAsync(ct);
+            // Deactivated-only church admins must not keep access via leftover AppUsers rows.
+            if (adminStates.Count > 0 && adminStates.All(active => !active))
+                return null;
+        }
+
         if (assignment is null && legacyUser is null)
             return null;
 

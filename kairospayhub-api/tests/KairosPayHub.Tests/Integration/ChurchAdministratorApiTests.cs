@@ -85,6 +85,50 @@ public class ChurchAdministratorApiTests(PostgresFixture fx) : IAsyncLifetime
         Assert.Equal("john.admin@example.com", json.GetProperty("email").GetString());
     }
 
+    [Fact]
+    public async Task Deactivated_admin_cannot_login_or_act_as_church_manager()
+    {
+        var pastorSub = Guid.NewGuid();
+        var pastor = AuthedClient(pastorSub, "pastor3@grace.org", "Pastor Three");
+        await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Grace Three" });
+
+        var createResp = await pastor.PostAsJsonAsync("/api/settings/administrators", new
+        {
+            firstName = "Sam",
+            lastName = "Admin",
+            email = "sam.admin@grace.org",
+            affiliationKind = "External",
+            password = "AdminPass1!",
+            sendInviteEmail = false,
+        });
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode);
+
+        await using (var db = fx.CreateContext())
+        {
+            var adminRow = await db.ChurchAdministrators.SingleAsync(a => a.Email == "sam.admin@grace.org");
+            var deactivate = await pastor.PatchAsJsonAsync(
+                $"/api/settings/administrators/{adminRow.Id}/deactivate",
+                new { });
+            Assert.Equal(HttpStatusCode.OK, deactivate.StatusCode);
+        }
+
+        var anon = _factory.CreateClient();
+        var login = await anon.PostAsJsonAsync("/auth/login", new
+        {
+            email = "sam.admin@grace.org",
+            password = "AdminPass1!",
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
+
+        await using (var db = fx.CreateContext())
+        {
+            var adminRow = await db.ChurchAdministrators.SingleAsync(a => a.Email == "sam.admin@grace.org");
+            var staleClient = AuthedClient(adminRow.AuthUserId, "sam.admin@grace.org", "Sam Admin");
+            var me = await staleClient.GetFromJsonAsync<JsonElement>("/api/me");
+            Assert.False(me.GetProperty("onboarded").GetBoolean());
+        }
+    }
+
     private HttpClient AuthedClient(Guid sub, string email, string name)
     {
         var client = _factory.CreateClient();

@@ -44,4 +44,31 @@ public class ChurchBrandingController(CurrentActor current, ChurchBrandingServic
             return StatusCode(403, new { error = ex.Message });
         }
     }
+
+    public record UpdateChurchProfileRequest(string Name);
+
+    [HttpPatch]
+    public async Task<IActionResult> UpdateProfile(
+        [FromBody] UpdateChurchProfileRequest body,
+        CancellationToken ct)
+    {
+        try
+        {
+            var actor = await current.RequireAsync(ct);
+            await branding.UpdateProfileAsync(actor, body.Name ?? "", ct);
+            return Ok(new { ok = true });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (ForbiddenException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (NotOnboardedException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+    }
 }

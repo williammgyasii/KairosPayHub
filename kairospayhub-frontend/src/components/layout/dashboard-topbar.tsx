@@ -15,7 +15,7 @@ import { useAuth } from '@/auth/AuthContext'
 import { ChurchBrand } from '@/components/layout/church-brand'
 import { NotificationsBell } from '@/components/layout/notifications-bell'
 import { RoleBadge } from '@/components/layout/role-badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -109,7 +109,12 @@ export function DashboardTopbar({ me }: DashboardTopbarProps) {
                   'md:rounded-full md:pl-1 md:pr-2.5',
                 )}
               >
-                <Avatar className="h-7 w-7 ring-1 ring-border/60">
+                <Avatar
+                  className="h-7 w-7 ring-1 ring-border/60"
+                  data-testid="user-avatar"
+                  data-has-image={me.avatarUrl ? 'true' : 'false'}
+                >
+                  {me.avatarUrl ? <AvatarImage src={me.avatarUrl} alt="" /> : null}
                   <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
                     {initials(me.name, me.email)}
                   </AvatarFallback>
@@ -143,19 +148,19 @@ export function DashboardTopbar({ me }: DashboardTopbarProps) {
                   Your account
                 </DropdownMenuLabel>
                 <MenuLink
-                  to="/account"
+                  to="/settings/profile"
                   icon={User}
                   title="Profile"
                   description="Name, email, and role"
                 />
                 <MenuLink
-                  to="/account#notifications"
+                  to="/settings/notifications"
                   icon={Bell}
                   title="Notifications"
                   description="Alerts and delivery preferences"
                 />
                 <MenuLink
-                  to="/account#security"
+                  to="/settings/security"
                   icon={Shield}
                   title="Security"
                   description="Password and sign-in"
@@ -170,9 +175,9 @@ export function DashboardTopbar({ me }: DashboardTopbarProps) {
                       Church
                     </DropdownMenuLabel>
                     <MenuLink
-                      to="/settings"
+                      to="/settings/profile"
                       icon={Palette}
-                      title="Branding"
+                      title="Church logo"
                       description="Logo and church identity"
                     />
                     <MenuLink

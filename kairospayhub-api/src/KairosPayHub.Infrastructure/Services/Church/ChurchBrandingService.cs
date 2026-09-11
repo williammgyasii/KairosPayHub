@@ -57,4 +57,26 @@ public class ChurchBrandingService(KairosDbContext db, IObjectStorage storage, G
         await db.SaveChangesAsync(ct);
         return publicUrl;
     }
+
+    public async Task UpdateProfileAsync(Actor actor, string name, CancellationToken ct = default)
+    {
+        if (!scope.CanManageChurch(actor))
+            throw new ForbiddenException("Only a pastor or church admin can update the church profile");
+
+        var trimmed = name.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+            throw new ArgumentException("Church name is required");
+        if (trimmed.Length > 200)
+            throw new ArgumentException("Church name must be 200 characters or fewer");
+
+        var churchId = actor.StructureChurchId != default
+            ? actor.StructureChurchId
+            : throw new NotOnboardedException("Church is not set up");
+
+        var church = await db.StructureChurches.SingleOrDefaultAsync(c => c.Id == churchId, ct)
+            ?? throw new ForbiddenException("Church not found");
+
+        church.Name = trimmed;
+        await db.SaveChangesAsync(ct);
+    }
 }

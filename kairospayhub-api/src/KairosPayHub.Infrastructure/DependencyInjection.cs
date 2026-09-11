@@ -80,6 +80,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<NotificationRecipientResolver>();
         services.AddScoped<NotificationService>();
         services.AddScoped<ChurchBrandingService>();
+        services.AddScoped<UserAvatarService>();
         services.AddScoped<LeaderInviteService>();
         services.AddScoped<CalendarEventService>();
 

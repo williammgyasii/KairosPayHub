@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useOutletContext } from 'react-router-dom'
+import { ChevronDown } from 'lucide-react'
 import type { DashboardOutletContext } from '@/components/layout/dashboard-layout'
 import { useApi } from '@/api/core'
 import {
@@ -11,19 +13,46 @@ import {
   type ChurchAdminAffiliationKind,
 } from '@/api/administrators'
 import {
-  SettingsFieldGrid,
-  SettingsPanel,
-  SettingsSection,
-} from '@/components/settings/settings-section'
+  CHURCH_ADMIN_AFFILIATION,
+  churchAdminAffiliationLabel,
+  churchAdminStatusLabel,
+} from '@/lib/church-administrators'
+import { SettingsSection } from '@/components/settings/settings-section'
 import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import {
   EmailAvailabilityField,
   isEmailAvailabilityBlocking,
   useEmailAvailability,
 } from '@/components/structure/email-availability-field'
+import { cn } from '@/lib/utils'
+
+type AdminFormValues = {
+  firstName: string
+  lastName: string
+  email: string
+  affiliationKind: ChurchAdminAffiliationKind
+  password: string
+  sendInvite: boolean
+}
+
+const defaultValues: AdminFormValues = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  affiliationKind: CHURCH_ADMIN_AFFILIATION.External,
+  password: '',
+  sendInvite: false,
+}
 
 export function SettingsAdministratorsPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
@@ -31,15 +60,12 @@ export function SettingsAdministratorsPage() {
   const [admins, setAdmins] = useState<ChurchAdministrator[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [listOpen, setListOpen] = useState(true)
 
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [email, setEmail] = useState('')
-  const [affiliationKind, setAffiliationKind] = useState<ChurchAdminAffiliationKind>('External')
-  const [password, setPassword] = useState('')
-  const [sendInvite, setSendInvite] = useState(false)
+  const form = useForm<AdminFormValues>({ defaultValues })
+  const sendInvite = form.watch('sendInvite')
+  const email = form.watch('email')
+  const affiliationKind = form.watch('affiliationKind')
   const emailAvailability = useEmailAvailability(email, 'login')
 
   const load = useCallback(async () => {
@@ -62,34 +88,31 @@ export function SettingsAdministratorsPage() {
     if (!me.email) return
     try {
       const result = await suggestAdminEmail(api, me.email)
-      setEmail(result.email)
+      form.setValue('email', result.email, { shouldDirty: true, shouldValidate: true })
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Could not suggest email')
+      form.setError('root', {
+        message: err instanceof Error ? err.message : 'Could not suggest email',
+      })
     }
   }
 
-  async function onCreate(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    setFormError(null)
+  async function onCreate(values: AdminFormValues) {
+    form.clearErrors('root')
     try {
       await createAdministrator(api, {
-        firstName,
-        lastName,
-        email,
-        affiliationKind,
-        password: sendInvite ? undefined : password,
-        sendInviteEmail: sendInvite,
+        firstName: values.firstName.trim(),
+        lastName: values.lastName.trim(),
+        email: values.email.trim(),
+        affiliationKind: values.affiliationKind,
+        password: values.sendInvite ? undefined : values.password,
+        sendInviteEmail: values.sendInvite,
       })
-      setFirstName('')
-      setLastName('')
-      setEmail('')
-      setPassword('')
+      form.reset(defaultValues)
       await load()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Could not create administrator')
-    } finally {
-      setSaving(false)
+      form.setError('root', {
+        message: err instanceof Error ? err.message : 'Could not create administrator',
+      })
     }
   }
 
@@ -98,7 +121,7 @@ export function SettingsAdministratorsPage() {
       await deactivateAdministrator(api, id)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not deactivate administrator')
+      setError(err instanceof Error ? err.message : 'Could not disable administrator')
     }
   }
 
@@ -106,43 +129,65 @@ export function SettingsAdministratorsPage() {
     <div className="space-y-8">
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] xl:items-start">
-        <SettingsSection
-          title="Add administrator"
-          description="Backup accounts with full church access when the pastor is unavailable."
-          className="border-0 pb-0 xl:border-b-0"
-        >
-          <form onSubmit={onCreate} className="space-y-4">
-            <SettingsFieldGrid>
-              <div className="space-y-2">
-                <Label htmlFor="firstName">First name</Label>
-                <Input
-                  id="firstName"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Last name</Label>
-                <Input
-                  id="lastName"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  required
-                />
-              </div>
-            </SettingsFieldGrid>
+      <SettingsSection
+        title="Add administrator"
+        description="Backup accounts with full church access when the pastor is unavailable."
+      >
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit((values) => void onCreate(values))}
+            className="space-y-5"
+          >
+            <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
+              <FormField
+                control={form.control}
+                name="firstName"
+                rules={{ required: 'First name is required' }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>First name</FormLabel>
+                    <FormControl>
+                      <Input {...field} autoComplete="given-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="lastName"
+                rules={{ required: 'Last name is required' }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Last name</FormLabel>
+                    <FormControl>
+                      <Input {...field} autoComplete="family-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <EmailAvailabilityField
-                id="email"
-                email={email}
-                onChange={setEmail}
-                scope="login"
-                required
-                label="Email (must be unique)"
-                className="min-w-0 flex-1"
+              <FormField
+                control={form.control}
+                name="email"
+                rules={{ required: 'Email is required' }}
+                render={({ field }) => (
+                  <FormItem className="min-w-0 flex-1">
+                    <EmailAvailabilityField
+                      id="admin-email"
+                      email={field.value}
+                      onChange={field.onChange}
+                      scope="login"
+                      required
+                      label="Email (must be unique)"
+                      className="min-w-0"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
               <Button
                 type="button"
@@ -154,74 +199,128 @@ export function SettingsAdministratorsPage() {
               </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label>Affiliation</Label>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={affiliationKind === 'External' ? 'default' : 'outline'}
-                  onClick={() => setAffiliationKind('External')}
-                >
-                  External
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={affiliationKind === 'InChurch' ? 'default' : 'outline'}
-                  onClick={() => setAffiliationKind('InChurch')}
-                  disabled
-                  title="Member linking coming soon"
-                >
-                  In church
-                </Button>
-              </div>
-            </div>
+            <FormField
+              control={form.control}
+              name="affiliationKind"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Affiliation</FormLabel>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        field.value === CHURCH_ADMIN_AFFILIATION.External ? 'default' : 'outline'
+                      }
+                      onClick={() => field.onChange(CHURCH_ADMIN_AFFILIATION.External)}
+                    >
+                      External
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        field.value === CHURCH_ADMIN_AFFILIATION.InChurch ? 'default' : 'outline'
+                      }
+                      onClick={() => field.onChange(CHURCH_ADMIN_AFFILIATION.InChurch)}
+                      disabled
+                      title="Member linking coming soon"
+                    >
+                      In church
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {affiliationKind === CHURCH_ADMIN_AFFILIATION.External
+                      ? 'Outside the member roster — still gets full church admin access.'
+                      : 'Linked to a church member (coming soon).'}
+                  </p>
+                </FormItem>
+              )}
+            />
 
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                className="size-3.5 accent-primary"
-                checked={sendInvite}
-                onChange={(e) => setSendInvite(e.target.checked)}
-              />
-              Send set-password email instead of setting password now
-            </label>
+            <FormField
+              control={form.control}
+              name="sendInvite"
+              render={({ field }) => (
+                <FormItem>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="size-3.5 accent-primary"
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    />
+                    Send set-password email instead of setting password now
+                  </label>
+                </FormItem>
+              )}
+            />
 
             {!sendInvite ? (
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required={!sendInvite}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="password"
+                rules={{
+                  validate: (value, values) =>
+                    values.sendInvite || value.trim().length > 0 || 'Password is required',
+                }}
+                render={({ field }) => (
+                  <FormItem className="max-w-md">
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="password" autoComplete="new-password" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             ) : null}
 
-            {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+            {form.formState.errors.root?.message ? (
+              <p className="text-sm text-destructive">{form.formState.errors.root.message}</p>
+            ) : null}
 
             <Button
               type="submit"
-              size="sm"
-              disabled={saving || isEmailAvailabilityBlocking(email, emailAvailability)}
+              disabled={
+                form.formState.isSubmitting ||
+                isEmailAvailabilityBlocking(email, emailAvailability)
+              }
             >
-              {saving ? 'Creating…' : 'Create administrator'}
+              {form.formState.isSubmitting ? 'Creating…' : 'Create administrator'}
             </Button>
           </form>
-        </SettingsSection>
+        </Form>
+      </SettingsSection>
 
-        <SettingsSection
-          title="Active administrators"
-          description="People who can manage the church when you are away."
-          className="min-w-0 border-0 pb-0"
+      <section className="space-y-3">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/10 px-4 py-3 text-left"
+          aria-expanded={listOpen}
+          onClick={() => setListOpen((open) => !open)}
         >
-          {loading ? (
+          <div className="min-w-0">
+            <p className="text-sm font-semibold tracking-tight">Administrators</p>
+            <p className="text-xs text-muted-foreground">
+              People with church admin access
+              {loading ? '' : ` · ${admins.length}`}
+            </p>
+          </div>
+          <ChevronDown
+            className={cn(
+              'size-4 shrink-0 text-muted-foreground transition-transform',
+              listOpen && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </button>
+
+        {listOpen ? (
+          loading ? (
             <Spinner label="Loading administrators…" />
           ) : (
-            <SettingsPanel className="overflow-hidden p-0">
+            <div className="overflow-hidden rounded-xl border border-border/60">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] text-sm">
                   <thead className="border-b border-border/60 bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -242,25 +341,29 @@ export function SettingsAdministratorsPage() {
                       </tr>
                     ) : (
                       admins.map((admin) => (
-                        <tr key={admin.id}>
-                          <td className="px-4 py-3 font-medium">
+                        <tr
+                          key={admin.id}
+                          className={admin.isActive ? undefined : 'bg-muted/20 text-muted-foreground'}
+                        >
+                          <td className="px-4 py-3 font-medium text-foreground">
                             {admin.firstName} {admin.lastName}
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground">{admin.email}</td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {admin.affiliationKind === 'InChurch'
-                              ? admin.memberName ?? 'In church'
-                              : 'External'}
+                          <td className="px-4 py-3">{admin.email}</td>
+                          <td className="px-4 py-3">
+                            {churchAdminAffiliationLabel(
+                              admin.affiliationKind,
+                              admin.memberName,
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <span
                               className={
                                 admin.isActive
-                                  ? 'text-foreground'
-                                  : 'text-muted-foreground'
+                                  ? 'font-medium text-foreground'
+                                  : 'font-medium text-muted-foreground'
                               }
                             >
-                              {admin.isActive ? 'Active' : 'Inactive'}
+                              {churchAdminStatusLabel(admin.isActive)}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -271,9 +374,11 @@ export function SettingsAdministratorsPage() {
                                 size="sm"
                                 onClick={() => void onDeactivate(admin.id)}
                               >
-                                Deactivate
+                                Disable
                               </Button>
-                            ) : null}
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -281,10 +386,10 @@ export function SettingsAdministratorsPage() {
                   </tbody>
                 </table>
               </div>
-            </SettingsPanel>
-          )}
-        </SettingsSection>
-      </div>
+            </div>
+          )
+        ) : null}
+      </section>
     </div>
   )
 }

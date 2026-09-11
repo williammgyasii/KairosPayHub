@@ -44,6 +44,7 @@ export type Me =
       churchId: string | null
       churchName: string | null
       churchLogoUrl: string | null
+      avatarUrl?: string | null
       countryCode?: string | null
       defaultCurrency?: string | null
       timeZoneId?: string | null

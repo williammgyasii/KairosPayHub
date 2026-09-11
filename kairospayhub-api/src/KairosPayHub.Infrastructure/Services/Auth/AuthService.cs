@@ -73,6 +73,22 @@ public class AuthService(
         if (!await users.CheckPasswordAsync(user, password))
             throw new AuthException("Invalid email or password");
 
+        if (await users.IsLockedOutAsync(user))
+            throw new AuthException("Invalid email or password");
+
+        // Soft-deactivated church administrators must not receive tokens (design: IsActive blocks login).
+        var adminStates = await db.ChurchAdministrators.AsNoTracking()
+            .Where(a => a.AuthUserId == user.Id)
+            .Select(a => a.IsActive)
+            .ToListAsync(ct);
+        if (adminStates.Count > 0 && adminStates.All(active => !active))
+        {
+            var hasOtherRoles = await db.RoleAssignments.AsNoTracking()
+                .AnyAsync(r => r.AuthUserId == user.Id, ct);
+            if (!hasOtherRoles)
+                throw new AuthException("Invalid email or password");
+        }
+
         if (!user.EmailConfirmed)
             await SendConfirmationCodeAsync(user, ct);
 
