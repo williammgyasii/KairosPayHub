@@ -5,7 +5,7 @@
 import { useMemo } from 'react'
 import { createApiClient } from './client'
 import { getToken } from '@/auth/client'
-import { apiBaseUrl } from '@/lib/api-base'
+import { apiBaseUrl } from '@/shared/api/api-base'
 
 export function useApi() {
   return useMemo(
