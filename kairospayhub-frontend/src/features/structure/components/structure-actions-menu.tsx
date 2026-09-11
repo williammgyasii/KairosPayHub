@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
 import { MoreHorizontal, Pencil, Trash2, Users } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/shared/ui/dropdown-menu'
 
 interface StructureActionsMenuProps {
   hasRoster: boolean

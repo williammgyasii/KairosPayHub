@@ -10,8 +10,8 @@ import {
 } from '@tanstack/react-table'
 import { ArrowUpDown } from 'lucide-react'
 import type { StructureTree } from '@/api/structure'
-import { StructureChainFromLabels } from '@/components/structure/structure-chain'
-import { Input } from '@/components/ui/input'
+import { StructureChainFromLabels } from '@/shared/ui/structure-chain'
+import { Input } from '@/shared/ui/input'
 import {
   buildDefinitionRows,
   buildMemberRows,
@@ -21,7 +21,7 @@ import {
   type StructureMemberRow,
   type StructureNodeRow,
 } from '@/lib/structure-table-rows'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 interface StructureTableViewProps {
   tree: StructureTree

@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button'
-import { Modal } from '@/components/ui/modal'
+import { Button } from '@/shared/ui/button'
+import { Modal } from '@/shared/ui/modal'
 
 export function StructureResetModal({
   open,

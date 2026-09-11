@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import type { StructureTree } from '@/api/structure'
-import { StructureChainFromLabels } from '@/components/structure/structure-chain'
-import { getLayers } from '@/lib/structure-tree'
+import { StructureChainFromLabels } from '@/shared/ui/structure-chain'
+import { getLayers } from '@/shared/lib/structure-tree'
 import { hasDesignedStructure } from '@/lib/structure-table-rows'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 
 interface StructureDefinitionCardProps {
   tree: StructureTree

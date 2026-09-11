@@ -16,15 +16,15 @@ import type { StructureTree } from '@/api/structure'
 import {
   StructureCanvasProvider,
   type StructureCanvasActions,
-} from '@/components/structure/structure-canvas-context'
-import { StructureFlowNode } from '@/components/structure/structure-node'
-import { StructureSkeletonEdge } from '@/components/structure/structure-skeleton-edge'
+} from '@/features/structure/components/structure-canvas-context'
+import { StructureFlowNode } from '@/features/structure/components/structure-node'
+import { StructureSkeletonEdge } from '@/features/structure/components/structure-skeleton-edge'
 import {
   readSkeletonPositions,
   templateToFlow,
   writeSkeletonPositions,
   type StructureNodeData,
-} from '@/lib/structure-flow'
+} from '@/features/structure/lib/structure-flow'
 
 const nodeTypes = { structure: StructureFlowNode }
 const edgeTypes = { skeleton: StructureSkeletonEdge }

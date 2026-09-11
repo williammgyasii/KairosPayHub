@@ -2,9 +2,9 @@ import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Building2, Layers, UserRound, X } from 'lucide-react'
 import type { StructureLayerInput } from '@/api/structure'
-import { authEase } from '@/components/layout/auth-motion'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { authEase } from '@/shared/layout/auth-motion'
+import { Button } from '@/shared/ui/button'
+import { cn } from '@/shared/lib/utils'
 
 interface StructureChainPreviewDialogProps {
   open: boolean

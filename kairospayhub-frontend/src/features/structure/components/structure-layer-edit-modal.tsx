@@ -4,10 +4,10 @@ import {
   type StructureLayerInput,
   type StructureLayerType,
 } from '@/api/structure'
-import { Modal } from '@/components/ui/modal'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
+import { Modal } from '@/shared/ui/modal'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { Button } from '@/shared/ui/button'
 
 interface StructureLayerEditModalProps {
   open: boolean

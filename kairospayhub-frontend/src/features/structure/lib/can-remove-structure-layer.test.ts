@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canRemoveStructureLayer,
   structureLayerRemoveIntent,
-} from '@/lib/can-remove-structure-layer'
+} from '@/features/structure/lib/can-remove-structure-layer'
 
 const fellowshipCell = [
   { id: 'fel', sortOrder: 0, displayName: 'Fellowship' },

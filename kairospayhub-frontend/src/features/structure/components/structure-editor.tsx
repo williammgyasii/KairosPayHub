@@ -1,18 +1,18 @@
 import { useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
-import { useApi } from '@/api/core'
+import { useApi } from '@/shared/api'
 import type { StructureLayer, StructureTree } from '@/api/structure'
-import { StructureChainFromLabels } from '@/components/structure/structure-chain'
+import { StructureChainFromLabels } from '@/shared/ui/structure-chain'
 import {
   getDeepestLayer,
   getLayers,
   nodesAtLayer,
   parentOptionsForLayer,
-} from '@/lib/structure-tree'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+} from '@/shared/lib/structure-tree'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { cn } from '@/shared/lib/utils'
 
 interface StructureEditorProps {
   tree: StructureTree

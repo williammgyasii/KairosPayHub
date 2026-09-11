@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import {
   StructureLayerRemoveModal,
   StructureResetModal,
-} from '@/components/structure/structure-reset-modal'
+} from '@/features/structure/components/structure-reset-modal'
 
 describe('StructureResetModal', () => {
   it('warns that units, members, attendance, and giving will be wiped', () => {

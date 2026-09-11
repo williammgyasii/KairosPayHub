@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StructureLayer, StructureTree } from '@/api/structure'
-import { templateToFlow } from '@/lib/structure-flow'
+import { templateToFlow } from '@/features/structure/lib/structure-flow'
 
 function tree(layers: StructureLayer[]): StructureTree {
   return {

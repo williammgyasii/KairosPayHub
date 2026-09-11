@@ -1,7 +1,7 @@
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, type EdgeProps } from '@xyflow/react'
 import { Plus } from 'lucide-react'
-import { useStructureCanvasActions } from '@/components/structure/structure-canvas-context'
-import { cn } from '@/lib/utils'
+import { useStructureCanvasActions } from '@/features/structure/components/structure-canvas-context'
+import { cn } from '@/shared/lib/utils'
 
 export type StructureSkeletonEdgeData = {
   insertAt: number

@@ -1,8 +1,8 @@
 import type { Edge, Node } from '@xyflow/react'
 import { MarkerType } from '@xyflow/react'
 import type { StructureLayer, StructureTree } from '@/api/structure'
-import { canRemoveStructureLayer } from '@/lib/can-remove-structure-layer'
-import { getDeepestLayer, getLayers, nodesAtLayer } from '@/lib/structure-tree'
+import { canRemoveStructureLayer } from '@/features/structure/lib/can-remove-structure-layer'
+import { getDeepestLayer, getLayers, nodesAtLayer } from '@/shared/lib/structure-tree'
 
 export type StructureNodeKind = 'church' | 'group' | 'pfcc' | 'fellowship' | 'cell' | 'member'
 

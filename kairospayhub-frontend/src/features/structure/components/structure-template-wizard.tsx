@@ -4,14 +4,14 @@ import {
   TEMPLATE_PRESETS,
   type StructureLayerInput,
 } from '@/api/structure'
-import { useApi } from '@/api/core'
-import { StructureChainPreviewDialog } from '@/components/structure/structure-chain-preview-dialog'
-import { StructureLayerCanvas } from '@/components/structure/structure-layer-canvas'
-import { formatApiError } from '@/lib/structure-tree'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { useApi } from '@/shared/api'
+import { StructureChainPreviewDialog } from '@/features/structure/components/structure-chain-preview-dialog'
+import { StructureLayerCanvas } from '@/features/structure/components/structure-layer-canvas'
+import { formatApiError } from '@/shared/lib/structure-tree'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { cn } from '@/shared/lib/utils'
 
 interface StructureTemplateWizardProps {
   churchName?: string | null

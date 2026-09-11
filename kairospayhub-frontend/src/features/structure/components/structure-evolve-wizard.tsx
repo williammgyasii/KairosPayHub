@@ -7,8 +7,8 @@ import {
   type StructureLayerType,
   type StructureTree,
 } from '@/api/structure'
-import { useApi } from '@/api/core'
-import { StructureChainFromLabels } from '@/components/structure/structure-chain'
+import { useApi } from '@/shared/api'
+import { StructureChainFromLabels } from '@/shared/ui/structure-chain'
 import {
   WizardField,
   WizardFooter,
@@ -16,11 +16,11 @@ import {
   WizardProgressBar,
   WizardStepPanel,
   WizardStepper,
-} from '@/components/structure/wizard-shell'
-import { getLayers } from '@/lib/structure-tree'
-import { Input } from '@/components/ui/input'
-import { Modal } from '@/components/ui/modal'
-import { cn } from '@/lib/utils'
+} from '@/shared/ui/wizard-shell'
+import { getLayers } from '@/shared/lib/structure-tree'
+import { Input } from '@/shared/ui/input'
+import { Modal } from '@/shared/ui/modal'
+import { cn } from '@/shared/lib/utils'
 
 export type StructureEvolveMode = 'rename' | 'appendTop' | 'insertAt' | 'appendBeforeMember'
 

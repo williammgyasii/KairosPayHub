@@ -1,8 +1,8 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { Minus } from 'lucide-react'
-import { useStructureCanvasActions } from '@/components/structure/structure-canvas-context'
-import { cn } from '@/lib/utils'
-import type { StructureNodeData, StructureNodeKind } from '@/lib/structure-flow'
+import { useStructureCanvasActions } from '@/features/structure/components/structure-canvas-context'
+import { cn } from '@/shared/lib/utils'
+import type { StructureNodeData, StructureNodeKind } from '@/features/structure/lib/structure-flow'
 
 const KIND_LABEL: Record<StructureNodeKind, string> = {
   church: 'Church',
