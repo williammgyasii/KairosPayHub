@@ -1,0 +1,553 @@
+import { useEffect, useMemo, useState } from 'react'
+import { HandCoins, Plus, Settings } from 'lucide-react'
+import type { Me } from '@/api/auth'
+import type { ApiClient } from '@/shared/api'
+import type { Contribution, ContributionListSummary, GivingProgram, GivingProgramRollup } from '@/features/giving/api'
+import {
+  approveContribution,
+  approveSubGiving,
+  rejectContribution,
+  rejectSubGiving,
+} from '@/features/giving/api'
+import type { StructureTree } from '@/api/structure'
+import { givingTypeLabel, contributionsAwaitingMyApproval } from '@/features/giving/lib/giving-ui'
+import { canManageChurch, canViewMemberGivings } from '@/api/auth'
+import { useAppAbility } from '@/auth/ability-context'
+import { structureOptionsForLeader } from '@/features/giving/lib/contribution-structure'
+import {
+  givingScopePolicy,
+  leadershipFromProfile,
+} from '@/features/giving/lib/giving-scope-policy'
+import { receiveGivingsOnMainPolicy } from '@/features/giving/lib/receive-givings-on-main-policy'
+import { ContributionsHistoryTable } from '@/features/giving/components/contributions-history-table'
+import { ContributionsStructureTable } from '@/features/giving/components/contributions-structure-table'
+import { ContributionsApprovalTable } from '@/features/giving/components/contributions-approval-table'
+import { CreateSubPeriodWizard } from '@/features/giving/components/create-sub-period-wizard'
+import { CampaignSettingsModal } from '@/features/giving/components/campaign-settings-modal'
+import { LogContributionWizard } from '@/features/giving/components/log-contribution-wizard'
+import { ProgramDashboard, normalizeProgramDetailTab, type ProgramDetailTab } from '@/features/giving/components/program-dashboard'
+import { ProgramDetailTabs } from '@/features/giving/components/program-detail-tabs'
+import { ProgramStatusBadge, ScopeKindBadge } from '@/features/giving/components/giving-badges'
+import { MemberGivingRankingsTable } from '@/features/giving/components/member-giving-rankings-table'
+import { SubGivingsPanel } from '@/features/giving/components/sub-givings-panel'
+import { GivingTransactionsLedger } from '@/features/giving/components/giving-transactions-ledger'
+import { DashboardPageHeader } from '@/shared/layout/dashboard-page-header'
+import { Modal } from '@/shared/ui/modal'
+import { Button } from '@/shared/ui/button'
+import { cn } from '@/shared/lib/utils'
+
+export type ProgramDetailModal = 'log'
+
+type DetailTab = ProgramDetailTab
+
+interface ProgramDetailViewProps {
+  me: Me & { onboarded: true }
+  api: ApiClient
+  tree: StructureTree | null
+  program: GivingProgram
+  children: GivingProgram[]
+  contributions: Contribution[]
+  contributionSummary: ContributionListSummary | null
+  rollup: GivingProgramRollup | null
+  onRefresh: () => Promise<void>
+  onRefreshChildren?: () => Promise<void>
+  initialTab?: ProgramDetailTab
+  initialModal?: ProgramDetailModal
+}
+
+export function ProgramDetailView({
+  me,
+  api,
+  tree,
+  program,
+  children,
+  contributions,
+  contributionSummary,
+  rollup,
+  onRefresh,
+  onRefreshChildren,
+  initialTab,
+  initialModal,
+}: ProgramDetailViewProps) {
+  const churchManager = canManageChurch(me.role)
+  const ability = useAppAbility()
+  const actorLeadership = leadershipFromProfile(me.leadershipProfile, me.role)
+  const scopePolicy = useMemo(
+    () =>
+      tree
+        ? givingScopePolicy({
+            tree,
+            actorLeadership,
+            actorScopeNodeId: me.scopeNodeId,
+            parent: {
+              scopeKind: String(program.scopeKind),
+              scopeNodeId: program.scopeNodeId,
+            },
+          })
+        : null,
+    [tree, actorLeadership, me.scopeNodeId, program.scopeKind, program.scopeNodeId],
+  )
+  const canCreateSubGivingRole = Boolean(scopePolicy?.canCreateSubCampaign)
+  const isFellowshipLeader = me.role === 'FellowshipLeader'
+  const isPfccManager = me.role === 'PFCCManager'
+  const acceptsContributions = program.acceptsContributions
+  const isRootProgram = !program.parentProgramId
+  const receivePolicy = receiveGivingsOnMainPolicy({
+    receiveGivingsOnMain: program.receiveGivingsOnMain ?? true,
+    isRoot: isRootProgram,
+    acceptsContributions,
+  })
+  // Pastors / church-wide leadership approve; they do not log (API also rejects).
+  const canLogContributions =
+    (actorLeadership === 'leaf' || actorLeadership === 'intermediate') &&
+    program.status === 'Open' &&
+    receivePolicy.canLogOnProgram
+  const [subGivingOpen, setSubGivingOpen] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [txStatus, setTxStatus] = useState<'pending' | 'approved' | 'all'>('all')
+  const showSubGivings = program.hasChildren || !program.parentProgramId
+  const structureOptions = useMemo(
+    () => structureOptionsForLeader(me.role, me.scopeNodeId),
+    [me.role, me.scopeNodeId],
+  )
+
+  const campaignTreePrograms = useMemo(() => [program, ...children], [program, children])
+
+  const pendingContributions = useMemo(
+    () => contributions.filter((c) => c.status === 'PendingApproval'),
+    [contributions],
+  )
+
+  const approvedContributions = useMemo(
+    () => contributions.filter((c) => c.status === 'Approved'),
+    [contributions],
+  )
+
+  const myPendingContributions = useMemo(
+    () => contributionsAwaitingMyApproval(me.role, pendingContributions),
+    [me.role, pendingContributions],
+  )
+
+  const pendingSubGivingsCount = useMemo(
+    () => children.filter((c) => c.approvalStatus === 'PendingPastorApproval').length,
+    [children],
+  )
+
+  const awaitingMyApprovalCount =
+    contributionSummary?.awaitingMyApprovalCount ?? myPendingContributions.length
+  const approvedCount =
+    contributionSummary?.approvedCount ?? approvedContributions.length
+  const awaitingCount = pendingContributions.length
+  const canSeeMemberGivings =
+    ability.can('view', 'MemberGivings') || canViewMemberGivings(me)
+  const canSeeTransactions =
+    awaitingCount > 0 || awaitingMyApprovalCount > 0 || approvedCount > 0 || churchManager
+
+  const tabs = useMemo(() => {
+    const items: { id: DetailTab; label: string; badge?: number }[] = [
+      { id: 'dashboard', label: 'Dashboard' },
+    ]
+    if (showSubGivings) {
+      const badge = churchManager
+        ? pendingSubGivingsCount || children.length || undefined
+        : children.length || undefined
+      items.push({ id: 'subgivings', label: 'Sub-campaigns', badge })
+    }
+    if (canSeeMemberGivings) {
+      items.push({
+        id: 'member-givings',
+        label: 'Member givings',
+        badge: approvedCount || undefined,
+      })
+    }
+    if (canSeeTransactions) {
+      items.push({
+        id: 'transactions',
+        label: 'Transactions',
+        badge: awaitingCount || awaitingMyApprovalCount || undefined,
+      })
+    }
+    if (!canSeeMemberGivings) {
+      items.push({
+        id: 'contributions',
+        label: 'Contributions',
+        badge: approvedCount || undefined,
+      })
+      if (approvedCount > 0) {
+        items.push({
+          id: 'history',
+          label: 'History',
+          badge: new Set(approvedContributions.map((c) => c.memberId)).size,
+        })
+      }
+    }
+    return items
+  }, [
+    churchManager,
+    showSubGivings,
+    pendingSubGivingsCount,
+    children.length,
+    awaitingCount,
+    awaitingMyApprovalCount,
+    approvedCount,
+    approvedContributions,
+    canSeeMemberGivings,
+    canSeeTransactions,
+  ])
+
+  const [tab, setTab] = useState<DetailTab>(() => {
+    return normalizeProgramDetailTab(initialTab) ?? 'dashboard'
+  })
+
+  // ProgramDetailPage keeps this component mounted when only :programId changes,
+  // so reset tab when switching campaigns (e.g. parent sub-givings → leaf sub-giving).
+  useEffect(() => {
+    setTab((current) => {
+      const preferred = normalizeProgramDetailTab(initialTab)
+      if (preferred && tabs.some((item) => item.id === preferred)) return preferred
+      const normalizedCurrent = normalizeProgramDetailTab(current) ?? current
+      if (tabs.some((item) => item.id === normalizedCurrent)) return normalizedCurrent
+      return 'dashboard'
+    })
+  }, [program.id, initialTab, tabs])
+
+  useEffect(() => {
+    setTxStatus(awaitingCount > 0 || awaitingMyApprovalCount > 0 ? 'pending' : 'all')
+  }, [program.id]) // eslint-disable-line react-hooks/exhaustive-deps -- only reset when switching campaigns
+
+  useEffect(() => {
+    if (initialModal === 'log' && canLogContributions) {
+      setLogOpen(true)
+    }
+  }, [program.id, initialModal, canLogContributions])
+
+  useEffect(() => {
+    if (tab === 'subgivings' && onRefreshChildren) {
+      void onRefreshChildren()
+    }
+  }, [tab, program.id, onRefreshChildren])
+
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleApprove(contributionId: string, contributionProgramId: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      await approveContribution(api, contributionProgramId, contributionId)
+      await onRefresh()
+      if (onRefreshChildren) await onRefreshChildren()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not approve')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleReject(
+    contributionId: string,
+    contributionProgramId: string,
+    reason: string | null,
+  ) {
+    setBusy(true)
+    setError(null)
+    try {
+      await rejectContribution(api, contributionProgramId, contributionId, reason ?? undefined)
+      await onRefresh()
+      if (onRefreshChildren) await onRefreshChildren()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not reject')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleApproveSubGiving(subProgramId: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      await approveSubGiving(api, subProgramId)
+      await onRefresh()
+      if (onRefreshChildren) await onRefreshChildren()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not approve sub-giving')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRejectSubGiving(subProgramId: string, reason: string | null) {
+    setBusy(true)
+    setError(null)
+    try {
+      await rejectSubGiving(api, subProgramId, reason ?? undefined)
+      await onRefresh()
+      if (onRefreshChildren) await onRefreshChildren()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not reject sub-giving')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="grid w-full min-w-0 gap-5">
+      <DashboardPageHeader
+        breadcrumbs={[
+          { label: 'Dashboard', to: '/' },
+          { label: 'Givings', to: '/givings' },
+          { label: program.title },
+        ]}
+        title={program.title}
+        description={`${givingTypeLabel(program.givingType)} · ${program.periodLabel}`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <ScopeKindBadge scopeKind={program.scopeKind} />
+            <ProgramStatusBadge status={program.status} />
+            {canLogContributions && (
+              <Button type="button" size="sm" className="gap-1.5" onClick={() => setLogOpen(true)}>
+                <HandCoins className="size-4" />
+                Log giving
+              </Button>
+            )}
+            {churchManager && isRootProgram && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <Settings className="size-4" />
+                Settings
+              </Button>
+            )}
+            {canCreateSubGivingRole && showSubGivings && !program.parentProgramId && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setSubGivingOpen(true)}
+              >
+                <Plus className="size-4" />
+                Add sub-campaign
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <ProgramDetailTabs tabs={tabs} activeId={tab} onChange={setTab} />
+
+      <div className="grid w-full min-w-0 gap-5">
+        {tab === 'dashboard' ? (
+          <ProgramDashboard
+            program={program}
+            contributions={contributions}
+            rollup={rollup}
+            children={children}
+            tree={tree}
+            pending={myPendingContributions}
+            allPending={pendingContributions}
+            acceptsContributions={acceptsContributions}
+            isPastor={churchManager}
+            isFellowshipLeader={isFellowshipLeader}
+            isPfccManager={isPfccManager}
+            viewerRole={me.role}
+            structureOptions={structureOptions}
+            onTabChange={setTab}
+            busy={busy}
+            onApproveContribution={handleApprove}
+            onRejectContribution={(contributionId, programId) => {
+              void handleReject(contributionId, programId, null)
+            }}
+          />
+        ) : null}
+
+        {tab === 'subgivings' && showSubGivings ? (
+          <SubGivingsPanel
+            meRole={me.role}
+            children={children}
+            api={api}
+            onRefresh={onRefresh}
+            onCreateClick={
+              canCreateSubGivingRole && !program.parentProgramId
+                ? () => setSubGivingOpen(true)
+                : undefined
+            }
+          />
+        ) : null}
+
+        {tab === 'member-givings' && canSeeMemberGivings ? (
+          <MemberGivingRankingsTable
+            api={api}
+            campaigns={campaignTreePrograms}
+            tree={tree}
+            viewerRole={me.role}
+            programId={program.id}
+            scopeMode="campaign"
+          />
+        ) : null}
+
+        {canSeeTransactions &&
+        (tab === 'transactions' || tab === 'awaiting' || tab === 'pending') ? (
+          <div className="min-w-0 max-w-full">
+            <div className="mb-4 min-w-0 border-b border-border/60">
+              <div className="-mb-px flex flex-wrap gap-1">
+                {(
+                  [
+                    { id: 'all', label: 'All' },
+                    { id: 'pending', label: 'Pending' },
+                    { id: 'approved', label: 'Approved' },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTxStatus(item.id)}
+                    className={cn(
+                      'border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors',
+                      txStatus === item.id
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {txStatus === 'all' ? (
+              <GivingTransactionsLedger
+                api={api}
+                campaigns={campaignTreePrograms}
+                tree={tree}
+                viewerRole={me.role}
+                lockedProgramId={program.id}
+              />
+            ) : null}
+
+            {txStatus === 'pending' ? (
+              <ContributionsApprovalTable
+                api={api}
+                tree={tree}
+                parentProgram={program}
+                childPrograms={children}
+                mode="pending"
+                viewerRole={me.role}
+                canAct={awaitingMyApprovalCount > 0 || churchManager}
+                canApproveSubGivings={churchManager}
+                busy={busy}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                onApproveSubGiving={handleApproveSubGiving}
+                onRejectSubGiving={handleRejectSubGiving}
+                onSummaryChange={() => void onRefresh()}
+              />
+            ) : null}
+
+            {txStatus === 'approved' ? (
+              <ContributionsApprovalTable
+                api={api}
+                tree={tree}
+                parentProgram={program}
+                childPrograms={children}
+                mode="approved"
+                viewerRole={me.role}
+                busy={busy}
+                onApprove={async () => {}}
+                onReject={async () => {}}
+                onSummaryChange={() => void onRefresh()}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
+        {!canSeeMemberGivings && tab === 'contributions' ? (
+          <ContributionsStructureTable
+            programId={program.id}
+            contributions={approvedContributions}
+            tree={tree}
+            structureOptions={structureOptions}
+            viewerRole={me.role}
+          />
+        ) : null}
+
+        {!canSeeMemberGivings && tab === 'history' ? (
+          <ContributionsHistoryTable
+            contributions={approvedContributions}
+            tree={tree}
+            viewerRole={me.role}
+          />
+        ) : null}
+      </div>
+
+      {logOpen && canLogContributions ? (
+        <Modal
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen && !busy) setLogOpen(false)
+          }}
+          title="Log giving"
+          size="lg"
+          className="max-h-[min(88vh,680px)]"
+          contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+        >
+          <LogContributionWizard
+            embedded
+            api={api}
+            programId={program.id}
+            meRole={me.role}
+            leadershipProfile={me.leadershipProfile}
+            tree={tree}
+            scopeNodeId={me.scopeNodeId}
+            disabled={busy}
+            className="h-full min-h-0"
+            onCancel={() => setLogOpen(false)}
+            onLogged={async () => {
+              await onRefresh()
+              if (onRefreshChildren) await onRefreshChildren()
+            }}
+          />
+        </Modal>
+      ) : null}
+
+      {canCreateSubGivingRole && subGivingOpen ? (
+        <CreateSubPeriodWizard
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setSubGivingOpen(false)
+          }}
+          parent={program}
+          api={api}
+          tree={tree}
+          requiresPastorApproval={!churchManager}
+          scopeRootNodeId={
+            actorLeadership === 'churchWide' ? null : me.scopeNodeId
+          }
+          actorLeadership={actorLeadership}
+          onCreated={() => void onRefresh()}
+        />
+      ) : null}
+
+      {churchManager && isRootProgram ? (
+        <CampaignSettingsModal
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          program={program}
+          children={children}
+          api={api}
+          onSaved={() => {
+            void onRefresh()
+            if (onRefreshChildren) void onRefreshChildren()
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
