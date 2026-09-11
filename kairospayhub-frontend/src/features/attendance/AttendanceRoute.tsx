@@ -1,0 +1,21 @@
+import type { ReactNode } from 'react'
+import { Navigate, useOutletContext } from 'react-router-dom'
+import type { DashboardOutletContext } from '@/shared/layout/dashboard-layout'
+import { canApproveAttendance, canManageChurch, isScopedLeader } from '@/api/auth'
+
+export function AttendanceApproverRoute({ children }: { children: ReactNode }) {
+  const { me } = useOutletContext<DashboardOutletContext>()
+  if (canApproveAttendance(me.role)) {
+    return <>{children}</>
+  }
+  // Pastors/admins use Metrics, not Approvals.
+  return <Navigate to="/attendance/overview" replace />
+}
+
+export function AttendanceOverviewRoute({ children }: { children: ReactNode }) {
+  const { me } = useOutletContext<DashboardOutletContext>()
+  if (canManageChurch(me.role) || isScopedLeader(me.role)) {
+    return <>{children}</>
+  }
+  return <Navigate to="/attendance/submissions" replace />
+}
