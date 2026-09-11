@@ -14,12 +14,12 @@ import {
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Cake, CalendarDays, ChevronLeft, ChevronRight, ClipboardCheck, Star } from 'lucide-react'
-import type { CalendarEvent, CalendarEventKind } from '@/api/events'
-import { eventKindLabel, upcomingCalendarEvents } from '@/lib/calendar-events-ui'
-import { useGetCalendarFeedQuery } from '@/store/calendarApi'
+import type { CalendarEvent, CalendarEventKind } from '@/features/events/api'
+import { eventKindLabel, upcomingCalendarEvents } from '@/features/events/lib/calendar-events-ui'
+import { useGetCalendarFeedQuery } from '@/features/events/api/calendarApi'
 import { formatRtkQueryError } from '@/store/baseQuery'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Button } from '@/shared/ui/button'
+import { cn } from '@/shared/lib/utils'
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const UPCOMING_DAYS = 14

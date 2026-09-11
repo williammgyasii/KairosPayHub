@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion'
 import { Check, Sparkles } from 'lucide-react'
-import { authEase, authFadeUp, authStagger } from '@/components/layout/auth-motion'
-import { CenteredPageShell } from '@/components/layout/centered-page-shell'
-import { KairosLogo, KairosWordmark } from '@/components/layout/kairos-logo'
+import { authEase, authFadeUp, authStagger } from '@/shared/layout/auth-motion'
+import { CenteredPageShell } from '@/shared/layout/centered-page-shell'
+import { KairosLogo, KairosWordmark } from '@/shared/layout/kairos-logo'
 
 const CONFETTI = [
   { x: -72, y: -28, delay: 0.05, color: 'bg-sky-400' },

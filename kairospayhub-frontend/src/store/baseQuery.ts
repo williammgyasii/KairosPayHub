@@ -1,7 +1,7 @@
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
 import { getToken } from '@/auth/client'
-import { apiBaseUrl } from '@/lib/api-base'
+import { apiBaseUrl } from '@/shared/api/api-base'
 
 export type ApiQueryError = {
   status: number

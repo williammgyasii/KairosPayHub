@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import type { ClipboardEvent, KeyboardEvent } from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 const LENGTH = 6
 

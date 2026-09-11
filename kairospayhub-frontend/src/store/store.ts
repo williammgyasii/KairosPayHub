@@ -4,9 +4,9 @@ import { baseApi } from '@/store/baseApi'
 import '@/store/meApi'
 import '@/store/structureApi'
 import '@/store/notificationsApi'
-import '@/store/calendarApi'
-import '@/store/givingApi'
-import '@/store/attendanceApi'
+import '@/features/events/api/calendarApi'
+import '@/features/giving/api/givingApi'
+import '@/features/attendance/api/attendanceApi'
 
 export const store = configureStore({
   reducer: {

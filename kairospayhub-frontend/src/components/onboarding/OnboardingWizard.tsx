@@ -9,25 +9,25 @@ import {
   UserRound,
   Users,
 } from 'lucide-react'
-import { useApi } from '@/api/core'
+import { useApi } from '@/shared/api'
 import { displayName, type Me, type MeNotOnboarded } from '@/api/auth'
 import { useAuth } from '@/auth/AuthContext'
-import { AuthAlert } from '@/components/layout/auth-alert'
-import { authEase, authFadeUp, authScaleIn, authStagger } from '@/components/layout/auth-motion'
-import { CenteredPageShell } from '@/components/layout/centered-page-shell'
-import { KairosLogo, KairosWordmark } from '@/components/layout/kairos-logo'
+import { AuthAlert } from '@/shared/layout/auth-alert'
+import { authEase, authFadeUp, authScaleIn, authStagger } from '@/shared/layout/auth-motion'
+import { CenteredPageShell } from '@/shared/layout/centered-page-shell'
+import { KairosLogo, KairosWordmark } from '@/shared/layout/kairos-logo'
 import { OnboardingContinueButton, OnboardingStepFooter } from '@/components/onboarding/onboarding-step-footer'
 import {
   ONBOARDING_FINISH_LABELS,
   OnboardingFinishOverlay,
   runOnboardingFinishSequence,
 } from '@/components/onboarding/onboarding-finish-overlay'
-import { StructureTemplateWizard } from '@/components/structure/structure-template-wizard'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { cn, initials } from '@/lib/utils'
+import { StructureTemplateWizard } from '@/features/structure/components/structure-template-wizard'
+import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import { cn, initials } from '@/shared/lib/utils'
 
 interface OnboardingWizardProps {
   me: MeNotOnboarded

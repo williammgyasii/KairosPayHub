@@ -1,9 +1,9 @@
 import type { MemberOccupationStatus } from '@/api/structure'
 import { MEMBER_OCCUPATION_OPTIONS } from '@/api/structure'
-import { PhoneInput } from '@/components/ui/phone-input'
-import { DatePicker } from '@/components/ui/date-picker'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { PhoneInput } from '@/shared/ui/phone-input'
+import { DatePicker } from '@/shared/ui/date-picker'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
 import {
   formatPhoneE164,
   isLocalPhoneComplete,
@@ -12,7 +12,7 @@ import {
 } from '@/lib/phone-countries'
 import { occupationFieldsPolicy } from '@/lib/occupation-fields-policy'
 import { profileAddressPolicy, type ProfileAddressPolicy } from '@/lib/profile-address-policy'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 export type MemberProfileFormValues = {
   phoneDialCode: string

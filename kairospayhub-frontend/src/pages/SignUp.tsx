@@ -4,12 +4,12 @@ import { motion } from 'framer-motion'
 import { useAuth } from '@/auth/AuthContext'
 import { confirmEmail, register, resendConfirmation } from '@/auth/client'
 import { EmailOtpForm } from '@/components/auth/email-otp-form'
-import { AuthAlert } from '@/components/layout/auth-alert'
-import { AuthFooterLink, AuthLayout } from '@/components/layout/AuthLayout'
-import { authFadeUp, authStagger } from '@/components/layout/auth-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { AuthAlert } from '@/shared/layout/auth-alert'
+import { AuthFooterLink, AuthLayout } from '@/shared/layout/AuthLayout'
+import { authFadeUp, authStagger } from '@/shared/layout/auth-motion'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
 
 export function SignUp() {
   const { signIn } = useAuth()

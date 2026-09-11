@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom'
 import { CheckCircle2, ClipboardCheck, Coins, Gift, Users } from 'lucide-react'
-import type { GivingDashboard } from '@/api/giving'
-import { formatAmount } from '@/api/giving'
+import type { GivingDashboard } from '@/features/giving/api'
+import { formatAmount } from '@/features/giving/api'
 import type { StructureTree } from '@/api/structure'
 import { dashboardQuickStatsForCellLeader } from '@/lib/structure-dashboard'
-import { givingTypeLabel } from '@/lib/giving-ui'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { givingTypeLabel } from '@/features/giving/lib/giving-ui'
+import { Button } from '@/shared/ui/button'
+import { cn } from '@/shared/lib/utils'
 
 export function CellLeaderOverviewDashboard({
   tree,

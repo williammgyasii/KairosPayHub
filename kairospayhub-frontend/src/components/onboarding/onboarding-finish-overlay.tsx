@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
-import { authEase } from '@/components/layout/auth-motion'
-import { KairosLogo, KairosWordmark } from '@/components/layout/kairos-logo'
+import { authEase } from '@/shared/layout/auth-motion'
+import { KairosLogo, KairosWordmark } from '@/shared/layout/kairos-logo'
 
 export const ONBOARDING_FINISH_LABELS = [
   'Saving your structure…',

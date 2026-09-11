@@ -1,5 +1,5 @@
 import type { StructureTree } from '@/api/structure'
-import { directChildLayer, isDescendantOf, nodeById } from '@/lib/structure-tree'
+import { directChildLayer, isDescendantOf, nodeById } from '@/shared/lib/structure-tree'
 
 /** Who may edit or delete a structure unit — policy, not screen string gates. */
 

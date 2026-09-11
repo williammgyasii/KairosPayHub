@@ -16,7 +16,7 @@ import {
   formatCellName,
   resolveNodeLeader,
   displayUnitNumber,
-} from '@/lib/structure-tree'
+} from '@/shared/lib/structure-tree'
 
 export type StructureSegment = {
   layerId: string

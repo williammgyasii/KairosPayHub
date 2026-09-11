@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import { Church, Layers, Network, Users } from 'lucide-react'
 import type { StructureTree } from '@/api/structure'
 import { dashboardMetrics } from '@/lib/structure-dashboard'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 const METRIC_ICONS: Record<string, LucideIcon> = {
   Group: Layers,

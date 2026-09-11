@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Network } from 'lucide-react'
 import type { StructureTree } from '@/api/structure'
 import { hasTemplate } from '@/lib/structure-dashboard'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 
 export function StructureSetupCallout({
   tree,

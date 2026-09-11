@@ -3,12 +3,12 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { forgotPassword, resetPassword, setPassword } from '@/auth/client'
-import { AuthAlert } from '@/components/layout/auth-alert'
-import { AuthFooterLink, AuthFormCard, AuthLayout } from '@/components/layout/AuthLayout'
-import { authFadeUp, authStagger } from '@/components/layout/auth-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { AuthAlert } from '@/shared/layout/auth-alert'
+import { AuthFooterLink, AuthFormCard, AuthLayout } from '@/shared/layout/AuthLayout'
+import { authFadeUp, authStagger } from '@/shared/layout/auth-motion'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
 
 export function SetPassword() {
   const [params] = useSearchParams()

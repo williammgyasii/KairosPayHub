@@ -20,7 +20,7 @@ import {
   membersByFellowshipChart,
   structureLayerChartData,
 } from '@/lib/structure-dashboard'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 const METRIC_ICONS: Record<string, LucideIcon> = {
   Group: Layers,

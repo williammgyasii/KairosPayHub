@@ -1,5 +1,5 @@
-import { createApiClient } from '@/api/core'
-import { apiBaseUrl } from '@/lib/api-base'
+import { createApiClient } from '@/shared/api/client'
+import { apiBaseUrl } from '@/shared/api/api-base'
 
 export type JoinInvitePreview = {
   churchName: string

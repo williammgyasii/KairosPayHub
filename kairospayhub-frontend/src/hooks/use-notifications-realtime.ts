@@ -2,14 +2,14 @@ import { useEffect, useRef } from 'react'
 import * as signalR from '@microsoft/signalr'
 import type { Notification } from '@/api/notifications'
 import { getToken } from '@/auth/client'
-import { apiBaseUrl } from '@/lib/api-base'
+import { apiBaseUrl } from '@/shared/api/api-base'
 import {
   NOTIFICATIONS_LIST_LIMIT,
   normalizeNotification,
 } from '@/lib/notification-realtime'
 import { useAppDispatch } from '@/store/hooks'
-import { invalidateAttendanceApprovalQueue } from '@/store/attendanceApi'
-import { invalidateGivingTags } from '@/store/givingApi'
+import { invalidateAttendanceApprovalQueue } from '@/features/attendance/api/attendanceApi'
+import { invalidateGivingTags } from '@/features/giving/api/givingApi'
 import { notificationsApi } from '@/store/notificationsApi'
 
 const LOG_PREFIX = '[KairosPayHub notifications]'

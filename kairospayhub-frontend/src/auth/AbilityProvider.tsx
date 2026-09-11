@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { AbilityProvider as CaslAbilityProvider } from '@casl/react'
 import type { Me } from '@/api/auth'
-import { createAppAbility } from '@/lib/abilities'
+import { createAppAbility } from '@/shared/lib/abilities'
 
 export function AbilityProvider({
   me,

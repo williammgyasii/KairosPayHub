@@ -1,6 +1,6 @@
 import type { StructureTree } from '@/api/structure'
 import { hasTemplate } from '@/lib/structure-dashboard'
-import { getLayers, nodesAtLayer, resolveNodeLeader } from '@/lib/structure-tree'
+import { getLayers, nodesAtLayer, resolveNodeLeader } from '@/shared/lib/structure-tree'
 
 export type SetupActionStatus = 'done' | 'current' | 'pending'
 

@@ -1,5 +1,5 @@
 import type { StructureTree } from '@/api/structure'
-import { getLayers, nodesAtLayer } from '@/lib/structure-tree'
+import { getLayers, nodesAtLayer } from '@/shared/lib/structure-tree'
 import { fellowshipBreakdownRows } from '@/lib/structure-table-rows'
 
 export const CHART_COLORS = [

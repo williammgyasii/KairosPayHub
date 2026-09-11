@@ -25,7 +25,7 @@ import {
   setupProgress,
   type DashboardSetupAction,
 } from '@/lib/dashboard-setup-actions'
-import { cn, initials } from '@/lib/utils'
+import { cn, initials } from '@/shared/lib/utils'
 
 const SETUP_ICONS: Record<string, LucideIcon> = {
   structure: Layers,

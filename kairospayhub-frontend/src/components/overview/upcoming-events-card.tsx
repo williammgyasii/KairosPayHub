@@ -5,12 +5,12 @@ import { Cake, CalendarDays, ChevronRight, ClipboardCheck, Star } from 'lucide-r
 import {
   eventKindLabel,
   upcomingCalendarEvents,
-} from '@/lib/calendar-events-ui'
-import { useGetCalendarFeedQuery } from '@/store/calendarApi'
+} from '@/features/events/lib/calendar-events-ui'
+import { useGetCalendarFeedQuery } from '@/features/events/api/calendarApi'
 import { formatRtkQueryError } from '@/store/baseQuery'
-import type { CalendarEventKind } from '@/api/events'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import type { CalendarEventKind } from '@/features/events/api'
+import { Button } from '@/shared/ui/button'
+import { cn } from '@/shared/lib/utils'
 
 const UPCOMING_DAYS = 14
 const DISPLAY_LIMIT = 8

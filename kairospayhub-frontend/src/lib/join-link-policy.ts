@@ -1,7 +1,7 @@
 import type { StructureTree } from '@/api/structure'
 import { isLocalPhoneComplete } from '@/lib/phone-countries'
 import { profileAddressPolicy } from '@/lib/profile-address-policy'
-import { getDeepestLayer, nodeById } from '@/lib/structure-tree'
+import { getDeepestLayer, nodeById } from '@/shared/lib/structure-tree'
 
 export type MembershipPrimaryAction = 'add-member' | 'generate-join-link'
 export type MembershipRosterTab = 'all' | 'pending'

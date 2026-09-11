@@ -1,10 +1,10 @@
 import { useCallback, useEffect } from 'react'
 import { useGetMeQuery } from '@/store/meApi'
 import { churchCurrency, isNotOnboarded } from '@/api/auth'
-import { setChurchDefaultCurrency } from '@/api/giving'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
+import { setChurchDefaultCurrency } from '@/features/giving/api'
+import { DashboardLayout } from '@/shared/layout/dashboard-layout'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
-import { Spinner } from '@/components/ui/spinner'
+import { Spinner } from '@/shared/ui/spinner'
 import { formatRtkQueryError } from '@/store/baseQuery'
 
 export function DashboardRoot() {

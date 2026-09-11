@@ -1,37 +1,47 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
 import { PastorOnlyRoute, PastorRoute } from './auth/PastorRoute'
-import { AccessPage } from './pages/AccessPage'
+import { AccessPage } from '@/features/access'
 import { ScopedLeaderRoute } from './auth/ScopedLeaderRoute'
 import { DashboardRoot } from './pages/Dashboard'
-import { GivingsPage } from './pages/GivingsPage'
-import { OverallGivingsPage } from './pages/OverallGivingsPage'
-import { TransactionsPage } from './pages/TransactionsPage'
-import { ProgramDetailPage } from './pages/ProgramDetailPage'
-import { ProgramStructureContributionsPage } from './pages/ProgramStructureContributionsPage'
-import { MembershipPage, DashboardPage, RosterPage, RosterUnitPage, StructurePage } from './pages/DashboardPages'
+import {
+  GivingsPage,
+  OverallGivingsPage,
+  ProgramDetailPage,
+  ProgramStructureContributionsPage,
+  TransactionsPage,
+} from '@/features/giving'
+import { MembershipPage, RosterPage, RosterUnitPage } from '@/features/roster'
+import { StructurePage } from '@/features/structure'
+import { DashboardPage } from './pages/DashboardPages'
 import {
   MemberAttendancePage,
   MemberEditPage,
   MemberGivingsPage,
   MemberProfilePage,
 } from './pages/MemberDetailPages'
-import { SettingsLayout } from './components/settings/settings-layout'
-import { AccountNotificationsPage } from './pages/AccountNotificationsPage'
-import { AccountProfilePage } from './pages/AccountProfilePage'
-import { AccountSecurityPage } from './pages/AccountSecurityPage'
-import { SettingsAdministratorsPage } from './pages/SettingsAdministratorsPage'
-import { SettingsIndexPage } from './pages/SettingsIndexPage'
-import { AttendanceApprovalsPage } from './pages/AttendanceApprovalsPage'
-import { AttendanceOverviewPage } from './pages/AttendanceOverviewPage'
-import { AttendanceSubmissionsPage } from './pages/AttendanceSubmissionsPage'
-import { AttendanceMeetingTypesPage } from './pages/AttendanceMeetingTypesPage'
-import { AttendanceApproverRoute, AttendanceOverviewRoute } from './auth/AttendanceRoute'
+import {
+  AccountNotificationsPage,
+  AccountProfilePage,
+  AccountSecurityPage,
+} from '@/features/account'
+import {
+  SettingsAdministratorsPage,
+  SettingsIndexPage,
+  SettingsLayout,
+} from '@/features/settings'
+import {
+  AttendanceApprovalsPage,
+  AttendanceApproverRoute,
+  AttendanceMeetingTypesPage,
+  AttendanceOverviewPage,
+  AttendanceOverviewRoute,
+  AttendanceSubmissionsPage,
+} from '@/features/attendance'
 import { JoinPage } from './pages/JoinPage'
 import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword, SetPassword } from './pages/PasswordPages'
-import { EventsRoute } from './auth/EventsRoute'
-import { EventsPage } from './pages/EventsPage'
+import { EventsPage, EventsRoute } from '@/features/events'
 import { ConfirmEmail } from './pages/ConfirmEmail'
 import { SignUp } from './pages/SignUp'
 

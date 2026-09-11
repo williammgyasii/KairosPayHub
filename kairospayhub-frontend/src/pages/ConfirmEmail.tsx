@@ -2,8 +2,8 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { confirmEmail, resendConfirmation } from '@/auth/client'
 import { EmailOtpForm } from '@/components/auth/email-otp-form'
-import { AuthFormCard, AuthLayout } from '@/components/layout/AuthLayout'
-import { Spinner } from '@/components/ui/spinner'
+import { AuthFormCard, AuthLayout } from '@/shared/layout/AuthLayout'
+import { Spinner } from '@/shared/ui/spinner'
 
 export function ConfirmEmail() {
   const { status, email, emailConfirmed, markEmailConfirmed } = useAuth()

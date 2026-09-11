@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { StructureLayer, StructureNode, StructureTree } from '@/api/structure'
 import { buildMemberRow, buildNodeRows } from '@/lib/structure-table-rows'
-import { filterTreeToSubtree } from '@/lib/structure-tree'
+import { filterTreeToSubtree } from '@/shared/lib/structure-tree'
 
 function layer(id: string, sortOrder: number, displayName: string, standardType: string): StructureLayer {
   return { id, sortOrder, displayName, standardType: standardType as StructureLayer['standardType'] }

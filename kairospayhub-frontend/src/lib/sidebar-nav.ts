@@ -65,10 +65,6 @@ const NAV_PATH_RULES: Record<string, NavPathRule> = {
   settings: { kind: 'prefix', root: '/settings' },
 }
 
-export function shouldShowAccessNav(role: string) {
-  return role === 'Pastor'
-}
-
 function defaultRule(to: string, end?: boolean): NavPathRule {
   const root = sidebarPath(to)
   return end ? { kind: 'exact', paths: [root] } : { kind: 'prefix', root }

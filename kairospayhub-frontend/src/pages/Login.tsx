@@ -2,12 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/auth/AuthContext'
-import { AuthAlert } from '@/components/layout/auth-alert'
-import { AuthFooterLink, AuthLayout } from '@/components/layout/AuthLayout'
-import { authFadeUp, authStagger } from '@/components/layout/auth-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { AuthAlert } from '@/shared/layout/auth-alert'
+import { AuthFooterLink, AuthLayout } from '@/shared/layout/AuthLayout'
+import { authFadeUp, authStagger } from '@/shared/layout/auth-motion'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
 
 export function Login() {
   const { signIn } = useAuth()

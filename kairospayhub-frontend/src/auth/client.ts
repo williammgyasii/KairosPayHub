@@ -18,7 +18,7 @@ interface ProfileResponse {
   emailConfirmed?: boolean
 }
 
-import { apiBaseUrl } from '@/lib/api-base'
+import { apiBaseUrl } from '@/shared/api/api-base'
 
 async function authPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${apiBaseUrl()}${path}`, {

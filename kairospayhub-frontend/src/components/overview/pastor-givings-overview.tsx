@@ -12,17 +12,17 @@ import {
 } from 'recharts'
 import { CheckCircle2, Clock3, Coins, HandCoins, Megaphone } from 'lucide-react'
 import type { StructureTree } from '@/api/structure'
-import { formatAmount } from '@/api/giving'
+import { formatAmount } from '@/features/giving/api'
 import {
   CHART_COLORS,
   membersByFellowshipChart,
 } from '@/lib/structure-dashboard'
-import { deriveGivingMetrics } from '@/components/giving/giving-metrics'
+import { deriveGivingMetrics } from '@/features/giving/components/giving-metrics'
 import { DistributionPieChart } from '@/components/overview/distribution-pie-chart'
-import { givingTypeLabel } from '@/lib/giving-ui'
-import { useGetGivingDashboardQuery } from '@/store/givingApi'
+import { givingTypeLabel } from '@/features/giving/lib/giving-ui'
+import { useGetGivingDashboardQuery } from '@/features/giving/api/givingApi'
 import { formatRtkQueryError } from '@/store/baseQuery'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 function ChartCard({
   title,

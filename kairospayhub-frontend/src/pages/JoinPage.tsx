@@ -1,17 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { publicJoinApi, type JoinInvitePreview } from '@/api/join'
-import { AuthAlert } from '@/components/layout/auth-alert'
-import { AuthLayout } from '@/components/layout/AuthLayout'
+import { AuthAlert } from '@/shared/layout/auth-alert'
+import { AuthLayout } from '@/shared/layout/AuthLayout'
 import {
   MemberProfileFields,
   memberProfileInitialValues,
   memberProfilePayload,
 } from '@/components/structure/member-profile-fields'
 import { JoinSuccessView } from '@/components/structure/join-success-view'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 import { canSubmitJoinVitals } from '@/lib/join-link-policy'
-import { formatApiError } from '@/lib/structure-tree'
+import { formatApiError } from '@/shared/lib/structure-tree'
 
 export function JoinPage() {
   const { token } = useParams<{ token: string }>()

@@ -10,8 +10,8 @@ import {
   YAxis,
 } from 'recharts'
 import { CheckCircle2, ClipboardCheck, Clock3, Coins, Gift, Network, Users } from 'lucide-react'
-import type { GivingDashboard } from '@/api/giving'
-import { formatAmount } from '@/api/giving'
+import type { GivingDashboard } from '@/features/giving/api'
+import { formatAmount } from '@/features/giving/api'
 import type { ChurchRole } from '@/api/auth'
 import type { StructureTree } from '@/api/structure'
 import { DistributionPieChart } from '@/components/overview/distribution-pie-chart'
@@ -26,11 +26,11 @@ import {
   structureLayerChartData,
   structureLayerChartDataForFellowshipLeader,
 } from '@/lib/structure-dashboard'
-import { givingTypeLabel } from '@/lib/giving-ui'
+import { givingTypeLabel } from '@/features/giving/lib/giving-ui'
 import { DashboardCalendarPanel } from '@/components/overview/dashboard-calendar-panel'
-import { Button } from '@/components/ui/button'
-import { initials } from '@/lib/utils'
-import { cn } from '@/lib/utils'
+import { Button } from '@/shared/ui/button'
+import { initials } from '@/shared/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 function ScopedMembersSnapshot({ tree }: { tree: StructureTree }) {
   const members = tree.members.slice(0, 8)

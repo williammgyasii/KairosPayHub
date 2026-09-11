@@ -3,9 +3,9 @@ import type { FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Mail, RefreshCw } from 'lucide-react'
 import { OtpInput } from '@/components/auth/otp-input'
-import { AuthAlert } from '@/components/layout/auth-alert'
-import { authFadeUp, authStagger } from '@/components/layout/auth-motion'
-import { Button } from '@/components/ui/button'
+import { AuthAlert } from '@/shared/layout/auth-alert'
+import { authFadeUp, authStagger } from '@/shared/layout/auth-motion'
+import { Button } from '@/shared/ui/button'
 
 function maskEmail(email: string): string {
   const [local, domain] = email.split('@')
