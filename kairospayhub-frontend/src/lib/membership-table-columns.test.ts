@@ -3,6 +3,7 @@ import {
   MEMBERSHIP_ALWAYS_VISIBLE_COLUMN_IDS,
   MEMBERSHIP_PROFILE_COLUMN_LABELS,
   defaultMembershipColumnVisibility,
+  membershipColumnMinWidthClass,
   mergeMembershipColumnVisibility,
   membershipToggleableColumnIds,
   structureMembershipColumnId,
@@ -53,5 +54,14 @@ describe('membership-table-columns', () => {
     expect(merged.member).toBe(true)
     expect(merged.state).toBe(true)
     expect(merged.email).toBe(false)
+  })
+
+  it('gives date of birth a min width so the header stays on one line', () => {
+    expect(membershipColumnMinWidthClass('dateOfBirth')).toBe('min-w-[10rem]')
+    expect(membershipColumnMinWidthClass('responsiveness')).toBe('min-w-[9.5rem]')
+  })
+
+  it('caps email so long addresses do not stretch the table', () => {
+    expect(membershipColumnMinWidthClass('email')).toBe('min-w-[8rem] max-w-[12rem]')
   })
 })

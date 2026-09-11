@@ -58,8 +58,7 @@ function Harness() {
           onChangeRules={() => {}}
           searchQuery=""
           onSearchQueryChange={() => {}}
-          searchField="all"
-          onSearchFieldChange={() => {}}
+          hideSearchField
           filteredCount={1}
           totalCount={1}
           columnVisibility={columnVisibility}

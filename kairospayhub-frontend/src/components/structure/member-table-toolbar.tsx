@@ -68,13 +68,14 @@ interface MemberTableToolbarProps {
   onChangeRules: (rules: MemberFilterRule[]) => void
   searchQuery: string
   onSearchQueryChange: (query: string) => void
-  searchField: MemberFilterField | 'all'
-  onSearchFieldChange: (field: MemberFilterField | 'all') => void
+  /** Scope for client-side search helpers; unused when hideSearchField. */
+  searchField?: MemberFilterField | 'all'
+  onSearchFieldChange?: (field: MemberFilterField | 'all') => void
   filteredCount: number
   totalCount: number
   compact?: boolean
   structureOnly?: boolean
-  /** When true, hides the "All fields" scope picker (e.g. replace with a custom leading control). */
+  /** When true, hides the field-scope picker (membership uses name/email server search). */
   hideSearchField?: boolean
   searchPlaceholder?: string
   leadingSlot?: ReactNode
@@ -98,7 +99,7 @@ export function MemberTableToolbar({
   onChangeRules,
   searchQuery,
   onSearchQueryChange,
-  searchField,
+  searchField = 'all',
   onSearchFieldChange,
   filteredCount,
   totalCount,
@@ -155,6 +156,7 @@ export function MemberTableToolbar({
     setFiltersOpen(false)
   }
 
+  const showSearchFieldPicker = !structureOnly && !hideSearchField && Boolean(onSearchFieldChange)
   const searchFieldLabel =
     searchField === 'all'
       ? 'All fields'
@@ -172,7 +174,7 @@ export function MemberTableToolbar({
           <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
             {leadingSlot}
 
-            {!structureOnly && !hideSearchField && (
+            {showSearchFieldPicker && (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -189,14 +191,14 @@ export function MemberTableToolbar({
                   <ScopeOption
                     label="All fields"
                     active={searchField === 'all'}
-                    onClick={() => onSearchFieldChange('all')}
+                    onClick={() => onSearchFieldChange?.('all')}
                   />
                   {fields.map((field) => (
                     <ScopeOption
                       key={field.field}
                       label={field.label}
                       active={searchField === field.field}
-                      onClick={() => onSearchFieldChange(field.field)}
+                      onClick={() => onSearchFieldChange?.(field.field)}
                     />
                   ))}
                 </PopoverContent>

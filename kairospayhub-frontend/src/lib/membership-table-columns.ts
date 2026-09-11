@@ -25,7 +25,7 @@ export const MEMBERSHIP_PROFILE_COLUMN_LABELS: Record<MembershipProfileColumnId,
   residence: 'Residence',
   state: 'State',
   occupationStatus: 'Occupation',
-  schoolOrWorkplace: 'School / work',
+  schoolOrWorkplace: 'School',
   workplace: 'Workplace',
   responsiveness: 'Responsiveness',
   role: 'Role',
@@ -94,5 +94,37 @@ export function mergeMembershipColumnVisibility(
     ...current,
     ...patch,
     member: true,
+  }
+}
+
+/** Min widths so multi-word headers (e.g. Date of birth) stay on one line. */
+export function membershipColumnMinWidthClass(columnId: string): string | undefined {
+  switch (columnId) {
+    case 'member':
+      return 'min-w-[13.75rem]'
+    case 'email':
+      return 'min-w-[8rem] max-w-[12rem]'
+    case 'phone':
+      return 'min-w-[8.5rem]'
+    case 'age':
+      return 'min-w-[4rem]'
+    case 'dateOfBirth':
+      return 'min-w-[10rem]'
+    case 'residence':
+      return 'min-w-[8rem]'
+    case 'state':
+      return 'min-w-[5.5rem]'
+    case 'occupationStatus':
+      return 'min-w-[8rem]'
+    case 'schoolOrWorkplace':
+      return 'min-w-[8rem]'
+    case 'workplace':
+      return 'min-w-[8rem]'
+    case 'responsiveness':
+      return 'min-w-[9.5rem]'
+    case 'role':
+      return 'min-w-[6rem]'
+    default:
+      return columnId.startsWith('structure-') ? 'min-w-[7rem]' : undefined
   }
 }

@@ -86,8 +86,7 @@ public class StructureMemberService(
             var term = $"%{search.Trim()}%";
             query = query.Where(m =>
                 EF.Functions.ILike(m.Name, term)
-                || (m.Email != null && EF.Functions.ILike(m.Email, term))
-                || (m.Phone != null && EF.Functions.ILike(m.Phone, term)));
+                || (m.Email != null && EF.Functions.ILike(m.Email, term)));
         }
 
         var totalCount = await query.CountAsync(ct);

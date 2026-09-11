@@ -105,7 +105,7 @@ public class StructureMembersListApiTests(PostgresFixture fx) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ListMembers_search_filters_by_name_email_or_phone()
+    public async Task ListMembers_search_filters_by_name_or_email()
     {
         var client = PastorClient();
         var cellId = await SeedFlatCellAsync(client, memberCount: 0);

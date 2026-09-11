@@ -1,6 +1,6 @@
-/** Sticky Name column policy for membership roster tables. */
-export const MEMBERSHIP_STICKY_MEMBER_WIDTH = 180
-export const MEMBERSHIP_STICKY_MEMBER_WIDTH_NARROW = 148
+/** Sticky Name (+ actions) column policy for membership roster tables. */
+export const MEMBERSHIP_STICKY_MEMBER_WIDTH = 220
+export const MEMBERSHIP_STICKY_MEMBER_WIDTH_NARROW = 188
 
 export type MembershipStickyTier = 'member'
 

@@ -9,7 +9,7 @@ The membership members table SHALL let the user show or hide columns for stored 
 - **WHEN** a user opens the membership members table
 - **THEN** Name is visible
 - **AND** Email, Phone, Role, Responsiveness, and each structure layer column are visible by default
-- **AND** Age, Date of birth, Residence, State, Occupation, School / work, and Workplace are hidden by default
+- **AND** Age, Date of birth, Residence, State, Occupation, School, and Workplace are hidden by default
 
 #### Scenario: Toggle shows a hidden profile column
 

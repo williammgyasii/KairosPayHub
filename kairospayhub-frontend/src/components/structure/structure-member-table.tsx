@@ -14,7 +14,7 @@ import {
 import { ArrowUpDown, Coins, Eye, FileText, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import type { StructureLayer } from '@/api/structure'
 import { formatOccupationStatus } from '@/lib/member-filters'
-import { defaultMembershipColumnVisibility } from '@/lib/membership-table-columns'
+import { defaultMembershipColumnVisibility, membershipColumnMinWidthClass } from '@/lib/membership-table-columns'
 import {
   membershipStickyColumnLeft,
   membershipStickyColumnWidth,
@@ -175,7 +175,7 @@ export function StructureMemberTable({
     const left = membershipStickyColumnLeft(columnId)
     if (left == null) return 'relative z-0'
     return cn(
-      'sticky overflow-hidden border-border bg-clip-padding border-r-2 border-r-border shadow-[6px_0_10px_-6px_rgba(15,23,42,0.35)] dark:shadow-[6px_0_10px_-6px_rgba(0,0,0,0.65)]',
+      'sticky border-border bg-clip-padding border-r-2 border-r-border shadow-[6px_0_10px_-6px_rgba(15,23,42,0.35)] dark:shadow-[6px_0_10px_-6px_rgba(0,0,0,0.65)]',
       kind === 'th' && 'z-[45] !bg-muted',
       kind === 'td' && 'z-[35]',
       kind === 'td' && (rowTone === 'odd' ? '!bg-muted' : '!bg-card'),
@@ -235,7 +235,7 @@ export function StructureMemberTable({
         <table
           className={cn(
             'w-full text-sm',
-            viewportWidth >= 1024 && !compactLayout && useToggleableColumns && 'min-w-[1200px]',
+            viewportWidth >= 1024 && !compactLayout && useToggleableColumns && 'min-w-[1400px]',
             viewportWidth >= 1024 && !compactLayout && !useToggleableColumns && 'min-w-[760px]',
           )}
         >
@@ -246,21 +246,20 @@ export function StructureMemberTable({
                   <th
                     key={header.id}
                     className={cn(
-                      'px-5 py-2.5 font-medium text-muted-foreground',
+                      'whitespace-nowrap px-5 py-2.5 font-medium text-muted-foreground',
                       stickyClasses(header.column.id, 'th'),
-                      header.column.id === 'member' && 'min-w-[9rem]',
-                      header.column.id === 'email' && 'w-[9rem] max-w-[9rem]',
+                      membershipColumnMinWidthClass(header.column.id),
                     )}
                     style={stickyStyle(header.column.id)}
                   >
-                    {header.isPlaceholder ? null : header.column.id === 'actions' ? null : (
+                    {header.isPlaceholder ? null : (
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 hover:text-foreground"
+                        className="inline-flex items-center gap-1 whitespace-nowrap hover:text-foreground"
                         onClick={header.column.getToggleSortingHandler()}
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                        <ArrowUpDown className="size-3 opacity-50" />
+                        <ArrowUpDown className="size-3 shrink-0 opacity-50" />
                       </button>
                     )}
                   </th>
@@ -294,8 +293,7 @@ export function StructureMemberTable({
                           'td',
                           rowIndex % 2 === 1 ? 'odd' : 'even',
                         ),
-                        cell.column.id === 'member' && 'min-w-[9rem]',
-                        cell.column.id === 'email' && 'w-[9rem] max-w-[9rem]',
+                        membershipColumnMinWidthClass(cell.column.id),
                       )}
                       style={stickyStyle(cell.column.id)}
                     >
@@ -414,7 +412,7 @@ function createMemberColumns(
           ),
         }),
         helper.accessor('schoolOrWorkplace', {
-          header: 'School / work',
+          header: 'School',
           enableHiding: true,
           cell: ({ getValue }) => (
             <span className="max-w-[10rem] truncate text-muted-foreground">{getValue() || '—'}</span>
@@ -473,22 +471,15 @@ function createMemberColumns(
     helper.accessor('member', {
       header: 'Name',
       enableHiding: false,
-      cell: ({ getValue }) => (
-        <span className="block max-w-[14rem] truncate font-medium">{getValue()}</span>
+      cell: ({ row, getValue }) => (
+        <div className="flex min-w-0 items-center gap-0.5">
+          <span className="min-w-0 flex-1 truncate font-medium">{getValue()}</span>
+          {showActions ? <MemberRowMenu member={row.original} {...actions} /> : null}
+        </div>
       ),
     }),
     ...profileColumns,
     ...structureColumns,
-    ...(showActions
-      ? [
-          helper.display({
-            id: 'actions',
-            header: '',
-            enableHiding: false,
-            cell: ({ row }) => <MemberRowMenu member={row.original} {...actions} />,
-          }),
-        ]
-      : []),
   ]
 }
 

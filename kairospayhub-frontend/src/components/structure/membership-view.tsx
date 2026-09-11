@@ -18,7 +18,6 @@ import {
 } from '@/components/structure/structure-member-table'
 import {
   applyMemberFilterRules,
-  type MemberFilterField,
   type MemberFilterRule,
 } from '@/lib/member-filters'
 import {
@@ -101,7 +100,6 @@ export function MembershipView({
   const [filterRules, setFilterRules] = useState<MemberFilterRule[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [searchField, setSearchField] = useState<MemberFilterField | 'all'>('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [sortBy, setSortBy] = useState<StructureMemberListParams['sortBy']>('name')
@@ -261,8 +259,8 @@ export function MembershipView({
             onChangeRules={setFilterRules}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
-            searchField={searchField}
-            onSearchFieldChange={setSearchField}
+            hideSearchField
+            searchPlaceholder="Search by name or email…"
             filteredCount={filteredRows.length}
             totalCount={totalCount}
             columnVisibility={columnVisibility}
