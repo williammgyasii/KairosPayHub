@@ -4,6 +4,8 @@ namespace KairosPayHub.Api.Web;
 
 public static class TurnstileGate
 {
+    public const string VerifiedHeaderName = "X-Kairos-Turnstile-Verified";
+
     public static async Task<IActionResult?> RejectUnlessValidAsync(
         ControllerBase controller,
         ITurnstileVerifier verifier,
@@ -11,6 +13,12 @@ public static class TurnstileGate
         string? token,
         CancellationToken ct)
     {
+        if (string.Equals(
+                controller.Request.Headers[VerifiedHeaderName],
+                "1",
+                StringComparison.Ordinal))
+            return null;
+
         var ip = controller.HttpContext.Connection.RemoteIpAddress?.ToString();
         if (await verifier.VerifyAsync(token, action, ip, ct))
             return null;

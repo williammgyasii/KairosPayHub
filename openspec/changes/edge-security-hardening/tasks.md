@@ -7,6 +7,7 @@
 
 - [x] 2.1 TurnstileVerifier + unit tests; wire Auth + Join controllers
 - [x] 2.2 Frontend TurnstileField on login, signup, forgot-password, join
+- [x] 2.3 Gateway single-verify: strip token, set `X-Kairos-Turnstile-Verified`; API trusts header (regression tests)
 
 ## 3. Gateway headers
 

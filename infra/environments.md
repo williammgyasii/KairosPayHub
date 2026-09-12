@@ -61,8 +61,13 @@ Policy logic: `cloudflare/api/src/rate-limit-policy.ts`. Bindings: `cloudflare/a
 **Turnstile setup**
 
 1. Cloudflare Dashboard → Turnstile → create widget for `app.kairospayhub.com`, `dev.app.kairospayhub.com`, `localhost`, `127.0.0.1`.
-2. Store **secret** on each gateway Worker: `wrangler secret put TURNSTILE_SECRET --env development|production`.
+2. Store **secret** on **both** gateway Workers (must match the widget):  
+   `printf '%s' '<secret>' | wrangler secret put TURNSTILE_SECRET --env development`  
+   `printf '%s' '<secret>' | wrangler secret put TURNSTILE_SECRET --env production`  
+   Get secret from `wrangler turnstile widget get <sitekey>`.
 3. Set **site key** on Pages build: GitHub secret `VITE_TURNSTILE_SITE_KEY` (dev/prod can share one widget or use separate keys per env).
+
+**If login shows “Verification failed. Try again.”** — check (a) site key and `TURNSTILE_SECRET` are in sync on that environment, or (b) the API is not re-verifying an already-consumed token (gateway must verify once and set `X-Kairos-Turnstile-Verified: 1`). Updating the GitHub site key or recreating the widget requires re-running step 2 for **development and production**.
 4. Allowed hostnames are in `wrangler.jsonc` as `TURNSTILE_ALLOWED_HOSTNAMES` (passed to container as `Turnstile__AllowedHostnames`).
 
 Local dev: leave `VITE_TURNSTILE_SITE_KEY` unset and `Turnstile__Secret` empty — verification is skipped.

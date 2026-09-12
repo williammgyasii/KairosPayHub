@@ -1,5 +1,9 @@
 import type { Env } from './env'
 import { resolveTurnstileRoute, type TurnstileAction } from './turnstile-policy'
+import {
+  TURNSTILE_VERIFIED_HEADER,
+  TURNSTILE_VERIFIED_VALUE,
+} from './turnstile-verified-header'
 
 const TURNSTILE_ERROR = JSON.stringify({
   error: 'Verification failed. Try again.',
@@ -47,8 +51,11 @@ export async function prepareTurnstileRequest(
     }
   }
 
+  delete body.turnstileToken
+
   const headers = new Headers(request.headers)
   headers.set('Content-Type', 'application/json')
+  headers.set(TURNSTILE_VERIFIED_HEADER, TURNSTILE_VERIFIED_VALUE)
 
   return {
     ok: true,

@@ -11,6 +11,15 @@ When `Turnstile:Secret` is configured, the system SHALL require a valid Cloudfla
 
 Verification MUST call Cloudflare siteverify, require `success`, matching action, and an allowed hostname. Invalid or missing tokens MUST receive HTTP **403** with a generic error. When the secret is not configured (local dev), verification SHALL be skipped.
 
+On deployed environments, the gateway Worker SHALL verify Turnstile once, strip `turnstileToken` from the forwarded body, and set `X-Kairos-Turnstile-Verified: 1`. The API container MUST NOT re-verify the same token (Turnstile tokens are single-use).
+
+#### Scenario: Gateway verifies once and forwards to API
+
+- **WHEN** a client posts to `/auth/login` with a valid Turnstile token through the gateway Worker
+- **THEN** the gateway verifies the token with siteverify
+- **AND** the container receives the request without `turnstileToken` and with `X-Kairos-Turnstile-Verified: 1`
+- **AND** login proceeds without a second siteverify call
+
 #### Scenario: Login without Turnstile when configured
 
 - **WHEN** Turnstile is configured and a client posts to `/auth/login` without a valid token
