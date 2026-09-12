@@ -9,7 +9,11 @@ interface AuthValue {
   status: Status
   email: string | null
   emailConfirmed: boolean
-  signIn: (email: string, password: string) => Promise<{ emailConfirmed: boolean }>
+  signIn: (
+    email: string,
+    password: string,
+    turnstileToken?: string | null,
+  ) => Promise<{ emailConfirmed: boolean }>
   markEmailConfirmed: () => void
   signOut: () => void
 }
@@ -38,9 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
   }, [])
 
-  const signIn = useCallback(async (e: string, password: string) => {
+  const signIn = useCallback(async (e: string, password: string, turnstileToken?: string | null) => {
     resetSessionCache()
-    const session = await auth.signIn(e, password)
+    const session = await auth.signIn(e, password, turnstileToken)
     setEmail(session.email ?? e)
     setEmailConfirmed(session.emailConfirmed)
     setStatus('authed')

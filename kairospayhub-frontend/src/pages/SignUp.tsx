@@ -7,12 +7,48 @@ import { EmailOtpForm } from '@/components/auth/email-otp-form'
 import { AuthAlert } from '@/shared/layout/auth-alert'
 import { AuthFooterLink, AuthLayout } from '@/shared/layout/AuthLayout'
 import { authFadeUp, authStagger } from '@/shared/layout/auth-motion'
+import { isTurnstileEnabled } from '@/shared/lib/turnstile-site-key'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { TurnstileField } from '@/shared/ui/turnstile-field'
+
+function ConfirmEmailStep({
+  email,
+  password,
+  onDone,
+}: {
+  email: string
+  password: string
+  onDone: () => void
+}) {
+  const { signIn } = useAuth()
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const canSubmit = !isTurnstileEnabled() || turnstileToken !== null
+
+  return (
+    <AuthLayout
+      variant="centered"
+      title="Almost there"
+      subtitle="Confirm your email to activate your account."
+    >
+      <EmailOtpForm
+        email={email}
+        confirmLabel="Confirm & continue"
+        confirmDisabled={!canSubmit}
+        extraFields={<TurnstileField action="login" onTokenChange={setTurnstileToken} />}
+        onConfirm={async (code) => {
+          await confirmEmail(email, code)
+          await signIn(email, password, turnstileToken)
+          onDone()
+        }}
+        onResend={() => resendConfirmation(email)}
+      />
+    </AuthLayout>
+  )
+}
 
 export function SignUp() {
-  const { signIn } = useAuth()
   const navigate = useNavigate()
   const [step, setStep] = useState<'form' | 'confirm'>('form')
   const [name, setName] = useState('')
@@ -20,6 +56,8 @@ export function SignUp() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const canSubmit = !isTurnstileEnabled() || turnstileToken !== null
 
   function fail(err: unknown, fallback: string) {
     setError(err instanceof Error ? err.message : fallback)
@@ -30,7 +68,7 @@ export function SignUp() {
     setBusy(true)
     setError(null)
     try {
-      await register(name || email.split('@')[0], email, password)
+      await register(name || email.split('@')[0], email, password, turnstileToken)
       setStep('confirm')
     } catch (err) {
       fail(err, 'Sign up failed')
@@ -41,22 +79,11 @@ export function SignUp() {
 
   if (step === 'confirm') {
     return (
-      <AuthLayout
-        variant="centered"
-        title="Almost there"
-        subtitle="Confirm your email to activate your account."
-      >
-        <EmailOtpForm
-          email={email}
-          confirmLabel="Confirm & continue"
-          onConfirm={async (code) => {
-            await confirmEmail(email, code)
-            await signIn(email, password)
-            navigate('/')
-          }}
-          onResend={() => resendConfirmation(email)}
-        />
-      </AuthLayout>
+      <ConfirmEmailStep
+        email={email}
+        password={password}
+        onDone={() => navigate('/')}
+      />
     )
   }
 
@@ -124,7 +151,18 @@ export function SignUp() {
         </motion.div>
 
         <motion.div variants={authFadeUp}>
-          <Button className="w-full" size="lg" type="submit" loading={busy} loadingLabel="Creating…">
+          <TurnstileField action="register" onTokenChange={setTurnstileToken} />
+        </motion.div>
+
+        <motion.div variants={authFadeUp}>
+          <Button
+            className="w-full"
+            size="lg"
+            type="submit"
+            loading={busy}
+            loadingLabel="Creating…"
+            disabled={!canSubmit}
+          >
             Create account
           </Button>
         </motion.div>

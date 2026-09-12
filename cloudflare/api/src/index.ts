@@ -2,6 +2,7 @@ import { KairosApiContainer } from './container'
 import type { Env } from './env'
 import { enforceGatewayRateLimit } from './rate-limit'
 import { isApiRequest, proxyToPages } from './router'
+import { applySecurityHeaders } from './security-headers'
 
 export { KairosApiContainer }
 
@@ -12,13 +13,13 @@ export default {
     if (isApiRequest(pathname)) {
       const limited = await enforceGatewayRateLimit(request, env)
       if (limited) {
-        return limited
+        return applySecurityHeaders(limited)
       }
 
       const container = env.API.getByName('singleton')
-      return container.fetch(request)
+      return applySecurityHeaders(await container.fetch(request))
     }
 
-    return proxyToPages(request, env.PAGES_ORIGIN)
+    return applySecurityHeaders(await proxyToPages(request, env.PAGES_ORIGIN))
   },
 }

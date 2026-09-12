@@ -98,7 +98,8 @@
         "EMAIL_SMTP_USE_TLS": "true",
         "R2_BUCKET_NAME": "kairospayhub-assets-dev",
         "CORS_ORIGIN_PRIMARY": "https://dev.app.kairospayhub.com",
-        "CORS_ORIGIN_SECONDARY": "http://127.0.0.1:5173"
+        "CORS_ORIGIN_SECONDARY": "http://127.0.0.1:5173",
+        "TURNSTILE_ALLOWED_HOSTNAMES": "dev.app.kairospayhub.com,127.0.0.1,localhost"
       }
     },
     "production": {
@@ -181,7 +182,8 @@
         "EMAIL_SMTP_USE_TLS": "true",
         "R2_BUCKET_NAME": "kairospayhub-assets",
         "CORS_ORIGIN_PRIMARY": "https://app.kairospayhub.com",
-        "CORS_ORIGIN_SECONDARY": "http://127.0.0.1:5173"
+        "CORS_ORIGIN_SECONDARY": "http://127.0.0.1:5173",
+        "TURNSTILE_ALLOWED_HOSTNAMES": "app.kairospayhub.com"
       }
     }
   }

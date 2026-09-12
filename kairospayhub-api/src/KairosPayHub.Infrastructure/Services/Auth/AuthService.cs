@@ -70,11 +70,16 @@ public class AuthService(
         var user = await users.FindByEmailAsync(emailAddress)
             ?? throw new AuthException("Invalid email or password");
 
-        if (!await users.CheckPasswordAsync(user, password))
-            throw new AuthException("Invalid email or password");
-
         if (await users.IsLockedOutAsync(user))
             throw new AuthException("Invalid email or password");
+
+        if (!await users.CheckPasswordAsync(user, password))
+        {
+            await users.AccessFailedAsync(user);
+            throw new AuthException("Invalid email or password");
+        }
+
+        await users.ResetAccessFailedCountAsync(user);
 
         // Soft-deactivated church administrators must not receive tokens (design: IsActive blocks login).
         var adminStates = await db.ChurchAdministrators.AsNoTracking()

@@ -12,6 +12,7 @@ Manages **account-level** Cloudflare resources.
 | `variables.tf` | Account id, zone name, optional R2 |
 | `zone.tf` | Zone data source (always) |
 | `r2.tf` | R2 buckets (opt-in via `manage_r2`) |
+| `waf.tf` | Zone WAF managed rules (opt-in via `manage_waf`) |
 | `outputs.tf` | Zone id, app URLs, bucket names |
 
 ## Auth
@@ -36,6 +37,18 @@ terraform apply -var='manage_r2=true'
 ```
 
 Or set `manage_r2 = true` in a `terraform.tfvars` (gitignored) after imports.
+
+### Optional: enable WAF managed rules
+
+1. Extend the API token with **Zone — WAF — Edit**.
+2. Apply:
+
+```bash
+cd infra/terraform
+terraform apply -var='manage_waf=true'
+```
+
+If rules already exist in the dashboard, import the zone ruleset before apply.
 
 ## Local commands
 

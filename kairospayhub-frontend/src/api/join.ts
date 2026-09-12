@@ -23,6 +23,7 @@ export type SubmitJoinInviteBody = {
   occupationStatus?: string | null
   schoolOrWorkplace?: string | null
   workplace?: string | null
+  turnstileToken?: string | null
 }
 
 const publicApi = createApiClient({

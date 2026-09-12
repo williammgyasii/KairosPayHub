@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Mail, RefreshCw } from 'lucide-react'
 import { OtpInput } from '@/components/auth/otp-input'
@@ -20,6 +20,8 @@ interface EmailOtpFormProps {
   onResend: () => Promise<void>
   confirmLabel?: string
   devHint?: boolean
+  confirmDisabled?: boolean
+  extraFields?: ReactNode
 }
 
 export function EmailOtpForm({
@@ -28,6 +30,8 @@ export function EmailOtpForm({
   onResend,
   confirmLabel = 'Verify & continue',
   devHint = import.meta.env.DEV,
+  confirmDisabled = false,
+  extraFields,
 }: EmailOtpFormProps) {
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -134,6 +138,8 @@ export function EmailOtpForm({
         </motion.p>
       )}
 
+      {extraFields ? <motion.div variants={authFadeUp}>{extraFields}</motion.div> : null}
+
       <motion.div variants={authFadeUp}>
         <Button
           className="w-full"
@@ -141,7 +147,7 @@ export function EmailOtpForm({
           type="submit"
           loading={busy}
           loadingLabel="Verifying…"
-          disabled={code.length !== 6}
+          disabled={code.length !== 6 || confirmDisabled}
         >
           {confirmLabel}
         </Button>

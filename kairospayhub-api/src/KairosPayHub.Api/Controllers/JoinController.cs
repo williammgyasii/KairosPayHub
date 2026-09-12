@@ -8,7 +8,7 @@ namespace KairosPayHub.Api.Controllers;
 
 [ApiController]
 [Route("api/join")]
-public class JoinController(UnitJoinInviteService invites) : ControllerBase
+public class JoinController(UnitJoinInviteService invites, ITurnstileVerifier turnstile) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("{token}")]
@@ -23,6 +23,10 @@ public class JoinController(UnitJoinInviteService invites) : ControllerBase
         [FromBody] SubmitJoinInviteRequest request,
         CancellationToken ct)
     {
+        var blocked = await TurnstileGate.RejectUnlessValidAsync(
+            this, turnstile, "join", request.TurnstileToken, ct);
+        if (blocked is not null) return blocked;
+
         await invites.SubmitAsync(token, request, ct);
         return Ok(new JoinSubmitAckDto(true));
     }

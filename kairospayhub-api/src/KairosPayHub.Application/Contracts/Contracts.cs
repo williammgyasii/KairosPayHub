@@ -83,7 +83,8 @@ public record SubmitJoinInviteRequest(
     string? State,
     string? OccupationStatus,
     string? SchoolOrWorkplace,
-    string? Workplace);
+    string? Workplace,
+    string? TurnstileToken = null);
 
 public record StructureMemberListResponse(
     IReadOnlyList<StructureMemberDto> Items,

@@ -16,6 +16,12 @@ variable "manage_r2" {
   default     = false
 }
 
+variable "manage_waf" {
+  type        = bool
+  description = "When true, enable Cloudflare Managed + OWASP WAF rulesets on the zone (requires Zone WAF Edit)"
+  default     = false
+}
+
 variable "r2_bucket_prod" {
   type        = string
   description = "Production R2 bucket for church assets"

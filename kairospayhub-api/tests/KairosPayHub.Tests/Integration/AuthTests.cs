@@ -100,6 +100,39 @@ public class AuthTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Fifth_failed_login_locks_the_account()
+    {
+        var client = _factory.CreateClient();
+        const string email = "lockout-target@example.com";
+
+        await client.PostAsJsonAsync("/auth/register", new
+        {
+            name = "Lockout Target",
+            email,
+            password = "Password1",
+        });
+        var code = _factory.Email.ExtractConfirmationCode()!;
+        await client.PostAsJsonAsync("/auth/confirm-email", new { email, code });
+
+        for (var i = 0; i < 5; i++)
+        {
+            var failed = await client.PostAsJsonAsync("/auth/login", new
+            {
+                email,
+                password = "WrongPassword1",
+            });
+            Assert.Equal(HttpStatusCode.Unauthorized, failed.StatusCode);
+        }
+
+        var locked = await client.PostAsJsonAsync("/auth/login", new
+        {
+            email,
+            password = "Password1",
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, locked.StatusCode);
+    }
+
+    [Fact]
     public async Task Login_unconfirmed_issues_tokens_and_sends_new_code()
     {
         _factory.Email.Clear();

@@ -1,5 +1,6 @@
 using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Services;
+using KairosPayHub.Api.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -9,12 +10,19 @@ namespace KairosPayHub.Api.Controllers;
 
 [ApiController]
 [Route("auth")]
-public class AuthController(AuthService auth, UserManager<ApplicationUser> users) : ControllerBase
+public class AuthController(
+    AuthService auth,
+    UserManager<ApplicationUser> users,
+    ITurnstileVerifier turnstile) : ControllerBase
 {
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken ct)
     {
+        var blocked = await TurnstileGate.RejectUnlessValidAsync(
+            this, turnstile, "register", request.TurnstileToken, ct);
+        if (blocked is not null) return blocked;
+
         try
         {
             await auth.RegisterAsync(request.Name, request.Email, request.Password, ct);
@@ -53,6 +61,10 @@ public class AuthController(AuthService auth, UserManager<ApplicationUser> users
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
+        var blocked = await TurnstileGate.RejectUnlessValidAsync(
+            this, turnstile, "login", request.TurnstileToken, ct);
+        if (blocked is not null) return blocked;
+
         try
         {
             var tokens = await auth.LoginAsync(request.Email, request.Password, ct);
@@ -91,6 +103,10 @@ public class AuthController(AuthService auth, UserManager<ApplicationUser> users
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
     {
+        var blocked = await TurnstileGate.RejectUnlessValidAsync(
+            this, turnstile, "forgot_password", request.TurnstileToken, ct);
+        if (blocked is not null) return blocked;
+
         try
         {
             var devLink = await auth.ForgotPasswordAsync(request.Email, ct);
@@ -165,10 +181,10 @@ public class AuthController(AuthService auth, UserManager<ApplicationUser> users
     };
 }
 
-public record RegisterRequest(string Name, string Email, string Password);
+public record RegisterRequest(string Name, string Email, string Password, string? TurnstileToken = null);
 public record ConfirmEmailRequest(string Email, string Code);
 public record ResendConfirmationRequest(string Email);
-public record LoginRequest(string Email, string Password);
+public record LoginRequest(string Email, string Password, string? TurnstileToken = null);
 public record RefreshRequest(string RefreshToken);
-public record ForgotPasswordRequest(string Email);
+public record ForgotPasswordRequest(string Email, string? TurnstileToken = null);
 public record ResetPasswordRequest(string Token, string Password);

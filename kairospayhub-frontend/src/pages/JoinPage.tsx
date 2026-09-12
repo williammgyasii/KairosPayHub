@@ -9,7 +9,9 @@ import {
   memberProfilePayload,
 } from '@/components/structure/member-profile-fields'
 import { JoinSuccessView } from '@/components/structure/join-success-view'
+import { isTurnstileEnabled } from '@/shared/lib/turnstile-site-key'
 import { Button } from '@/shared/ui/button'
+import { TurnstileField } from '@/shared/ui/turnstile-field'
 import { canSubmitJoinVitals } from '@/lib/join-link-policy'
 import { formatApiError } from '@/shared/lib/structure-tree'
 
@@ -23,6 +25,7 @@ export function JoinPage() {
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) return
@@ -39,7 +42,7 @@ export function JoinPage() {
       })
   }, [token])
 
-  const canSubmit =
+  const vitalsReady =
     profile != null &&
     canSubmitJoinVitals({
       name,
@@ -50,6 +53,8 @@ export function JoinPage() {
       state: profile.state,
       countryCode: preview?.countryCode,
     })
+  const canSubmit =
+    vitalsReady && (!isTurnstileEnabled() || turnstileToken !== null)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -61,6 +66,7 @@ export function JoinPage() {
         name: name.trim(),
         email: email.trim(),
         ...memberProfilePayload(profile),
+        turnstileToken,
       })
       setDone(true)
     } catch (err) {
@@ -121,6 +127,7 @@ export function JoinPage() {
               onEmail: setEmail,
             }}
           />
+          <TurnstileField action="join" onTokenChange={setTurnstileToken} />
           <Button type="submit" className="w-full" disabled={!canSubmit || busy}>
             {busy ? 'Submitting…' : 'Submit'}
           </Button>

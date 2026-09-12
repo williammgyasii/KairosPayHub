@@ -31,6 +31,9 @@ builder.Services.AddSignalR()
 builder.Services.AddKairosInfrastructure(builder.Configuration);
 builder.Services.AddKairosApplication();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<TurnstileOptions>(builder.Configuration.GetSection(TurnstileOptions.SectionName));
+builder.Services.AddHttpClient(nameof(TurnstileVerifier));
+builder.Services.AddSingleton<ITurnstileVerifier, TurnstileVerifier>();
 builder.Services.AddScoped<CurrentActor>();
 builder.Services.AddScoped<INotificationPublisher, SignalRNotificationPublisher>();
 

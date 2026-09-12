@@ -64,8 +64,13 @@ async function fetchProfile(
   }
 }
 
-export async function register(name: string, email: string, password: string): Promise<void> {
-  await authPost('/auth/register', { name, email, password })
+export async function register(
+  name: string,
+  email: string,
+  password: string,
+  turnstileToken?: string | null,
+): Promise<void> {
+  await authPost('/auth/register', { name, email, password, turnstileToken })
 }
 
 export async function confirmEmail(email: string, code: string): Promise<void> {
@@ -76,8 +81,12 @@ export async function resendConfirmation(email: string): Promise<void> {
   await authPost('/auth/resend-confirmation', { email })
 }
 
-export async function signIn(email: string, password: string): Promise<Session> {
-  const data = await authPost<TokenResponse>('/auth/login', { email, password })
+export async function signIn(
+  email: string,
+  password: string,
+  turnstileToken?: string | null,
+): Promise<Session> {
+  const data = await authPost<TokenResponse>('/auth/login', { email, password, turnstileToken })
   storeTokens(data.accessToken, data.refreshToken)
   return {
     email,
@@ -90,8 +99,11 @@ export async function setPassword(token: string, password: string): Promise<void
   await authPost('/auth/set-password', { token, password })
 }
 
-export async function forgotPassword(email: string): Promise<{ devResetLink?: string }> {
-  return authPost('/auth/forgot-password', { email })
+export async function forgotPassword(
+  email: string,
+  turnstileToken?: string | null,
+): Promise<{ devResetLink?: string }> {
+  return authPost('/auth/forgot-password', { email, turnstileToken })
 }
 
 export async function resetPassword(token: string, password: string): Promise<void> {

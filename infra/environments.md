@@ -49,6 +49,26 @@ The gateway Worker applies Cloudflare Rate Limiting bindings before proxying to 
 
 Policy logic: `cloudflare/api/src/rate-limit-policy.ts`. Bindings: `cloudflare/api/wrangler.jsonc`.
 
+## Edge security (Turnstile, headers, WAF)
+
+| Layer | What |
+|-------|------|
+| **Turnstile** | Login, register, forgot-password, join submit — widget when `VITE_TURNSTILE_SITE_KEY` is set; API verifies via `Turnstile__Secret` |
+| **Lockout** | 5 failed logins → 15 min account lock (ASP.NET Identity) |
+| **Headers** | HSTS, nosniff, frame deny, referrer policy, CSP report-only on all gateway responses |
+| **WAF** | Opt-in Terraform `manage_waf=true` — Cloudflare Managed + OWASP PL2 |
+
+**Turnstile setup**
+
+1. Cloudflare Dashboard → Turnstile → create widget for `app.kairospayhub.com`, `dev.app.kairospayhub.com`, `localhost`, `127.0.0.1`.
+2. Store **secret** on each gateway Worker: `wrangler secret put TURNSTILE_SECRET --env development|production`.
+3. Set **site key** on Pages build: GitHub secret `VITE_TURNSTILE_SITE_KEY` (dev/prod can share one widget or use separate keys per env).
+4. Allowed hostnames are in `wrangler.jsonc` as `TURNSTILE_ALLOWED_HOSTNAMES` (passed to container as `Turnstile__AllowedHostnames`).
+
+Local dev: leave `VITE_TURNSTILE_SITE_KEY` unset and `Turnstile__Secret` empty — verification is skipped.
+
+Cloudflare test keys (always pass): site `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`.
+
 ## Observability
 
 Gateway Workers (`kairospayhub-api-dev`, `kairospayhub-api`) have **Workers Observability** enabled in `cloudflare/api/wrangler.jsonc`:

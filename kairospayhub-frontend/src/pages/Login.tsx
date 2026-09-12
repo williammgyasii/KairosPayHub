@@ -5,9 +5,11 @@ import { useAuth } from '@/auth/AuthContext'
 import { AuthAlert } from '@/shared/layout/auth-alert'
 import { AuthFooterLink, AuthLayout } from '@/shared/layout/AuthLayout'
 import { authFadeUp, authStagger } from '@/shared/layout/auth-motion'
+import { isTurnstileEnabled } from '@/shared/lib/turnstile-site-key'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { TurnstileField } from '@/shared/ui/turnstile-field'
 
 export function Login() {
   const { signIn } = useAuth()
@@ -18,13 +20,15 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const canSubmit = !isTurnstileEnabled() || turnstileToken !== null
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      const { emailConfirmed } = await signIn(email, password)
+      const { emailConfirmed } = await signIn(email, password, turnstileToken)
       navigate(emailConfirmed ? '/' : '/confirm-email')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed')
@@ -93,7 +97,18 @@ export function Login() {
         </motion.div>
 
         <motion.div variants={authFadeUp}>
-          <Button className="w-full" size="lg" type="submit" loading={busy} loadingLabel="Signing in…">
+          <TurnstileField action="login" onTokenChange={setTurnstileToken} />
+        </motion.div>
+
+        <motion.div variants={authFadeUp}>
+          <Button
+            className="w-full"
+            size="lg"
+            type="submit"
+            loading={busy}
+            loadingLabel="Signing in…"
+            disabled={!canSubmit}
+          >
             Sign in
           </Button>
         </motion.div>

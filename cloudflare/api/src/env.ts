@@ -27,6 +27,8 @@ export interface Env {
   WEB_PUSH_PUBLIC_KEY?: string
   WEB_PUSH_PRIVATE_KEY?: string
   WEB_PUSH_SUBJECT?: string
+  TURNSTILE_SECRET?: string
+  TURNSTILE_ALLOWED_HOSTNAMES?: string
 }
 
 import type { KairosApiContainer } from './container'
@@ -59,6 +61,10 @@ export function buildContainerEnv(env: Env): Record<string, string> {
   if (env.WEB_PUSH_PUBLIC_KEY) vars.WebPush__PublicKey = env.WEB_PUSH_PUBLIC_KEY
   if (env.WEB_PUSH_PRIVATE_KEY) vars.WebPush__PrivateKey = env.WEB_PUSH_PRIVATE_KEY
   if (env.WEB_PUSH_SUBJECT) vars.WebPush__Subject = env.WEB_PUSH_SUBJECT
+  if (env.TURNSTILE_SECRET) vars.Turnstile__Secret = env.TURNSTILE_SECRET
+  if (env.TURNSTILE_ALLOWED_HOSTNAMES) {
+    vars.Turnstile__AllowedHostnames = env.TURNSTILE_ALLOWED_HOSTNAMES
+  }
 
   if (env.CORS_ORIGIN_SECONDARY) {
     vars['Cors__Origins__1'] = env.CORS_ORIGIN_SECONDARY

@@ -63,6 +63,7 @@ jobs:
         working-directory: kairospayhub-frontend
         env:
           VITE_API_URL: https://dev.app.kairospayhub.com
+          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
         run: |
           npm ci
           npm run build

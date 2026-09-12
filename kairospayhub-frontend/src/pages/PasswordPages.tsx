@@ -6,9 +6,11 @@ import { forgotPassword, resetPassword, setPassword } from '@/auth/client'
 import { AuthAlert } from '@/shared/layout/auth-alert'
 import { AuthFooterLink, AuthFormCard, AuthLayout } from '@/shared/layout/AuthLayout'
 import { authFadeUp, authStagger } from '@/shared/layout/auth-motion'
+import { isTurnstileEnabled } from '@/shared/lib/turnstile-site-key'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { TurnstileField } from '@/shared/ui/turnstile-field'
 
 export function SetPassword() {
   const [params] = useSearchParams()
@@ -106,6 +108,8 @@ export function ForgotPassword() {
   const [devResetLink, setDevResetLink] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const canSubmit = !isTurnstileEnabled() || turnstileToken !== null
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -113,7 +117,7 @@ export function ForgotPassword() {
     setError(null)
     setDevResetLink(null)
     try {
-      const data = await forgotPassword(email)
+      const data = await forgotPassword(email, turnstileToken)
       setDevResetLink(data.devResetLink ?? null)
       setSent(true)
     } catch (err) {
@@ -188,7 +192,8 @@ export function ForgotPassword() {
               required
             />
           </div>
-          <Button className="h-10 w-full" type="submit" disabled={busy}>
+          <TurnstileField action="forgot_password" onTokenChange={setTurnstileToken} />
+          <Button className="h-10 w-full" type="submit" disabled={busy || !canSubmit}>
             {busy ? 'Sending…' : 'Send reset link'}
           </Button>
         </form>
