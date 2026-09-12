@@ -32,6 +32,23 @@ Single **gateway Worker** on the app hostname proxies:
 | `kairospayhub-frontend/` | Vite SPA → Cloudflare Pages |
 | `scripts/provision-cloudflare-environments.sh` | One-time / manual full provision + deploy |
 
+## Gateway rate limiting
+
+Deployed hostnames only (`dev.app` / `app`). Local Vite → `localhost:5192` bypasses the gateway.
+
+The gateway Worker applies Cloudflare Rate Limiting bindings before proxying to the .NET container. Excess traffic receives HTTP **429** with `{"error":"Too many requests. Try again later."}`.
+
+| Tier | Path | Limit (60s window) | Key |
+|------|------|-------------------|-----|
+| Auth | `/auth/*` | 10 | client IP |
+| Join submit | `POST /api/join/{token}` | 10 | `{token}:{IP}` |
+| API | other `/api/*` | 300 | client IP |
+| Hubs | `/hubs/*` (not WebSocket upgrade) | 120 | client IP |
+
+`/health` and WebSocket upgrades on `/hubs/*` are exempt. ASP.NET still enforces join submit at 5/hour per token+IP inside the container.
+
+Policy logic: `cloudflare/api/src/rate-limit-policy.ts`. Bindings: `cloudflare/api/wrangler.jsonc`.
+
 ## Observability
 
 Gateway Workers (`kairospayhub-api-dev`, `kairospayhub-api`) have **Workers Observability** enabled in `cloudflare/api/wrangler.jsonc`:

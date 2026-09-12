@@ -7,12 +7,14 @@
     "dev": "wrangler dev",
     "deploy:dev": "wrangler deploy --env development",
     "deploy:prod": "wrangler deploy --env production",
+    "test": "vitest run",
     "types": "wrangler types"
   },
   "devDependencies": {
     "@cloudflare/containers": "^0.0.13",
     "@cloudflare/workers-types": "^5.20260903.1",
     "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
     "wrangler": "^4.128.0"
   }
 }

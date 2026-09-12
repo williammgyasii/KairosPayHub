@@ -1,5 +1,9 @@
 export interface Env {
   API: DurableObjectNamespace<KairosApiContainer>
+  RATE_LIMIT_AUTH: RateLimit
+  RATE_LIMIT_JOIN: RateLimit
+  RATE_LIMIT_API: RateLimit
+  RATE_LIMIT_HUBS: RateLimit
   PAGES_ORIGIN: string
   DB_CONNECTION_STRING: string
   JWT_SIGNING_KEY: string
