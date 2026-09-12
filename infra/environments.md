@@ -67,6 +67,9 @@ Account infra (R2, zone metadata): see [`terraform/`](./terraform/) and `.github
 | `CLOUDFLARE_API_TOKEN` | **Recommended** — Cloudflare API token for CI deploy (Workers, Pages, Containers). Does not rotate. |
 | `CLOUDFLARE_WRANGLER_REFRESH_TOKEN` | Fallback — wrangler OAuth refresh token (`cfort_…`). **Rotates on each CI refresh**; re-sync after deploy auth failures. |
 | `CLOUDFLARE_ACCOUNT_ID` | `e23518956f08ff35812d9ab001a39880` |
+| `WEB_PUSH_PUBLIC_KEY` | VAPID public key — **environment-scoped** (`development` vs `production`). Separate pair per env. |
+| `WEB_PUSH_PRIVATE_KEY` | VAPID private key — same environment scope. Never commit. |
+| `WEB_PUSH_SUBJECT` | `mailto:noreply@kairospayhub.com` |
 
 Create a deploy API token in Cloudflare Dashboard → My Profile → API Tokens → Create Token → **Edit Cloudflare Workers** template, then add **Cloudflare Pages — Edit** and **Account — Cloudflare Containers — Edit**. Store as:
 
@@ -89,6 +92,8 @@ API runtime secrets (`DB_CONNECTION_STRING`, `JWT_SIGNING_KEY`, SMTP, R2) are se
 ```
 
 Or manually: `cd cloudflare/api && wrangler secret put DB_CONNECTION_STRING --env development`
+
+Web Push uses a **separate VAPID pair per environment**. Generate with `npx web-push generate-vapid-keys`, put `WebPush__*` in local `.env`, and store the same names as GitHub **environment** secrets (`development` / `production`). Deploy workflows and `Sync Web Push secrets` upload them to the Worker before `wrangler deploy`, so a release cannot ship without the keys. Missing keys on a running container skip OS push; inbox + SignalR still work.
 
 ## Neon databases
 

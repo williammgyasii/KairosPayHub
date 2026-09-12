@@ -1,4 +1,5 @@
 using KairosPayHub.Api.Email;
+using KairosPayHub.Api.Notifications;
 using KairosPayHub.Api.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -16,6 +17,7 @@ namespace KairosPayHub.Tests.Integration;
 public class ApiFactory(string connectionString) : WebApplicationFactory<Program>
 {
     public FakeEmailSender Email { get; } = new();
+    public FakeWebPushSender Push { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -27,6 +29,9 @@ public class ApiFactory(string connectionString) : WebApplicationFactory<Program
         {
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Email);
+
+            services.RemoveAll<IWebPushSender>();
+            services.AddSingleton<IWebPushSender>(Push);
 
             services.RemoveAll<IObjectStorage>();
             services.AddSingleton<IObjectStorage, FakeObjectStorage>();

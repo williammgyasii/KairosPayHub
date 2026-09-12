@@ -31,6 +31,8 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         Set<Domain.Giving.GivingProgramScopeNode>();
     public DbSet<Domain.Giving.Contribution> Contributions => Set<Domain.Giving.Contribution>();
     public DbSet<Domain.Notifications.Notification> Notifications => Set<Domain.Notifications.Notification>();
+    public DbSet<Domain.Notifications.WebPushSubscription> WebPushSubscriptions =>
+        Set<Domain.Notifications.WebPushSubscription>();
     public DbSet<Domain.Attendance.AttendanceMeetingType> AttendanceMeetingTypes =>
         Set<Domain.Attendance.AttendanceMeetingType>();
     public DbSet<Domain.Attendance.AttendanceMeetingTypeScopeNode> AttendanceMeetingTypeScopeNodes =>
@@ -125,6 +127,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         ConfigureStructure(b);
         ConfigureGiving(b);
         ConfigureNotifications(b);
+        ConfigureWebPushSubscriptions(b);
         ConfigureAttendance(b);
         ConfigureAdministrators(b);
         ConfigureAbilityOverlays(b);
@@ -330,6 +333,20 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.LinkPath).HasMaxLength(300);
             e.HasIndex(x => new { x.RecipientAuthUserId, x.ReadAt, x.CreatedAt });
             e.HasIndex(x => new { x.ChurchId, x.RecipientAuthUserId });
+        });
+    }
+
+    private static void ConfigureWebPushSubscriptions(ModelBuilder b)
+    {
+        b.Entity<Domain.Notifications.WebPushSubscription>(e =>
+        {
+            e.ToTable("push_subscriptions");
+            e.Property(x => x.Endpoint).IsRequired().HasMaxLength(2048);
+            e.Property(x => x.P256dh).IsRequired().HasMaxLength(256);
+            e.Property(x => x.Auth).IsRequired().HasMaxLength(256);
+            e.Property(x => x.UserAgent).HasMaxLength(400);
+            e.HasIndex(x => x.Endpoint).IsUnique();
+            e.HasIndex(x => new { x.AuthUserId, x.ChurchId });
         });
     }
 

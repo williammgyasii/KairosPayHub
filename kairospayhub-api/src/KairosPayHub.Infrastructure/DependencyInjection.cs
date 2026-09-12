@@ -38,6 +38,8 @@ public static class InfrastructureServiceCollectionExtensions
             .AddDefaultTokenProviders();
 
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.Configure<Notifications.WebPushOptions>(
+            configuration.GetSection(Notifications.WebPushOptions.SectionName));
         services.Configure<R2Options>(configuration.GetSection(R2Options.SectionName));
         services.PostConfigure<R2Options>(o =>
         {
@@ -78,8 +80,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AttendanceApprovalService>();
         services.AddScoped<AttendanceMemberHistoryService>();
         services.AddScoped<ChurchAdministratorService>();
+        services.AddSingleton<Notifications.IWebPushSender, Notifications.LibWebPushSender>();
         services.AddScoped<NotificationEngine>();
+        services.AddScoped<WebPushPublisher>();
         services.AddScoped<NotificationInboxService>();
+        services.AddScoped<WebPushSubscriptionService>();
         services.AddScoped<NotificationRecipientResolver>();
         services.AddScoped<NotificationService>();
         services.AddScoped<MeetingTypeNotificationService>();

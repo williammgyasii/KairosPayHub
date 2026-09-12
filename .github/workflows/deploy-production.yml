@@ -42,6 +42,15 @@ jobs:
         working-directory: cloudflare/api
         run: npm ci
 
+      - name: Sync Web Push Worker secrets
+        uses: ./.github/actions/sync-web-push-secrets
+        with:
+          wrangler_env: production
+        env:
+          WEB_PUSH_PUBLIC_KEY: ${{ secrets.WEB_PUSH_PUBLIC_KEY }}
+          WEB_PUSH_PRIVATE_KEY: ${{ secrets.WEB_PUSH_PRIVATE_KEY }}
+          WEB_PUSH_SUBJECT: ${{ secrets.WEB_PUSH_SUBJECT }}
+
       - name: Deploy production gateway
         working-directory: cloudflare/api
         run: npx wrangler deploy --env production

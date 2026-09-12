@@ -6,12 +6,17 @@ import { DashboardLayout } from '@/shared/layout/dashboard-layout'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Spinner } from '@/shared/ui/spinner'
 import { formatRtkQueryError } from '@/store/baseQuery'
+import { registerPushServiceWorker } from '@/features/notifications/lib/register-service-worker'
 
 export function DashboardRoot() {
   const { data: me, error, isLoading, refetch } = useGetMeQuery()
 
   useEffect(() => {
     if (me) setChurchDefaultCurrency(churchCurrency(me))
+  }, [me])
+
+  useEffect(() => {
+    if (me && !isNotOnboarded(me)) registerPushServiceWorker()
   }, [me])
 
   const reloadMe = useCallback(async () => {

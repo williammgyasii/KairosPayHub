@@ -66,6 +66,9 @@ R2_PUBLIC_BASE_URL=$r2_public
 R2_ACCESS_KEY_ID=${R2__AccessKeyId:-${CLOUDFLARE_R2_ACCESS_KEY_ID:-}}
 R2_SECRET_ACCESS_KEY=${R2__SecretAccessKey:-${CLOUDFLARE_R2_SECRET_ACCESS_KEY:-}}
 R2_ENDPOINT=${R2__Endpoint:-${CLOUDFLARE_R2_ENDPOINT:-}}
+WEB_PUSH_PUBLIC_KEY=${WEB_PUSH_PUBLIC_KEY:-${WebPush__PublicKey:-}}
+WEB_PUSH_PRIVATE_KEY=${WEB_PUSH_PRIVATE_KEY:-${WebPush__PrivateKey:-}}
+WEB_PUSH_SUBJECT=${WEB_PUSH_SUBJECT:-${WebPush__Subject:-mailto:noreply@kairospayhub.com}}
 EOF
 
   wrangler secret bulk "$secrets_file" $env_flag 2>/dev/null || {
@@ -101,6 +104,9 @@ secrets = {
   "R2_ACCESS_KEY_ID": os.environ.get("R2__AccessKeyId") or os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID", ""),
   "R2_SECRET_ACCESS_KEY": os.environ.get("R2__SecretAccessKey") or os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY", ""),
   "R2_ENDPOINT": os.environ.get("R2__Endpoint") or os.environ.get("CLOUDFLARE_R2_ENDPOINT", ""),
+  "WEB_PUSH_PUBLIC_KEY": os.environ.get("WEB_PUSH_PUBLIC_KEY") or os.environ.get("WebPush__PublicKey", ""),
+  "WEB_PUSH_PRIVATE_KEY": os.environ.get("WEB_PUSH_PRIVATE_KEY") or os.environ.get("WebPush__PrivateKey", ""),
+  "WEB_PUSH_SUBJECT": os.environ.get("WEB_PUSH_SUBJECT") or os.environ.get("WebPush__Subject", "mailto:noreply@kairospayhub.com"),
 }
 with open(out, "w") as f:
   json.dump(secrets, f)

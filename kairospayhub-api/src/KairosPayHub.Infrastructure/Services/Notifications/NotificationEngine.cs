@@ -5,9 +5,12 @@ using KairosPayHub.Api.Web;
 namespace KairosPayHub.Api.Services;
 
 /// <summary>
-/// Delivery only: persist in-app rows and push realtime. No recipient policy or copy.
+/// Delivery only: persist in-app rows, SignalR, and Web Push. No recipient policy or copy.
 /// </summary>
-public class NotificationEngine(KairosDbContext db, INotificationPublisher publisher)
+public class NotificationEngine(
+    KairosDbContext db,
+    INotificationPublisher publisher,
+    WebPushPublisher webPush)
 {
     public async Task DeliverAsync(
         Guid churchId,
@@ -41,6 +44,7 @@ public class NotificationEngine(KairosDbContext db, INotificationPublisher publi
 
         var dtos = rows.Select(ToDto).ToList();
         await publisher.PushAsync(recipients, dtos, ct);
+        await webPush.PublishAsync(recipients, dtos, ct);
     }
 
     public static NotificationDto ToDto(Notification row) =>

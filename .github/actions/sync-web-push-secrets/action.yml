@@ -1,0 +1,29 @@
+name: Sync Web Push Worker secrets
+description: Upload WEB_PUSH_* GitHub environment secrets to the Cloudflare Worker so deploys cannot drop them
+inputs:
+  wrangler_env:
+    description: Wrangler environment name (development or production)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Upload Web Push secrets
+      shell: bash
+      working-directory: cloudflare/api
+      run: |
+        set -euo pipefail
+        if [[ -z "${WEB_PUSH_PUBLIC_KEY:-}" || -z "${WEB_PUSH_PRIVATE_KEY:-}" ]]; then
+          echo "WEB_PUSH_PUBLIC_KEY / WEB_PUSH_PRIVATE_KEY are not set on this GitHub environment"
+          exit 1
+        fi
+        tmp="$(mktemp)"
+        umask 077
+        {
+          printf 'WEB_PUSH_PUBLIC_KEY=%s\n' "$WEB_PUSH_PUBLIC_KEY"
+          printf 'WEB_PUSH_PRIVATE_KEY=%s\n' "$WEB_PUSH_PRIVATE_KEY"
+          printf 'WEB_PUSH_SUBJECT=%s\n' "${WEB_PUSH_SUBJECT:-mailto:noreply@kairospayhub.com}"
+        } > "$tmp"
+        npx wrangler secret bulk "$tmp" --env "${{ inputs.wrangler_env }}"
+        rm -f "$tmp"
+        echo "Uploaded WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT names only"
