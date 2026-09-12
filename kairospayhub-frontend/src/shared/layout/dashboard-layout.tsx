@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import type { Me } from '@/api/auth'
-import { AppSidebar, MobileSidebarOverlay } from '@/shared/layout/app-sidebar'
+import { AppSidebar } from '@/shared/layout/app-sidebar'
 import { DashboardTopbar } from '@/shared/layout/dashboard-topbar'
+import { MobileTabBar } from '@/shared/layout/mobile-tab-bar'
 import { NotificationsRealtime } from '@/shared/layout/notifications-realtime'
 import { SidebarProvider, useSidebar } from '@/shared/layout/sidebar-context'
+import { navForRole } from '@/shared/lib/dashboard-nav'
 import { TooltipProvider } from '@/shared/ui/tooltip'
 import { AbilityProvider } from '@/auth/AbilityProvider'
 
@@ -14,12 +15,7 @@ interface DashboardLayoutProps {
 }
 
 function DashboardLayoutInner({ me, reloadMe }: DashboardLayoutProps) {
-  const { pathname } = useLocation()
-  const { mobileOpen, setMobileOpen } = useSidebar()
-
-  useEffect(() => {
-    setMobileOpen(false)
-  }, [pathname, setMobileOpen])
+  const nav = navForRole(me)
 
   return (
     <div className="flex min-h-screen bg-muted/20">
@@ -29,9 +25,7 @@ function DashboardLayoutInner({ me, reloadMe }: DashboardLayoutProps) {
         </div>
       </div>
 
-      <MobileSidebarOverlay me={me} open={mobileOpen} onClose={() => setMobileOpen(false)} />
-
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-[var(--sidebar-width)] transition-[padding] duration-200">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-[calc(5rem+env(safe-area-inset-bottom))] transition-[padding] duration-200 lg:pb-0 lg:pl-[var(--sidebar-width)]">
         <SidebarWidthSync />
         <NotificationsRealtime />
         <DashboardTopbar me={me} />
@@ -39,6 +33,8 @@ function DashboardLayoutInner({ me, reloadMe }: DashboardLayoutProps) {
           <Outlet context={{ me, reloadMe } satisfies DashboardOutletContext} />
         </main>
       </div>
+
+      <MobileTabBar entries={nav} />
     </div>
   )
 }

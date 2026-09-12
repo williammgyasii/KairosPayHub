@@ -369,7 +369,7 @@ export function LeaderOverviewDashboard({
         )}
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {quickStats.map((stat) => (
           <div
             key={stat.label}

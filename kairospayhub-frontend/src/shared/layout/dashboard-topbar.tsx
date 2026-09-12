@@ -4,7 +4,6 @@ import {
   Bell,
   ChevronDown,
   LogOut,
-  Menu,
   Palette,
   Shield,
   User,
@@ -25,7 +24,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
-import { useSidebar } from '@/shared/layout/sidebar-context'
 import { cn, initials } from '@/shared/lib/utils'
 
 interface DashboardTopbarProps {
@@ -63,23 +61,12 @@ function MenuLink({
 
 export function DashboardTopbar({ me }: DashboardTopbarProps) {
   const { email, signOut } = useAuth()
-  const { toggleMobile } = useSidebar()
   const name = displayName(me, email)
   const churchManager = canManageChurch(me.role)
 
   return (
     <header className="sticky top-0 z-30 flex h-16 min-w-0 shrink-0 items-center gap-3 border-b border-border/50 bg-background/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/60 sm:gap-4 sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 shrink-0 text-muted-foreground lg:hidden"
-          onClick={toggleMobile}
-          aria-label="Open menu"
-        >
-          <Menu className="h-[18px] w-[18px]" />
-        </Button>
-
         <div className="flex min-w-0 items-center gap-2.5 lg:hidden">
           <ChurchBrand
             churchName={me.churchName}

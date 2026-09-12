@@ -87,4 +87,9 @@ describe('DashboardTopbar', () => {
     renderTopbar({ avatarUrl: null })
     expect(screen.getByTestId('user-avatar').getAttribute('data-has-image')).toBe('false')
   })
+
+  it('does not show the hamburger menu', () => {
+    renderTopbar()
+    expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull()
+  })
 })
