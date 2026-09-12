@@ -6,14 +6,22 @@ import {
   type InviteeRollCallDraft,
 } from '@/features/attendance/components/attendance-roll-call-sheet'
 import { GuestRiskBanner } from '@/features/attendance/components/guest-risk-banner'
+import { AttendanceReportReadout } from '@/features/attendance/components/attendance-report-readout'
 import { MemberRollCallGrid } from '@/features/attendance/components/member-roll-call-grid'
+import { approvalDetailPanes } from '@/features/attendance/lib/report-policy'
 import { Button } from '@/shared/ui/button'
 import { Modal } from '@/shared/ui/modal'
 import { Spinner } from '@/shared/ui/spinner'
 import { useGetScopeRollCallReviewQuery } from '@/features/attendance/api/attendanceApi'
 import { cn } from '@/shared/lib/utils'
 
+type DetailPane = ReturnType<typeof approvalDetailPanes>[number]
 type RollCallTab = 'members' | 'invitees'
+
+const PANE_LABEL: Record<DetailPane, string> = {
+  rollCall: 'Roll call',
+  report: 'Report',
+}
 
 function formatServiceDate(meetingDate: string) {
   const parsed = new Date(`${meetingDate}T12:00:00`)
@@ -123,6 +131,7 @@ export function AttendanceApprovalDetailModal({
   busy,
   onApprove,
 }: AttendanceApprovalDetailModalProps) {
+  const [pane, setPane] = useState<DetailPane>('rollCall')
   const [tab, setTab] = useState<RollCallTab>('members')
 
   const {
@@ -140,7 +149,10 @@ export function AttendanceApprovalDetailModal({
   const error = reviewError ? 'Could not load roll call' : null
 
   useEffect(() => {
-    if (!open) setTab('members')
+    if (!open) {
+      setPane('rollCall')
+      setTab('members')
+    }
   }, [open])
 
   const inviteeRows = useMemo(
@@ -152,7 +164,10 @@ export function AttendanceApprovalDetailModal({
   const absentCount = review?.entries.filter((entry) => entry.status === 'Absent').length ?? 0
   const firstTimerCount = inviteeRows.filter((row) => row.wasFirstTimer).length
 
-  const tabs: { id: RollCallTab; label: string; count: number }[] = [
+  const hasReport = Boolean(review?.report && review.report.schema.length > 0)
+  const panes = approvalDetailPanes(hasReport)
+  const activePane = panes.includes(pane) ? pane : 'rollCall'
+  const rollCallTabs: { id: RollCallTab; label: string; count: number }[] = [
     { id: 'members', label: 'Members', count: review?.entries.length ?? 0 },
     { id: 'invitees', label: 'Invitees', count: inviteeRows.length },
   ]
@@ -174,85 +189,111 @@ export function AttendanceApprovalDetailModal({
         <p className="text-sm text-destructive">{error}</p>
       ) : review ? (
         <div className="space-y-5">
-          <dl className="grid gap-4 border-b border-border/60 pb-5 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Present
-              </dt>
-              <dd className="mt-1.5 text-xl font-semibold tabular-nums">{presentCount}</dd>
+          {panes.length > 1 ? (
+            <div className="flex gap-1 rounded-lg bg-muted/60 p-1">
+              {panes.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPane(id)}
+                  className={cn(
+                    'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    activePane === id
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {PANE_LABEL[id]}
+                </button>
+              ))}
             </div>
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Absent
-              </dt>
-              <dd className="mt-1.5 text-xl font-semibold tabular-nums">{absentCount}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Members
-              </dt>
-              <dd className="mt-1.5 text-xl font-semibold tabular-nums">{review.entries.length}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                First timers
-              </dt>
-              <dd className="mt-1.5 text-xl font-semibold tabular-nums">{firstTimerCount}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Submitted by
-              </dt>
-              <dd className="mt-1.5 text-sm">{item.submittedByName ?? '—'}</dd>
-            </div>
-          </dl>
+          ) : null}
 
-          <GuestRiskBanner
-            level={review.guestRiskLevel ?? item.guestRiskLevel}
-            reasons={review.guestRiskReasons ?? item.guestRiskReasons}
-          />
+          {activePane === 'report' ? (
+            <AttendanceReportReadout report={review.report} showHeading={false} />
+          ) : (
+            <>
+              <dl className="grid gap-4 border-b border-border/60 pb-5 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Present
+                  </dt>
+                  <dd className="mt-1.5 text-xl font-semibold tabular-nums">{presentCount}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Absent
+                  </dt>
+                  <dd className="mt-1.5 text-xl font-semibold tabular-nums">{absentCount}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Members
+                  </dt>
+                  <dd className="mt-1.5 text-xl font-semibold tabular-nums">{review.entries.length}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    First timers
+                  </dt>
+                  <dd className="mt-1.5 text-xl font-semibold tabular-nums">{firstTimerCount}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Submitted by
+                  </dt>
+                  <dd className="mt-1.5 text-sm">{item.submittedByName ?? '—'}</dd>
+                </div>
+              </dl>
 
-          <div className="flex flex-wrap gap-x-1 gap-y-2 border-b">
-            {tabs.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => setTab(entry.id)}
-                className={cn(
-                  'border-b-2 px-2 pb-2 text-sm font-medium transition-colors',
-                  tab === entry.id
-                    ? 'border-foreground text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {entry.label}
-                <span className="ml-1 text-xs text-muted-foreground">({entry.count})</span>
-              </button>
-            ))}
-          </div>
-
-          {tab === 'members' && (
-            <MemberRollCallGrid
-              readOnly
-              members={review.entries.map((entry) => ({
-                id: entry.memberId,
-                name: entry.memberName,
-                status:
-                  entry.status === 'Present' || entry.status === 'Absent'
-                    ? entry.status
-                    : 'Unrecorded',
-              }))}
-            />
-          )}
-
-          {tab === 'invitees' && (
-            <div className="space-y-4">
-              <InvitationSummary rows={inviteeRows} />
-              <ReadOnlyInviteeTable
-                rows={inviteeRows}
-                emptyMessage="No invitees recorded for this service."
+              <GuestRiskBanner
+                level={review.guestRiskLevel ?? item.guestRiskLevel}
+                reasons={review.guestRiskReasons ?? item.guestRiskReasons}
               />
-            </div>
+
+              <div className="flex flex-wrap gap-x-1 gap-y-2 border-b">
+                {rollCallTabs.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setTab(entry.id)}
+                    className={cn(
+                      'border-b-2 px-2 pb-2 text-sm font-medium transition-colors',
+                      tab === entry.id
+                        ? 'border-foreground text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {entry.label}
+                    <span className="ml-1 text-xs text-muted-foreground">({entry.count})</span>
+                  </button>
+                ))}
+              </div>
+
+              {tab === 'members' && (
+                <MemberRollCallGrid
+                  readOnly
+                  members={review.entries.map((entry) => ({
+                    id: entry.memberId,
+                    name: entry.memberName,
+                    status:
+                      entry.status === 'Present' || entry.status === 'Absent'
+                        ? entry.status
+                        : 'Unrecorded',
+                  }))}
+                />
+              )}
+
+              {tab === 'invitees' && (
+                <div className="space-y-4">
+                  <InvitationSummary rows={inviteeRows} />
+                  <ReadOnlyInviteeTable
+                    rows={inviteeRows}
+                    emptyMessage="No invitees recorded for this service."
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <div className="flex justify-end gap-2 border-t border-border/60 pt-4">
