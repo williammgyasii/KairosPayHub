@@ -26,8 +26,11 @@ self.addEventListener('push', (event) => {
       } catch {
         // userVisibleOnly: still show a banner if the payload cannot be read
       }
+      const icon = `${self.location.origin}/icons/icon-192.png`
       await self.registration.showNotification(title, {
         body,
+        icon,
+        badge: icon,
         data: { linkPath },
       })
     })(),

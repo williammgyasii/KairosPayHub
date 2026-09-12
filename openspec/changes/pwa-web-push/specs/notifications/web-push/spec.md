@@ -62,6 +62,7 @@ When the notification engine delivers an in-app notification, it SHALL also send
 - **AND** a contribution pending-approval notification is created for that pastor
 - **THEN** the pastor still receives the in-app inbox row
 - **AND** the device shows an OS notification with that row’s title and body
+- **AND** the banner uses the product PWA icon (not a generic browser mark)
 
 #### Scenario: No subscription still gets the bell
 

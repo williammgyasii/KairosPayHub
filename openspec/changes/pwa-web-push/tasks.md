@@ -22,3 +22,4 @@
 
 - [x] 5.1 Document and add `WebPush__*` to local `.env` plus Cloudflare container secrets for development (separate pair from production). Verify `GET /api/notifications/push/vapid-key` succeeds on local after restart.
 - [x] 5.2 Restart API + frontend. Smoke: enable push on a second device or browser, trigger a pending-approval notification, confirm the OS banner and that the bell still updates.
+- [x] 5.3 OS banners use the PWA product icon (`/icons/icon-192.png`) for `icon` and `badge`. Verify `osNotificationChrome` and that `sw.js` passes those URLs to `showNotification`.

@@ -19,3 +19,12 @@ export function destinationFromPushPayload(data: { linkPath?: string | null } | 
   if (!path) return '/'
   return path.startsWith('/') ? path : `/${path}`
 }
+
+/** Same mark as the PWA / home-screen icon. SVG favicons do not show on OS banners. */
+export const OS_NOTIFICATION_ICON_PATH = '/icons/icon-192.png'
+
+export function osNotificationChrome(origin: string): { icon: string; badge: string } {
+  const base = origin.replace(/\/$/, '')
+  const icon = `${base}${OS_NOTIFICATION_ICON_PATH}`
+  return { icon, badge: icon }
+}
