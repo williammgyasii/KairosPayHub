@@ -12,12 +12,19 @@ import {
   listOccurrences,
   putOccurrenceEntries,
   submitOccurrenceScope,
+  uploadReportPhoto,
   type AttendanceMeetingType,
   type AttendanceOccurrenceDetail,
   type AttendanceOccurrenceSummary,
 } from '@/features/attendance/api'
 import { canManageChurch, canSubmitRollCall, isScopedLeader, rollCallScopesFor } from '@/api/auth'
 import { markableMeetingTypes, rollCallScopesForMeeting } from '@/features/attendance/lib/roll-call-submit-policy'
+import {
+  type ReportAnswers,
+  reportPolicy,
+} from '@/features/attendance/lib/report-policy'
+import { AttendanceReportStep } from '@/features/attendance/components/attendance-report-step'
+import { AttendanceMySubmissionsList } from '@/features/attendance/components/attendance-my-submissions-list'
 import {
   AttendanceRollCallSheet,
   buildEntryValues,
@@ -40,7 +47,7 @@ import {
 } from '@/features/attendance/components/attendance-submissions-parts'
 
 type EntryStatus = 'Present' | 'Absent' | 'Unrecorded'
-type WizardStep = 'pick' | 'mark'
+type WizardStep = 'pick' | 'mark' | 'report'
 
 const selectClassName =
   'flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm'
@@ -68,6 +75,7 @@ export function AttendanceSubmissionsPage() {
   const [detail, setDetail] = useState<AttendanceOccurrenceDetail | null>(null)
   const [entryValues, setEntryValues] = useState<Record<string, EntryStatus>>({})
   const [inviteeValues, setInviteeValues] = useState<InviteeRollCallDraft[]>([])
+  const [reportAnswers, setReportAnswers] = useState<ReportAnswers>({})
   const [loadingTypes, setLoadingTypes] = useState(true)
   const [loadingOccurrences, setLoadingOccurrences] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -179,11 +187,13 @@ export function AttendanceSubmissionsPage() {
         (nextDetail.inviteeEntries ?? []).filter((row) => row.scopeNodeId === scopeNodeId),
       ),
     )
+    const stored = nextDetail.scopeSubmissions.find((row) => row.scopeNodeId === scopeNodeId)?.report
+    setReportAnswers(stored?.answers ?? {})
   }
 
   useEffect(() => {
-    if (step !== 'mark' || !selectedOccurrenceId || !selectedScopeNodeId) {
-      if (step !== 'mark') setDetail(null)
+    if ((step !== 'mark' && step !== 'report') || !selectedOccurrenceId || !selectedScopeNodeId) {
+      if (step === 'pick') setDetail(null)
       return
     }
 
@@ -236,6 +246,7 @@ export function AttendanceSubmissionsPage() {
     await putOccurrenceEntries(api, detail.id, selectedScopeNodeId, {
       entries,
       inviteeEntries: inviteePayload,
+      reportAnswers,
     })
   }
 
@@ -256,16 +267,35 @@ export function AttendanceSubmissionsPage() {
 
   async function onSubmitRollCall() {
     if (!detail || !selectedScopeNodeId) return
+    const policy = reportPolicy(selectedMeetingType ?? {}, reportAnswers)
+    if (step === 'mark' && policy.required) {
+      setBusyAction('save')
+      setError(null)
+      setMessage(null)
+      try {
+        await saveEntries()
+        setStep('report')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save roll call')
+      } finally {
+        setBusyAction(null)
+      }
+      return
+    }
+
     setBusyAction('submit')
     setError(null)
     setMessage(null)
     try {
       await saveEntries()
-      await submitOccurrenceScope(api, detail.id, selectedScopeNodeId)
+      await submitOccurrenceScope(api, detail.id, selectedScopeNodeId, {
+        reportAnswers,
+      })
       dispatch(invalidateAttendanceApprovalQueue())
       await reloadDetail()
       setMessage('Roll call submitted for approval.')
       setStep('pick')
+      setReportAnswers({})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit roll call')
     } finally {
@@ -302,7 +332,9 @@ export function AttendanceSubmissionsPage() {
   const pageDescription = canRollCall
     ? step === 'pick'
       ? 'Choose the meeting and service date, then continue to mark attendance.'
-      : null
+      : step === 'report'
+        ? 'Complete the meeting report, then submit for approval.'
+        : null
     : churchManager
       ? 'Unit leaders mark attendance. Use Meeting types and Metrics from here.'
       : scopedLeader
@@ -322,9 +354,9 @@ export function AttendanceSubmissionsPage() {
           description={pageDescription}
           className="flex-1"
           onBack={
-            step === 'mark'
+            step === 'mark' || step === 'report'
               ? () => {
-                  setStep('pick')
+                  setStep(step === 'report' ? 'mark' : 'pick')
                   setMessage(null)
                 }
               : undefined
@@ -470,62 +502,26 @@ export function AttendanceSubmissionsPage() {
             </Button>
           </div>
 
-          <section className="space-y-3 border-t pt-5">
-            <div>
-              <h2 className="text-sm font-medium">Your submissions</h2>
-              <p className="text-sm text-muted-foreground">
-                Recent roll calls you have submitted from your units.
-              </p>
-            </div>
-            {loadingMySubmissions && mySubmissions.length === 0 ? (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <InlineSpinner /> Loading…
-              </p>
-            ) : mySubmissions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No submitted roll calls yet.</p>
-            ) : (
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full min-w-[560px] text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/30 text-left text-xs text-muted-foreground">
-                      <th className="px-3 py-2 font-medium">Meeting</th>
-                      <th className="px-3 py-2 font-medium">Date</th>
-                      <th className="px-3 py-2 font-medium">Unit</th>
-                      <th className="px-3 py-2 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {mySubmissions.map((row) => (
-                      <tr key={`${row.occurrenceId}:${row.scopeNodeId}`}>
-                        <td className="px-3 py-2.5 font-medium">{row.meetingTypeTitle}</td>
-                        <td className="px-3 py-2.5 text-muted-foreground">
-                          {formatOccurrenceLabel({
-                            id: row.occurrenceId,
-                            meetingDate: row.meetingDate,
-                            status: 'Open',
-                            submissionOpensAt: '',
-                            submissionDeadlineAt: '',
-                            scopeSubmissionCount: 1,
-                          }).split(' · ')[0]}
-                        </td>
-                        <td className="px-3 py-2.5 text-muted-foreground">{row.scopeUnitName}</td>
-                        <td className="px-3 py-2.5">
-                          {row.approvalStatus === 'PendingApproval'
-                            ? 'Pending approval'
-                            : row.approvalStatus === 'Approved'
-                              ? 'Approved'
-                              : row.approvalStatus === 'Rejected'
-                                ? 'Rejected'
-                                : row.approvalStatus}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+          <AttendanceMySubmissionsList rows={mySubmissions} loading={loadingMySubmissions} />
         </section>
+      ) : step === 'report' && selectedMeetingType ? (
+        <AttendanceReportStep
+          type={selectedMeetingType}
+          answers={reportAnswers}
+          onChange={setReportAnswers}
+          busy={busyAction !== null}
+          busyAction={busyAction}
+          onSaveDraft={() => void onSaveRollCall()}
+          onSubmit={() => void onSubmitRollCall()}
+          onUploadPhoto={async (fieldId, file) => {
+            if (!detail || !selectedScopeNodeId) return
+            const url = await uploadReportPhoto(detail.id, selectedScopeNodeId, file)
+            setReportAnswers((current) => {
+              const existing = Array.isArray(current[fieldId]) ? (current[fieldId] as string[]) : []
+              return { ...current, [fieldId]: [...existing, url] }
+            })
+          }}
+        />
       ) : (
         <section className="space-y-4">
           {loadingDetail ? (
@@ -547,6 +543,9 @@ export function AttendanceSubmissionsPage() {
               onInviteeValuesChange={setInviteeValues}
               busy={busyAction !== null}
               busyAction={busyAction}
+              submitLabel={
+                reportPolicy(selectedMeetingType ?? {}).required ? 'Continue to report' : undefined
+              }
               onSave={() => void onSaveRollCall()}
               onSubmit={() => void onSubmitRollCall()}
             />

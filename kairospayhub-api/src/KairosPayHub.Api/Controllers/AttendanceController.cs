@@ -3,6 +3,7 @@ using KairosPayHub.Api.Domain;
 using KairosPayHub.Api.Domain.Attendance;
 using KairosPayHub.Api.Domain.Structure;
 using KairosPayHub.Api.Services;
+using KairosPayHub.Api.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,7 +19,8 @@ public class AttendanceController(
     AttendanceSubmissionService submissions,
     AttendanceApprovalService approvals,
     AttendanceRollCallExtrasService rollCallExtras,
-    AttendanceMemberHistoryService memberHistory) : ControllerBase
+    AttendanceMemberHistoryService memberHistory,
+    AttendanceReportService reports) : ControllerBase
 {
     [HttpGet("members/{memberId:guid}/history")]
     public async Task<IActionResult> GetMemberHistory(
@@ -76,7 +78,9 @@ public class AttendanceController(
                 request.AutoGenerateWeeksAhead,
                 request.SubmissionLayerId,
                 request.IsAlwaysOpen,
-                request.OpenNowForDemo),
+                request.OpenNowForDemo,
+                request.RequiresReport,
+                request.ReportSchema),
             ct);
         return Ok(created);
     }
@@ -98,7 +102,9 @@ public class AttendanceController(
                 request.DeadlineDayOffset,
                 request.DeadlineTimeUtc ?? "12:00:00",
                 request.SubmissionLayerId,
-                request.IsAlwaysOpen),
+                request.IsAlwaysOpen,
+                request.RequiresReport,
+                request.ReportSchema),
             ct);
         return Ok(updated);
     }
@@ -207,6 +213,7 @@ public class AttendanceController(
             firstTimers,
             inviteeEntries,
             request.PastorOverride,
+            request.ReportAnswers,
             ct);
         return Ok(new { ok = true });
     }
@@ -286,8 +293,49 @@ public class AttendanceController(
             occurrenceId,
             scopeNodeId,
             request?.PastorOverride ?? false,
+            request?.ReportAnswers,
             ct);
         return Ok(new { ok = true });
+    }
+
+    [HttpPost("occurrences/{occurrenceId:guid}/scopes/{scopeNodeId:guid}/report-photos")]
+    [RequestSizeLimit(2_621_440)]
+    public async Task<IActionResult> UploadReportPhoto(
+        Guid occurrenceId,
+        Guid scopeNodeId,
+        IFormFile file,
+        [FromQuery] bool pastorOverride = false,
+        CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            throw new UnauthorizedAccessException("Token has no subject");
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "File is required" });
+
+        try
+        {
+            var actor = await current.RequireAsync(ct);
+            await using var stream = file.OpenReadStream();
+            var url = await reports.UploadPhotoAsync(
+                actor,
+                authUserId,
+                occurrenceId,
+                scopeNodeId,
+                stream,
+                file.ContentType,
+                file.Length,
+                pastorOverride,
+                ct);
+            return Ok(new { url });
+        }
+        catch (ObjectStorageNotConfiguredException)
+        {
+            return StatusCode(503, new { error = "File storage is not configured on the server" });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpGet("approval-queue")]
@@ -353,6 +401,7 @@ public sealed record RejectAttendanceSubmissionRequest(string? Reason);
 public sealed class SubmitAttendanceScopeRequest
 {
     public bool PastorOverride { get; set; }
+    public Dictionary<string, System.Text.Json.JsonElement>? ReportAnswers { get; set; }
 }
 
 public sealed record CreateAttendanceMeetingTypeRequest(
@@ -369,7 +418,9 @@ public sealed record CreateAttendanceMeetingTypeRequest(
     int AutoGenerateWeeksAhead = 8,
     Guid? SubmissionLayerId = null,
     bool IsAlwaysOpen = false,
-    bool OpenNowForDemo = false);
+    bool OpenNowForDemo = false,
+    bool RequiresReport = false,
+    IReadOnlyList<AttendanceReportFieldDto>? ReportSchema = null);
 
 public sealed record UpdateAttendanceMeetingTypeRequest(
     string? Title,
@@ -378,7 +429,9 @@ public sealed record UpdateAttendanceMeetingTypeRequest(
     int DeadlineDayOffset = 1,
     string? DeadlineTimeUtc = null,
     Guid? SubmissionLayerId = null,
-    bool IsAlwaysOpen = false);
+    bool IsAlwaysOpen = false,
+    bool? RequiresReport = null,
+    IReadOnlyList<AttendanceReportFieldDto>? ReportSchema = null);
 
 public sealed class PutAttendanceEntriesRequest
 {
@@ -386,6 +439,7 @@ public sealed class PutAttendanceEntriesRequest
     public List<PutAttendanceFirstTimerRequest>? FirstTimers { get; set; }
     public List<PutAttendanceInviteeEntryRequest>? InviteeEntries { get; set; }
     public bool PastorOverride { get; set; }
+    public Dictionary<string, System.Text.Json.JsonElement>? ReportAnswers { get; set; }
 }
 
 public sealed class PutAttendanceFirstTimerRequest

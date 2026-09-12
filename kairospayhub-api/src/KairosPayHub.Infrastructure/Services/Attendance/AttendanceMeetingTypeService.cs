@@ -22,7 +22,9 @@ public record CreateAttendanceMeetingTypeInput(
     int AutoGenerateWeeksAhead,
     Guid? SubmissionLayerId = null,
     bool IsAlwaysOpen = false,
-    bool OpenNowForDemo = false);
+    bool OpenNowForDemo = false,
+    bool RequiresReport = false,
+    IReadOnlyList<AttendanceReportFieldDto>? ReportSchema = null);
 
 public record UpdateAttendanceMeetingTypeInput(
     string Title,
@@ -31,7 +33,9 @@ public record UpdateAttendanceMeetingTypeInput(
     int DeadlineDayOffset,
     string DeadlineTimeUtc,
     Guid? SubmissionLayerId = null,
-    bool IsAlwaysOpen = false);
+    bool IsAlwaysOpen = false,
+    bool? RequiresReport = null,
+    IReadOnlyList<AttendanceReportFieldDto>? ReportSchema = null);
 
 public record AttendanceMeetingTypeDto(
     Guid Id,
@@ -49,7 +53,9 @@ public record AttendanceMeetingTypeDto(
     int AutoGenerateWeeksAhead,
     bool IsAlwaysOpen,
     bool IsActive,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool RequiresReport,
+    IReadOnlyList<AttendanceReportFieldDto> ReportSchema);
 
 public record AttendanceOccurrenceSummaryDto(
     Guid Id,
@@ -121,6 +127,12 @@ public class AttendanceMeetingTypeService(
             CreatedByAuthUserId = authUserId,
         };
 
+        var (requiresReport, schemaJson) = AttendanceReportPolicy.NormalizeSchema(
+            input.RequiresReport,
+            input.ReportSchema);
+        meetingType.RequiresReport = requiresReport;
+        meetingType.ReportSchema = schemaJson;
+
         await ValidateWindowAsync(meetingType, churchId, ct);
 
         if (meetingType.ScopeKind == ProgramScopeKind.FellowshipGroup && input.ScopeNodeIds is not null)
@@ -187,6 +199,15 @@ public class AttendanceMeetingTypeService(
             meetingType.OpensTimeUtc = ParseTime(input.OpensTimeUtc, "OpensTimeUtc");
             meetingType.DeadlineDayOffset = input.DeadlineDayOffset;
             meetingType.DeadlineTimeUtc = ParseTime(input.DeadlineTimeUtc, "DeadlineTimeUtc");
+        }
+
+        if (input.RequiresReport is bool requiresFlag)
+        {
+            var (requiresReport, schemaJson) = AttendanceReportPolicy.NormalizeSchema(
+                requiresFlag,
+                input.ReportSchema);
+            meetingType.RequiresReport = requiresReport;
+            meetingType.ReportSchema = schemaJson;
         }
 
         await ValidateWindowAsync(meetingType, churchId, ct);
@@ -345,7 +366,9 @@ public class AttendanceMeetingTypeService(
             t.AutoGenerateWeeksAhead,
             t.IsAlwaysOpen,
             t.IsActive,
-            t.CreatedAt);
+            t.CreatedAt,
+            t.RequiresReport,
+            AttendanceReportPolicy.SchemaForType(t.RequiresReport, t.ReportSchema).ToList());
 
     private static AttendanceRecurrenceKind ParseRecurrenceKind(string value)
     {

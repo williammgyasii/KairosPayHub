@@ -3,8 +3,14 @@ import { HelpCircle } from 'lucide-react'
 import type { ApiClient } from '@/shared/api'
 import type { AttendanceMeetingType } from '@/features/attendance/api'
 import { createMeetingType, updateMeetingType } from '@/features/attendance/api'
+import { MeetingTypeReportFields } from '@/features/attendance/components/meeting-type-report-fields'
+import {
+  meetingTypeFormSteps,
+  seedReportSchema,
+  type ReportField,
+} from '@/features/attendance/lib/report-policy'
+import { WizardFooter } from '@/shared/ui/wizard-shell'
 import { Modal } from '@/shared/ui/modal'
-import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import {
@@ -81,6 +87,9 @@ export function MeetingTypeFormModal({
     toTimeInputValue(DEFAULT_MEETING_TYPE_WINDOW.deadlineTimeUtc),
   )
   const [submissionLayerId, setSubmissionLayerId] = useState('')
+  const [requiresReport, setRequiresReport] = useState(false)
+  const [reportSchema, setReportSchema] = useState<ReportField[]>([])
+  const [formStep, setFormStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -95,6 +104,7 @@ export function MeetingTypeFormModal({
   useEffect(() => {
     if (!open) return
     setError(null)
+    setFormStep(0)
     if (mode === 'edit' && meetingType) {
       setTitle(meetingType.title)
       setIsAlwaysOpen(meetingType.isAlwaysOpen)
@@ -103,6 +113,8 @@ export function MeetingTypeFormModal({
       setDeadlineDayOffset(Math.min(1, Math.max(0, meetingType.deadlineDayOffset)))
       setDeadlineTime(toTimeInputValue(meetingType.deadlineTimeUtc))
       setSubmissionLayerId(meetingType.submissionLayerId ?? '')
+      setRequiresReport(Boolean(meetingType.requiresReport))
+      setReportSchema(seedReportSchema(Boolean(meetingType.requiresReport), meetingType.reportSchema))
       return
     }
     setTitle('')
@@ -113,6 +125,8 @@ export function MeetingTypeFormModal({
     setDeadlineDayOffset(DEFAULT_MEETING_TYPE_WINDOW.deadlineDayOffset)
     setDeadlineTime(toTimeInputValue(DEFAULT_MEETING_TYPE_WINDOW.deadlineTimeUtc))
     setSubmissionLayerId('')
+    setRequiresReport(false)
+    setReportSchema([])
   }, [open, mode, meetingType])
 
   useEffect(() => {
@@ -125,8 +139,17 @@ export function MeetingTypeFormModal({
     if (preferred) setSubmissionLayerId(preferred)
   }, [open, mode, layers, submissionLayerId])
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  const steps = meetingTypeFormSteps(requiresReport)
+  const isLastStep = formStep >= steps.length - 1
+  const onReportStage = steps[formStep] === 'report'
+
+  function onRequiresReportChange(next: boolean) {
+    setRequiresReport(next)
+    setReportSchema(seedReportSchema(next, next ? reportSchema : []))
+    if (!next) setFormStep(0)
+  }
+
+  async function persist() {
     setSaving(true)
     setError(null)
     try {
@@ -138,6 +161,8 @@ export function MeetingTypeFormModal({
         opensTimeUtc: toApiTimeValue(isAlwaysOpen ? '00:00' : opensTime),
         deadlineDayOffset: isAlwaysOpen ? 1 : deadlineDayOffset,
         deadlineTimeUtc: toApiTimeValue(isAlwaysOpen ? '23:59' : deadlineTime),
+        requiresReport,
+        reportSchema: seedReportSchema(requiresReport, reportSchema),
       }
 
       if (mode === 'edit' && meetingType) {
@@ -159,20 +184,47 @@ export function MeetingTypeFormModal({
     }
   }
 
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!isLastStep) {
+      setFormStep(1)
+      return
+    }
+    void persist()
+  }
+
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={mode === 'edit' ? 'Edit meeting type' : 'Add meeting type'}
+      title={
+        onReportStage
+          ? 'Report prompts'
+          : mode === 'edit'
+            ? 'Edit meeting type'
+            : 'Add meeting type'
+      }
       description={
-        mode === 'edit'
-          ? 'Update the name and submission window. Schedule day is set when the type is created.'
-          : `Set how often this meeting repeats. Occurrences are generated automatically. Times are in ${tzLabel}.`
+        onReportStage
+          ? 'These prompts appear after roll call. Add, rename, or mark required — long text and photos only.'
+          : mode === 'edit'
+            ? 'Update the name and submission window. Schedule day is set when the type is created.'
+            : `Set how often this meeting repeats. Occurrences are generated automatically. Times are in ${tzLabel}.`
       }
       size="lg"
     >
       <TooltipProvider>
         <form onSubmit={onSubmit} className="space-y-5">
+          {onReportStage ? (
+            <MeetingTypeReportFields
+              requiresReport={requiresReport}
+              schema={reportSchema}
+              onRequiresReportChange={onRequiresReportChange}
+              onSchemaChange={setReportSchema}
+              showToggle={false}
+            />
+          ) : (
+          <>
           <div className="space-y-2">
             <Label htmlFor="meeting-title">Name</Label>
             <Input
@@ -229,6 +281,14 @@ export function MeetingTypeFormModal({
               </select>
             </div>
           ) : null}
+
+          <MeetingTypeReportFields
+            requiresReport={requiresReport}
+            schema={reportSchema}
+            onRequiresReportChange={onRequiresReportChange}
+            onSchemaChange={setReportSchema}
+            showSchema={false}
+          />
 
           <label className="flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3">
             <input
@@ -322,17 +382,28 @@ export function MeetingTypeFormModal({
               Submission opens and deadline are not used while Always open is on.
             </p>
           )}
+          </>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create meeting type'}
-            </Button>
-          </div>
+          <WizardFooter
+            step={formStep}
+            busy={saving}
+            onCancel={() => onOpenChange(false)}
+            onBack={() => setFormStep(0)}
+            onNext={() => {
+              if (!isLastStep) {
+                setFormStep(1)
+                return
+              }
+              void persist()
+            }}
+            nextLabel="Continue"
+            submitLabel={mode === 'edit' ? 'Save changes' : 'Create meeting type'}
+            isLastStep={isLastStep}
+            canProceed={title.trim().length > 0}
+          />
         </form>
       </TooltipProvider>
     </Modal>

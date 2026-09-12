@@ -127,6 +127,7 @@ interface AttendanceRollCallSheetProps {
   busyAction?: 'save' | 'submit' | null
   onSave: () => void
   onSubmit: () => void
+  submitLabel?: string
   viewerRole?: string
   timeZoneId?: string | null
 }
@@ -190,6 +191,7 @@ export function AttendanceRollCallSheet({
   busyAction = null,
   onSave,
   onSubmit,
+  submitLabel,
   viewerRole = 'CellLeader',
   timeZoneId = null,
 }: AttendanceRollCallSheetProps) {
@@ -356,6 +358,7 @@ export function AttendanceRollCallSheet({
         busy={busy}
         busyAction={busyAction}
         canSubmit={canSubmit}
+        submitLabel={submitLabel}
         onSave={onSave}
         onSubmit={onSubmit}
       />

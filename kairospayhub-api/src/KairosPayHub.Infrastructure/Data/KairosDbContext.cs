@@ -204,6 +204,8 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.RecurrenceKind).HasConversion<string>().IsRequired();
             e.Property(x => x.ScopeKind).HasConversion<string>().IsRequired();
             e.Property(x => x.IsAlwaysOpen).IsRequired().HasDefaultValue(false);
+            e.Property(x => x.RequiresReport).IsRequired().HasDefaultValue(false);
+            e.Property(x => x.ReportSchema).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
             e.HasIndex(x => x.ChurchId);
             e.HasOne(x => x.Church)
                 .WithMany()
@@ -247,6 +249,7 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.Property(x => x.EnteredByRole).HasConversion<string>();
             e.Property(x => x.GuestRiskLevel).HasMaxLength(20).HasDefaultValue("clear");
             e.Property(x => x.GuestRiskReasons).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
+            e.Property(x => x.ReportPayload).HasColumnType("jsonb");
             e.HasIndex(x => x.OccurrenceId);
             e.HasIndex(x => new { x.OccurrenceId, x.ScopeNodeId }).IsUnique();
             e.HasOne(x => x.Occurrence)

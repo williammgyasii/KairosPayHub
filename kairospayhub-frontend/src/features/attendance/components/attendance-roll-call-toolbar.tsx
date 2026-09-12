@@ -25,6 +25,7 @@ export function AttendanceRollCallToolbar({
   busy,
   busyAction,
   canSubmit,
+  submitLabel,
   onSave,
   onSubmit,
 }: {
@@ -41,6 +42,7 @@ export function AttendanceRollCallToolbar({
   busy?: boolean
   busyAction?: 'save' | 'submit' | null
   canSubmit?: boolean
+  submitLabel?: string
   onSave: () => void
   onSubmit: () => void
 }) {
@@ -101,8 +103,12 @@ export function AttendanceRollCallToolbar({
           onClick={onSubmit}
         >
           <Send className="size-3.5" />
-          <span className="sm:hidden">Submit</span>
-          <span className="hidden sm:inline">Submit for approval</span>
+          {submitLabel ?? (
+            <>
+              <span className="sm:hidden">Submit</span>
+              <span className="hidden sm:inline">Submit for approval</span>
+            </>
+          )}
         </Button>
       </div>
     </div>

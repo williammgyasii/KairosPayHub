@@ -343,14 +343,33 @@ public class NotificationService(
             return;
 
         var meetingTitle = occurrence.MeetingType?.Title ?? "Service";
-        var body =
-            $"{cellName} · {meetingTitle} · {occurrence.MeetingDate:dddd, d MMMM yyyy}. Review the roll call on Attendance Approvals.";
+        string? submitterName = null;
+        if (submission.SubmittedByAuthUserId is Guid submitterId)
+        {
+            var submitter = await GivingProgramCreatorResolver.ResolveAsync(
+                db,
+                occurrence.ChurchId,
+                submitterId,
+                submission.EnteredByRole,
+                ct);
+            submitterName = submitter.Name;
+        }
+
+        var roleLabel = submission.EnteredByRole is { } role && role != ChurchRole.Pastor
+            ? FormatRole(role)
+            : null;
+        var (title, body) = AttendanceSubmitNotificationCopy.Pending(
+            submitterName,
+            roleLabel,
+            cellName,
+            meetingTitle,
+            hasReport: !string.IsNullOrWhiteSpace(submission.ReportPayload));
 
         await engine.DeliverAsync(
             occurrence.ChurchId,
             recipientIds,
             NotificationKind.AttendancePendingApproval,
-            "Roll call awaiting approval",
+            title,
             body,
             LinkPath: "attendance/approvals",
             programId: null,

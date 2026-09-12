@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { MoreHorizontal, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import type { DashboardOutletContext } from '@/shared/layout/dashboard-layout'
 import { DashboardPageHeader } from '@/shared/layout/dashboard-page-header'
@@ -7,16 +7,9 @@ import { useApi } from '@/shared/api'
 import { listMeetingTypes, deleteMeetingType, type AttendanceMeetingType } from '@/features/attendance/api'
 import { canManageChurch } from '@/api/auth'
 import { MeetingTypeFormModal } from '@/features/attendance/components/meeting-type-form-modal'
+import { MeetingTypesTable } from '@/features/attendance/components/meeting-types-table'
 import { Modal } from '@/shared/ui/modal'
 import { Button } from '@/shared/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/shared/ui/dropdown-menu'
-import { Spinner } from '@/shared/ui/spinner'
-import { formatMeetingSchedule, formatSubmissionWindow } from '@/features/attendance/lib/attendance-ui'
 
 export function AttendanceMeetingTypesPage() {
   const { me } = useOutletContext<DashboardOutletContext>()
@@ -83,68 +76,19 @@ export function AttendanceMeetingTypesPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {loading ? (
-        <Spinner label="Loading meeting types…" />
-      ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40 text-left">
-              <tr>
-                <th className="px-4 py-3 font-medium">Title</th>
-                <th className="px-4 py-3 font-medium">Schedule</th>
-                <th className="px-4 py-3 font-medium">Scope</th>
-                <th className="px-4 py-3 font-medium">Submission window</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                {canManage && <th className="px-4 py-3 font-medium" />}
-              </tr>
-            </thead>
-            <tbody>
-              {types.length === 0 ? (
-                <tr>
-                  <td colSpan={canManage ? 6 : 5} className="px-4 py-6 text-muted-foreground">
-                    No meeting types yet.{canManage ? ' Click Add meeting type to get started.' : ''}
-                  </td>
-                </tr>
-              ) : (
-                types.map((type) => (
-                  <tr key={type.id} className="border-b last:border-0">
-                    <td className="px-4 py-3 font-medium">{type.title}</td>
-                    <td className="px-4 py-3">
-                      {formatMeetingSchedule(type)}
-                    </td>
-                    <td className="px-4 py-3">{type.scopeKind}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {formatSubmissionWindow(type, me.timeZoneId)}
-                    </td>
-                    <td className="px-4 py-3">{type.isActive ? 'Active' : 'Inactive'}</td>
-                    {canManage && (
-                      <td className="px-4 py-3 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button type="button" variant="ghost" size="icon" className="size-8">
-                              <MoreHorizontal className="size-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setEditingType(type)}>Edit</DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => setDeletingType(type)}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <MeetingTypesTable
+        types={types}
+        loading={loading}
+        canManage={canManage}
+        timeZoneId={me.timeZoneId}
+        emptyMessage={
+          canManage
+            ? 'No meeting types yet. Click Add meeting type to get started.'
+            : 'No meeting types yet.'
+        }
+        onEdit={setEditingType}
+        onDelete={setDeletingType}
+      />
 
       <MeetingTypeFormModal
         open={createOpen}

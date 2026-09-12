@@ -63,6 +63,9 @@ public class AttendanceMeetingType
     public TimeOnly DeadlineTimeUtc { get; set; }
     public int AutoGenerateWeeksAhead { get; set; } = 8;
     public bool IsAlwaysOpen { get; set; }
+    public bool RequiresReport { get; set; }
+    /// <summary>JSON array of { id, kind, label, required }. Empty when <see cref="RequiresReport"/> is false.</summary>
+    public string ReportSchema { get; set; } = "[]";
     public bool IsActive { get; set; } = true;
     public Guid CreatedByAuthUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -123,6 +126,8 @@ public class AttendanceScopeSubmission
     public DateTimeOffset? LockedAt { get; set; }
     public string GuestRiskLevel { get; set; } = "clear";
     public string GuestRiskReasons { get; set; } = "[]";
+    /// <summary>JSON { schema, answers } frozen on submit. Null when the type does not require a report.</summary>
+    public string? ReportPayload { get; set; }
 }
 
 public class AttendanceEntry

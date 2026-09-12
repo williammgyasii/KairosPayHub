@@ -76,6 +76,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AttendanceSubmissionSupport>();
         services.AddScoped<AttendanceOccurrenceQueryService>();
         services.AddScoped<AttendanceSubmissionService>();
+        services.AddScoped<AttendanceReportService>();
         services.AddScoped<GuestRiskService>();
         services.AddScoped<AttendanceApprovalService>();
         services.AddScoped<AttendanceMemberHistoryService>();

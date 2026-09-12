@@ -1,4 +1,10 @@
 import type { ApiClient } from '@/shared/api/client'
+import type { ReportAnswers, ReportField } from '@/features/attendance/lib/report-policy'
+
+export type AttendanceReportDocument = {
+  schema: ReportField[]
+  answers: ReportAnswers
+}
 
 export type AttendanceMeetingType = {
   id: string
@@ -17,6 +23,8 @@ export type AttendanceMeetingType = {
   isAlwaysOpen: boolean
   isActive: boolean
   createdAt: string
+  requiresReport?: boolean
+  reportSchema?: ReportField[]
 }
 
 export type CreateAttendanceMeetingTypeInput = {
@@ -33,6 +41,8 @@ export type CreateAttendanceMeetingTypeInput = {
   autoGenerateWeeksAhead?: number
   isAlwaysOpen?: boolean
   openNowForDemo?: boolean
+  requiresReport?: boolean
+  reportSchema?: ReportField[]
 }
 
 export type UpdateAttendanceMeetingTypeInput = {
@@ -43,6 +53,8 @@ export type UpdateAttendanceMeetingTypeInput = {
   deadlineTimeUtc?: string
   submissionLayerId?: string | null
   isAlwaysOpen?: boolean
+  requiresReport?: boolean
+  reportSchema?: ReportField[]
 }
 
 export function listMeetingTypes(api: ApiClient) {
@@ -99,6 +111,7 @@ export type AttendanceScopeSubmission = {
   guestsPresent?: number
   firstTimersPresent?: number
   totalPresent?: number
+  report?: AttendanceReportDocument | null
 }
 
 export type AttendanceOccurrenceDetail = {
@@ -180,6 +193,7 @@ export type AttendanceScopeRollCallReview = {
   inviteeEntries: AttendanceInviteeEntry[]
   guestRiskLevel?: string
   guestRiskReasons?: string[]
+  report?: AttendanceReportDocument | null
 }
 
 export function getScopeRollCallReview(
@@ -258,6 +272,7 @@ export function putOccurrenceEntries(
     firstTimers?: Array<{ name: string; phone?: string | null; notes?: string | null }>
     inviteeEntries?: Array<{ inviteeId: string; status: 'Present' | 'Absent'; wasFirstTimer: boolean }>
     pastorOverride?: boolean
+    reportAnswers?: ReportAnswers
   },
 ) {
   return api.put<{ ok: boolean }>(
@@ -296,12 +311,38 @@ export function submitOccurrenceScope(
   api: ApiClient,
   occurrenceId: string,
   scopeNodeId: string,
-  options?: { pastorOverride?: boolean },
+  options?: { pastorOverride?: boolean; reportAnswers?: ReportAnswers },
 ) {
   return api.post<{ ok: boolean }>(
     `/api/attendance/occurrences/${occurrenceId}/scopes/${scopeNodeId}/submit`,
-    { pastorOverride: options?.pastorOverride ?? false },
+    {
+      pastorOverride: options?.pastorOverride ?? false,
+      reportAnswers: options?.reportAnswers,
+    },
   )
+}
+
+export async function uploadReportPhoto(
+  occurrenceId: string,
+  scopeNodeId: string,
+  file: File,
+): Promise<string> {
+  const { apiBaseUrl } = await import('@/shared/api')
+  const { getAccessToken } = await import('@/auth/client')
+  const body = new FormData()
+  body.append('file', file)
+  const token = getAccessToken()
+  const res = await fetch(
+    `${apiBaseUrl()}/api/attendance/occurrences/${occurrenceId}/scopes/${scopeNodeId}/report-photos`,
+    {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body,
+    },
+  )
+  const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+  if (!res.ok || !data.url) throw new Error(data.error ?? 'Could not upload photo')
+  return data.url
 }
 
 export type AttendanceApprovalQueueItem = {

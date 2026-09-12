@@ -25,7 +25,8 @@ public record AttendanceScopeSubmissionDto(
     int MembersAbsent,
     int GuestsPresent,
     int FirstTimersPresent,
-    int TotalPresent);
+    int TotalPresent,
+    AttendanceReportDocumentDto? Report);
 
 public record AttendanceApproveResult(
     bool Ok,
@@ -79,7 +80,8 @@ public record AttendanceScopeRollCallReviewDto(
     IReadOnlyList<AttendanceEntryDto> Entries,
     IReadOnlyList<AttendanceInviteeEntryDto> InviteeEntries,
     string GuestRiskLevel,
-    IReadOnlyList<string> GuestRiskReasons);
+    IReadOnlyList<string> GuestRiskReasons,
+    AttendanceReportDocumentDto? Report);
 
 public record AttendancePresentPersonDto(
     string Name,

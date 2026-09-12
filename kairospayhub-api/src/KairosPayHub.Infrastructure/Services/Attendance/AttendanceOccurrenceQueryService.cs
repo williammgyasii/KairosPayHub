@@ -102,7 +102,8 @@ public class AttendanceOccurrenceQueryService(
                 membersAbsent,
                 guestsPresent,
                 firstTimersPresent,
-                membersPresent + guestsPresent));
+                membersPresent + guestsPresent,
+                AttendanceReportService.ToDto(s.ReportPayload)));
         }
 
         var entries = await support.BuildVisibleEntryDtosAsync(
@@ -180,7 +181,8 @@ public class AttendanceOccurrenceQueryService(
             entryDtos,
             inviteeEntries,
             submission.GuestRiskLevel,
-            GuestRiskService.ParseReasons(submission.GuestRiskReasons));
+            GuestRiskService.ParseReasons(submission.GuestRiskReasons),
+            AttendanceReportService.ToDto(submission.ReportPayload));
     }
 
     public async Task<AttendanceOccurrenceRollupDto> GetOccurrenceRollupAsync(

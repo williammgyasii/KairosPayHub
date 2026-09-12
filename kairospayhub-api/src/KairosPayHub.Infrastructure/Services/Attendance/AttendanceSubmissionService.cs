@@ -1,3 +1,4 @@
+using System.Text.Json;
 using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
@@ -16,7 +17,8 @@ public class AttendanceSubmissionService(
     AttendanceRollCallExtrasService rollCallExtras,
     NotificationService notifications,
     AttendanceSubmissionSupport support,
-    GuestRiskService guestRisk)
+    GuestRiskService guestRisk,
+    AttendanceReportService reports)
 {
     public async Task PutEntriesAsync(
         Actor actor,
@@ -27,11 +29,13 @@ public class AttendanceSubmissionService(
         IReadOnlyList<AttendanceFirstTimerInput> firstTimers,
         IReadOnlyList<AttendanceInviteeEntryInput> inviteeEntries,
         bool pastorOverride,
+        IReadOnlyDictionary<string, JsonElement>? reportAnswers = null,
         CancellationToken ct = default)
     {
         var churchId = support.RequireStructureChurch(actor);
         var occurrence = await db.AttendanceOccurrences
             .Include(o => o.ScopeSubmissions)
+            .Include(o => o.MeetingType)
             .SingleOrDefaultAsync(o => o.Id == occurrenceId && o.ChurchId == churchId, ct)
             ?? throw new ForbiddenException("Occurrence not found");
 
@@ -50,7 +54,7 @@ public class AttendanceSubmissionService(
             throw new ForbiddenException("Attendance is locked for this scope");
         }
 
-        if (updates.Count == 0 && firstTimers.Count == 0 && inviteeEntries.Count == 0)
+        if (updates.Count == 0 && firstTimers.Count == 0 && inviteeEntries.Count == 0 && reportAnswers is null)
             throw new BadRequestException("At least one roll call update is required");
 
         if (updates.Count > 0)
@@ -81,6 +85,9 @@ public class AttendanceSubmissionService(
         if (submission.ApprovalStatus == AttendanceScopeApprovalStatus.Rejected)
             submission.ApprovalStatus = AttendanceScopeApprovalStatus.Draft;
 
+        if (reportAnswers is not null)
+            reports.SaveDraft(occurrence.MeetingType, submission, reportAnswers);
+
         await db.SaveChangesAsync(ct);
     }
 
@@ -90,6 +97,7 @@ public class AttendanceSubmissionService(
         Guid occurrenceId,
         Guid scopeNodeId,
         bool pastorOverride = false,
+        IReadOnlyDictionary<string, JsonElement>? reportAnswers = null,
         CancellationToken ct = default)
     {
         var churchId = support.RequireStructureChurch(actor);
@@ -124,6 +132,8 @@ public class AttendanceSubmissionService(
 
         if (entries.Any(e => e.Status == AttendanceEntryStatus.Unrecorded))
             throw new BadRequestException("Mark every member present or absent before submitting");
+
+        reports.ApplyOnSubmit(occurrence.MeetingType, submission, reportAnswers);
 
         submission.ApprovalStatus = AttendanceScopeApprovalStatus.PendingApproval;
         submission.SubmittedAt = DateTimeOffset.UtcNow;
