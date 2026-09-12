@@ -38,9 +38,9 @@ See proposal.md for why. Today `navForRole` and the Attendance/Givings/Roster tr
 
 **Choice:** Pure function: input = nav entries (+ current pathname for active). Output = `{ tabs, overflow }` where each tab has `id`, `label`, `to` (landing), `active`. More is a tab with no `to`; the engine opens a sheet.
 
-Promotion order is fixed (Home → Attendance → Givings → Roster). Landing path for a group is the first child’s `to` (same as today’s collapsed-group click). Labels on the bar: Home, Attendance, Givings, Roster, More — not “Dashboard” / “Campaigns”.
+Promotion order is fixed (Home → Attendance → Givings → Membership). A group’s landing is usually the first child’s `to`. The Roster group is the exception: the tab lands on Membership (`roster/membership`) and Units stays in More.
 
-**Tests lock two shapes before UI:** church-manager tree (five tabs, Structure/Settings in overflow) and cell-leader / no-Roster tree (no Roster tab, no Structure tab).
+**Tests lock two shapes before UI:** church-manager tree (five tabs, Units/Structure/Settings in overflow) and cell-leader / no-Roster tree (no Membership tab, no Structure tab).
 
 **Alternative:** Role switch in `MobileTabBar`. Rejected — volatility in the engine.
 

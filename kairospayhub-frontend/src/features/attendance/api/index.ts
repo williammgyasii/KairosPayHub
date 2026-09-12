@@ -322,6 +322,76 @@ export function submitOccurrenceScope(
   )
 }
 
+export type MeetingPackFile = {
+  id: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+}
+
+export type MeetingPackReceipt = {
+  authUserId: string
+  name: string
+  seenAt: string | null
+  downloadedAt: string | null
+}
+
+export type MeetingPack = {
+  occurrenceId: string
+  note: string | null
+  publishedAt: string
+  files: MeetingPackFile[]
+  receipts?: MeetingPackReceipt[] | null
+  viewerDownloadedAt?: string | null
+}
+
+export function getMeetingPack(api: ApiClient, occurrenceId: string) {
+  return api.get<MeetingPack>(`/api/attendance/occurrences/${occurrenceId}/pack`)
+}
+
+export async function publishMeetingPack(
+  occurrenceId: string,
+  input: { note: string; keepFileIds: string[]; files: File[] },
+): Promise<MeetingPack> {
+  const { apiBaseUrl } = await import('@/shared/api')
+  const { getAccessToken } = await import('@/auth/client')
+  const body = new FormData()
+  body.append('note', input.note)
+  for (const id of input.keepFileIds) body.append('keepFileIds', id)
+  for (const file of input.files) body.append('files', file)
+  const token = getAccessToken()
+  const res = await fetch(`${apiBaseUrl()}/api/attendance/occurrences/${occurrenceId}/pack`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body,
+  })
+  const data = (await res.json().catch(() => ({}))) as MeetingPack & { error?: string }
+  if (!res.ok) throw new Error(data.error ?? 'Could not share files')
+  return data
+}
+
+export async function downloadMeetingPackFile(
+  occurrenceId: string,
+  fileId: string,
+  fileName: string,
+) {
+  const { apiBaseUrl } = await import('@/shared/api')
+  const { getAccessToken } = await import('@/auth/client')
+  const token = getAccessToken()
+  const res = await fetch(
+    `${apiBaseUrl()}/api/attendance/occurrences/${occurrenceId}/pack/files/${fileId}/download`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  )
+  if (!res.ok) throw new Error('Could not download file')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 export async function uploadReportPhoto(
   occurrenceId: string,
   scopeNodeId: string,

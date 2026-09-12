@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MembershipJoinHeaderActions } from '@/features/roster/components/membership-join-header-actions'
 
 describe('MembershipJoinHeaderActions', () => {
-  it('places Pending members next to Generate join link', async () => {
+  it('keeps tabs on the left and Add invite on the far right', async () => {
     const user = userEvent.setup()
     const onTabChange = vi.fn()
     const onGenerateJoinLink = vi.fn()
@@ -19,7 +19,9 @@ describe('MembershipJoinHeaderActions', () => {
     )
 
     expect(screen.getByRole('button', { name: /pending members/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /generate join link/i })).toBeTruthy()
+    const invite = screen.getByRole('button', { name: /add invite/i })
+    expect(invite).toBeTruthy()
+    expect(invite.className).toMatch(/ml-auto/)
     expect(screen.getByText('2')).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: /pending members/i }))

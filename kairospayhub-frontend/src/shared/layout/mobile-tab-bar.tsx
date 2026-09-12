@@ -5,7 +5,7 @@ import {
   HandCoins,
   Home,
   MoreHorizontal,
-  UsersRound,
+  UserCheck,
   X,
 } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
@@ -18,7 +18,7 @@ const TAB_ICONS: Record<MobileTabId, LucideIcon> = {
   home: Home,
   attendance: ClipboardCheck,
   givings: HandCoins,
-  roster: UsersRound,
+  membership: UserCheck,
   more: MoreHorizontal,
 }
 

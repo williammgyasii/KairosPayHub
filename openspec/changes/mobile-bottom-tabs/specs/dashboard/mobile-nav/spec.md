@@ -29,28 +29,28 @@ Promoted tabs, in order when the role has that destination:
 1. Home — dashboard (`.`)
 2. Attendance — that role’s existing Attendance landing
 3. Givings — that role’s existing Givings landing
-4. Roster — that role’s existing Roster landing (omitted when the sidebar has no Roster)
+4. Membership — that role’s existing Membership destination (omitted when the sidebar has no Roster)
 5. More — overflow for every remaining sidebar destination
 
 If the role has fewer than four promoted destinations, unused slots MUST be omitted (do not invent filler tabs). More MUST still appear whenever any sidebar destination is not promoted.
 
-#### Scenario: Church manager sees five tabs including Roster and More
+#### Scenario: Church manager sees five tabs including Membership and More
 
 - **WHEN** a church manager (pastor / admin) is signed in on a phone
-- **THEN** the tab bar shows Home, Attendance, Givings, Roster, and More
-- **AND** More includes Structure, Settings, and the other sidebar destinations that were not promoted
+- **THEN** the tab bar shows Home, Attendance, Givings, Membership, and More
+- **AND** More includes Units, Structure, Settings, and the other sidebar destinations that were not promoted
 
 #### Scenario: Cell leader without Structure still gets Attendance and Givings
 
 - **WHEN** a cell leader is signed in on a phone
 - **THEN** the tab bar includes Home, Attendance, Givings, and More
-- **AND** Roster appears only if that cell leader’s sidebar already includes Roster
+- **AND** Membership appears only if that cell leader’s sidebar already includes Roster
 - **AND** Structure does not appear as a primary tab
 
-#### Scenario: Leader without Roster does not get a Roster tab
+#### Scenario: Leader without Roster does not get a Membership tab
 
 - **WHEN** a leader whose sidebar has no Roster group is signed in on a phone
-- **THEN** the tab bar does not include Roster
+- **THEN** the tab bar does not include Membership
 - **AND** Home, Attendance (if present), Givings (if present), and More remain
 
 ### Requirement: Tabs navigate existing routes
@@ -70,12 +70,20 @@ Tapping a promoted tab SHALL navigate to that tab’s landing path on the existi
 - **AND** tapping More shows Settings among the overflow destinations
 - **AND** choosing Settings navigates to the existing Settings route
 
+#### Scenario: Units uses More, Membership stays on the tab
+
+- **WHEN** a church manager is on Membership
+- **THEN** the Membership tab is marked active
+- **WHEN** they are on Units
+- **THEN** More is marked active
+- **AND** tapping More shows Units among the overflow destinations
+
 #### Scenario: More lists only leftover destinations
 
 - **WHEN** a leader opens More
 - **THEN** the sheet lists every sidebar destination that is not a promoted tab landing
-- **AND** it does not duplicate Home, Attendance, Givings, or Roster when those are already tabs
-- **AND** sibling destinations under a promoted group still appear (Membership under Roster, Mark attendance under Attendance, Transactions under Givings)
+- **AND** it does not duplicate Home, Attendance, Givings, or Membership when those are already tabs
+- **AND** sibling destinations under a promoted group still appear (Units under Roster, Mark attendance under Attendance, Transactions under Givings)
 
 ### Requirement: Safe area and content clearance
 

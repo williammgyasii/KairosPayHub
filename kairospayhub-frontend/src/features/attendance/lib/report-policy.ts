@@ -69,8 +69,8 @@ export function meetingTypeRequiresReportLabel(type: ReportPolicyInput) {
 }
 
 /** Approval / submission detail: Report is its own pane only when a payload exists. */
-export function approvalDetailPanes(hasReport: boolean) {
-  return hasReport ? (['rollCall', 'report'] as const) : (['rollCall'] as const)
+export function approvalDetailPanes(hasReport: boolean): ReadonlyArray<'rollCall' | 'report'> {
+  return hasReport ? ['rollCall', 'report'] : ['rollCall']
 }
 
 export function newReportField(kind: ReportFieldKind): ReportField {

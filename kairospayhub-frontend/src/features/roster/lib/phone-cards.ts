@@ -5,11 +5,13 @@ import type { StructureMemberRow, StructureUnitNodeRow } from '@/lib/structure-t
 export function membershipPhoneCard(
   row: StructureMemberRow,
   layers: MembershipLayerRef[],
+  options: { includePhoneLine?: boolean } = {},
 ) {
   const deepest = row.structure.at(-1)
+  const unitRole = [deepest?.nodeName, row.role].filter(Boolean).join(' · ')
   return phoneListCard({
     title: row.member,
-    lines: [[deepest?.nodeName, row.role].filter(Boolean).join(' · '), row.phone],
+    lines: options.includePhoneLine === false ? [unitRole] : [unitRole, row.phone],
     details: [
       { label: 'Email', value: row.email },
       { label: 'Phone', value: row.phone },

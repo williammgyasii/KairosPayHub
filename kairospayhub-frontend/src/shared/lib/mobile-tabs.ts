@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import { isSidebarNavItemActive } from '@/lib/sidebar-nav'
 import type { NavEntry } from '@/shared/lib/dashboard-nav'
 
-export type MobileTabId = 'home' | 'attendance' | 'givings' | 'roster' | 'more'
+export type MobileTabId = 'home' | 'attendance' | 'givings' | 'membership' | 'more'
 
 export type MobileTab = {
   id: MobileTabId
@@ -47,8 +47,8 @@ const PROMOTED: { id: Exclude<MobileTabId, 'more'>; label: string; match: (entry
           : entry.to === 'givings' || entry.to.startsWith('givings/'),
     },
     {
-      id: 'roster',
-      label: 'Roster',
+      id: 'membership',
+      label: 'Membership',
       match: (entry) =>
         entry.kind === 'group'
           ? entry.label === 'Roster'
@@ -56,12 +56,25 @@ const PROMOTED: { id: Exclude<MobileTabId, 'more'>; label: string; match: (entry
     },
   ]
 
-function landingTo(entry: NavEntry): string {
+function membershipChild(entry: NavEntry) {
+  if (entry.kind !== 'group') return null
+  return entry.children.find((child) => child.to === 'roster/membership' || child.to === 'membership') ?? null
+}
+
+function landingTo(entry: NavEntry, tabId?: MobileTabId): string {
+  if (tabId === 'membership') {
+    const member = membershipChild(entry)
+    if (member) return member.to
+  }
   if (entry.kind === 'item') return entry.to
   return entry.children[0]?.to ?? '.'
 }
 
-function isEntryActive(pathname: string, entry: NavEntry): boolean {
+function isEntryActive(pathname: string, entry: NavEntry, tabId?: MobileTabId): boolean {
+  if (tabId === 'membership') {
+    const member = membershipChild(entry)
+    if (member) return isSidebarNavItemActive(pathname, member)
+  }
   if (entry.kind === 'item') return isSidebarNavItemActive(pathname, entry)
   return entry.children.some((child) => isSidebarNavItemActive(pathname, child))
 }
@@ -80,10 +93,10 @@ function flattenDestinations(entries: NavEntry[]): MobileOverflowItem[] {
   return items
 }
 
-/** Tab landing stays on the tab; sibling destinations still need a home (e.g. Membership). */
-function leftoverChildren(entry: NavEntry): MobileOverflowItem[] {
+/** Tab landing stays on the tab; sibling destinations still need a home (e.g. Units). */
+function leftoverChildren(entry: NavEntry, tabId: MobileTabId): MobileOverflowItem[] {
   if (entry.kind !== 'group') return []
-  const landing = landingTo(entry)
+  const landing = landingTo(entry, tabId)
   return entry.children
     .filter((child) => child.to !== landing)
     .map((child) => ({ label: child.label, to: child.to, end: child.end, icon: child.icon }))
@@ -99,14 +112,15 @@ export function createMobileTabs(entries: NavEntry[], pathname: string): MobileT
   const leftover = entries.filter((entry) => !promoted.some(({ entry: picked }) => picked === entry))
   const overflow = [
     ...flattenDestinations(leftover),
-    ...promoted.flatMap(({ entry }) => leftoverChildren(entry)),
+    ...promoted.flatMap(({ slot, entry }) => leftoverChildren(entry, slot.id)),
   ]
 
   const tabs: MobileTab[] = promoted.map(({ slot, entry }) => ({
     id: slot.id,
-    label: slot.label,
-    to: landingTo(entry),
-    active: isEntryActive(pathname, entry),
+    label:
+      slot.id === 'membership' ? membershipChild(entry)?.label ?? slot.label : slot.label,
+    to: landingTo(entry, slot.id),
+    active: isEntryActive(pathname, entry, slot.id),
   }))
 
   if (overflow.length > 0) {

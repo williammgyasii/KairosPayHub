@@ -101,6 +101,45 @@ public class AttendanceOccurrence
     public ICollection<AttendanceScopeSubmission> ScopeSubmissions { get; set; } =
         new List<AttendanceScopeSubmission>();
     public ICollection<AttendanceEntry> Entries { get; set; } = new List<AttendanceEntry>();
+    public AttendanceMeetingPack? Pack { get; set; }
+}
+
+public class AttendanceMeetingPack
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ChurchId { get; set; }
+    public Guid OccurrenceId { get; set; }
+    public AttendanceOccurrence? Occurrence { get; set; }
+    public string? Note { get; set; }
+    public string ContentFingerprint { get; set; } = string.Empty;
+    public Guid PublishedByAuthUserId { get; set; }
+    public DateTimeOffset PublishedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public ICollection<AttendanceMeetingPackFile> Files { get; set; } = new List<AttendanceMeetingPackFile>();
+    public ICollection<AttendanceMeetingPackReceipt> Receipts { get; set; } =
+        new List<AttendanceMeetingPackReceipt>();
+}
+
+public class AttendanceMeetingPackFile
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid PackId { get; set; }
+    public AttendanceMeetingPack? Pack { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string StorageKey { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long SizeBytes { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public class AttendanceMeetingPackReceipt
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid PackId { get; set; }
+    public AttendanceMeetingPack? Pack { get; set; }
+    public Guid AuthUserId { get; set; }
+    public DateTimeOffset? SeenAt { get; set; }
+    public DateTimeOffset? DownloadedAt { get; set; }
 }
 
 public class AttendanceScopeSubmission

@@ -93,6 +93,13 @@ Who may create a campaign or sub-campaign, who may bulk-log, and who approves a 
 - **WHEN** the actor’s leadership is church-wide
 - **THEN** they may not log contributions
 
+#### Scenario: Log giving chooses single or batch from a menu
+
+- **WHEN** a leader who can log giving taps Log giving
+- **THEN** a menu offers Single giving and Batch giving
+- **AND** choosing one opens the log wizard already in that mode
+- **AND** the wizard does not ask them to pick the mode again
+
 ### Requirement: Create and sub-campaign forms are single-page
 
 Create campaign and add sub-campaign SHALL present details, schedule, and scope on one form with a short summary. Add sub-campaign MUST NOT require a separate Mode, Schedule, Scope, and Review stepper.

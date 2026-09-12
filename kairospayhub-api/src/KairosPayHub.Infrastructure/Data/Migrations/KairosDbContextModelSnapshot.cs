@@ -452,6 +452,107 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.ToTable("attendance_invitee_entries", (string)null);
                 });
 
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPack", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChurchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PublishedByAuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurrenceId")
+                        .IsUnique();
+
+                    b.ToTable("attendance_meeting_packs", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPackFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<Guid>("PackId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PackId");
+
+                    b.ToTable("attendance_meeting_pack_files", (string)null);
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPackReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DownloadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PackId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("SeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PackId", "AuthUserId")
+                        .IsUnique();
+
+                    b.ToTable("attendance_meeting_pack_receipts", (string)null);
+                });
+
             modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingType", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1792,6 +1893,39 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Navigation("Occurrence");
                 });
 
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPack", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", "Occurrence")
+                        .WithOne("Pack")
+                        .HasForeignKey("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPack", "OccurrenceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Occurrence");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPackFile", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPack", "Pack")
+                        .WithMany("Files")
+                        .HasForeignKey("PackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Pack");
+                });
+
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPackReceipt", b =>
+                {
+                    b.HasOne("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPack", "Pack")
+                        .WithMany("Receipts")
+                        .HasForeignKey("PackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Pack");
+                });
+
             modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingType", b =>
                 {
                     b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
@@ -2135,6 +2269,13 @@ namespace KairosPayHub.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingPack", b =>
+                {
+                    b.Navigation("Files");
+
+                    b.Navigation("Receipts");
+                });
+
             modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceMeetingType", b =>
                 {
                     b.Navigation("Occurrences");
@@ -2145,6 +2286,8 @@ namespace KairosPayHub.Api.Data.Migrations
             modelBuilder.Entity("KairosPayHub.Api.Domain.Attendance.AttendanceOccurrence", b =>
                 {
                     b.Navigation("Entries");
+
+                    b.Navigation("Pack");
 
                     b.Navigation("ScopeSubmissions");
                 });

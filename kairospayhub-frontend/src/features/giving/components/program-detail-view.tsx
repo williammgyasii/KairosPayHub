@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { HandCoins, Plus, Settings } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import type { Me } from '@/api/auth'
 import type { ApiClient } from '@/shared/api'
 import type { Contribution, ContributionListSummary, GivingProgram, GivingProgramRollup } from '@/features/giving/api'
@@ -25,6 +25,7 @@ import { ContributionsApprovalTable } from '@/features/giving/components/contrib
 import { CreateSubPeriodWizard } from '@/features/giving/components/create-sub-period-wizard'
 import { CampaignSettingsModal } from '@/features/giving/components/campaign-settings-modal'
 import { LogContributionWizard } from '@/features/giving/components/log-contribution-wizard'
+import { LogGivingMenu, type LogGivingMode } from '@/features/giving/components/log-giving-menu'
 import { ProgramDashboard, normalizeProgramDetailTab, type ProgramDetailTab } from '@/features/giving/components/program-dashboard'
 import { ProgramDetailTabs } from '@/features/giving/components/program-detail-tabs'
 import { ProgramStatusBadge, ScopeKindBadge } from '@/features/giving/components/giving-badges'
@@ -104,6 +105,7 @@ export function ProgramDetailView({
     receivePolicy.canLogOnProgram
   const [subGivingOpen, setSubGivingOpen] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
+  const [logMode, setLogMode] = useState<LogGivingMode>('single')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [txStatus, setTxStatus] = useState<'pending' | 'approved' | 'all'>('all')
   const showSubGivings = program.hasChildren || !program.parentProgramId
@@ -306,10 +308,12 @@ export function ProgramDetailView({
             <ScopeKindBadge scopeKind={program.scopeKind} />
             <ProgramStatusBadge status={program.status} />
             {canLogContributions && (
-              <Button type="button" size="sm" className="gap-1.5" onClick={() => setLogOpen(true)}>
-                <HandCoins className="size-4" />
-                Log giving
-              </Button>
+              <LogGivingMenu
+                onSelect={(mode) => {
+                  setLogMode(mode)
+                  setLogOpen(true)
+                }}
+              />
             )}
             {churchManager && isRootProgram && (
               <Button
@@ -493,13 +497,14 @@ export function ProgramDetailView({
           onOpenChange={(nextOpen) => {
             if (!nextOpen && !busy) setLogOpen(false)
           }}
-          title="Log giving"
+          title={logMode === 'bulk' ? 'Batch giving' : 'Single giving'}
           size="lg"
           className="max-h-[min(88vh,680px)]"
           contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
         >
           <LogContributionWizard
             embedded
+            initialMode={logMode}
             api={api}
             programId={program.id}
             meRole={me.role}

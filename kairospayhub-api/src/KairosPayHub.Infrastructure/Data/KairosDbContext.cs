@@ -49,6 +49,12 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         Set<Domain.Attendance.AttendanceCellInvitee>();
     public DbSet<Domain.Attendance.AttendanceInviteeEntry> AttendanceInviteeEntries =>
         Set<Domain.Attendance.AttendanceInviteeEntry>();
+    public DbSet<Domain.Attendance.AttendanceMeetingPack> AttendanceMeetingPacks =>
+        Set<Domain.Attendance.AttendanceMeetingPack>();
+    public DbSet<Domain.Attendance.AttendanceMeetingPackFile> AttendanceMeetingPackFiles =>
+        Set<Domain.Attendance.AttendanceMeetingPackFile>();
+    public DbSet<Domain.Attendance.AttendanceMeetingPackReceipt> AttendanceMeetingPackReceipts =>
+        Set<Domain.Attendance.AttendanceMeetingPackReceipt>();
     public DbSet<Domain.Administrators.ChurchAdministrator> ChurchAdministrators =>
         Set<Domain.Administrators.ChurchAdministrator>();
     public DbSet<Domain.Events.ChurchCalendarEvent> ChurchCalendarEvents =>
@@ -321,6 +327,41 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.HasOne(x => x.Invitee)
                 .WithMany()
                 .HasForeignKey(x => x.InviteeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceMeetingPack>(e =>
+        {
+            e.ToTable("attendance_meeting_packs");
+            e.Property(x => x.Note).HasMaxLength(4000);
+            e.Property(x => x.ContentFingerprint).IsRequired().HasMaxLength(200);
+            e.HasIndex(x => x.OccurrenceId).IsUnique();
+            e.HasOne(x => x.Occurrence)
+                .WithOne(o => o.Pack)
+                .HasForeignKey<Domain.Attendance.AttendanceMeetingPack>(x => x.OccurrenceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceMeetingPackFile>(e =>
+        {
+            e.ToTable("attendance_meeting_pack_files");
+            e.Property(x => x.FileName).IsRequired().HasMaxLength(260);
+            e.Property(x => x.StorageKey).IsRequired().HasMaxLength(500);
+            e.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
+            e.HasIndex(x => x.PackId);
+            e.HasOne(x => x.Pack)
+                .WithMany(p => p.Files)
+                .HasForeignKey(x => x.PackId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Attendance.AttendanceMeetingPackReceipt>(e =>
+        {
+            e.ToTable("attendance_meeting_pack_receipts");
+            e.HasIndex(x => new { x.PackId, x.AuthUserId }).IsUnique();
+            e.HasOne(x => x.Pack)
+                .WithMany(p => p.Receipts)
+                .HasForeignKey(x => x.PackId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

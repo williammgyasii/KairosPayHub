@@ -13,6 +13,7 @@ import {
   PieChart,
   Receipt,
   Settings2,
+  Share2,
   ShieldCheck,
   UserCheck,
   UsersRound,
@@ -79,6 +80,7 @@ function attendanceNavForRole(me: Me & { onboarded: true }): NavEntry {
 
   if (canManageChurch(role)) {
     children.push({ to: 'attendance', label: 'Meeting types', icon: CalendarCog, end: true })
+    children.push({ to: 'attendance/packs', label: 'Share files', icon: Share2, end: true })
   }
 
   if (canSubmitRollCall(me)) {

@@ -57,7 +57,17 @@ export function membershipRowToneClass(tone: MembershipRowTone): string {
 }
 
 export function membershipNewBadgeClass(): string {
-  return 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600'
+  return '!rounded-md border-emerald-200 bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
+}
+
+/** Dialable href, or null when the value is not a real number. */
+export function membershipCallHref(phone: string): string | null {
+  const trimmed = phone.trim()
+  if (!trimmed) return null
+  const compact = trimmed.replace(/[^\d+]/g, '')
+  const digits = compact.replace(/\D/g, '')
+  if (digits.length < 7) return null
+  return `tel:${compact.startsWith('+') ? `+${digits}` : digits}`
 }
 
 export function membershipYouBadgeClass(): string {

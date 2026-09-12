@@ -33,6 +33,7 @@ import {
 import {
   AttendanceApprovalsPage,
   AttendanceApproverRoute,
+  AttendanceMeetingPacksPage,
   AttendanceMeetingTypesPage,
   AttendanceOverviewPage,
   AttendanceOverviewRoute,
@@ -178,6 +179,14 @@ export default function App() {
         />
         <Route path="attendance/overall" element={<Navigate to="/attendance/overview" replace />} />
         <Route path="attendance/submissions" element={<AttendanceSubmissionsPage />} />
+        <Route
+          path="attendance/packs"
+          element={
+            <PastorRoute>
+              <AttendanceMeetingPacksPage />
+            </PastorRoute>
+          }
+        />
         <Route
           path="attendance"
           element={

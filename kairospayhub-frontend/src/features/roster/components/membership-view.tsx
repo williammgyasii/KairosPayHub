@@ -247,6 +247,7 @@ export function MembershipView({
       <StructureMemberTable
         rows={filteredRows}
         structureLayers={structureLayers}
+        phoneChrome="flush"
         title={tableTitle}
         extendedColumns
         columnVisibility={columnVisibility}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Copy, Link2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApi } from '@/shared/api'
 import { joinInviteUrl, type JoinInvite } from '@/api/join'
@@ -66,10 +67,10 @@ export function GenerateJoinLinkDialog({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title="Generate join link"
+      title="Add invite"
       description="People open this link or scan the QR, enter their details, and wait for you to accept them."
     >
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {error && (
           <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}
@@ -80,7 +81,7 @@ export function GenerateJoinLinkDialog({
           <Label htmlFor="join-duration">Link lasts</Label>
           <select
             id="join-duration"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            className="h-10 w-full rounded-md border border-sky-200 bg-sky-50/60 px-3 text-sm"
             value={days}
             onChange={(e) => setDays(Number(e.target.value) as 1 | 7 | 30)}
           >
@@ -92,25 +93,40 @@ export function GenerateJoinLinkDialog({
           </select>
         </div>
 
-        <Button type="button" onClick={() => void generate()} disabled={busy}>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full border-sky-200 text-sky-800 hover:bg-sky-50"
+          onClick={() => void generate()}
+          disabled={busy}
+        >
+          <RefreshCw className="size-4" />
           {invite ? 'Generate new link' : 'Generate link'}
         </Button>
         {invite && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-center text-xs text-muted-foreground">
             Generating again invalidates the previous link.
           </p>
         )}
 
         {url && (
-          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/10 p-4">
-            <p className="break-all text-sm">{url}</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => void copyLink()}>
-                Copy link
-              </Button>
-              <JoinQrCode url={url} />
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-5">
+            <div className="flex items-center gap-2 text-xs font-medium text-sky-800">
+              <Link2 className="size-3.5" />
+              Scan to join
             </div>
+            <JoinQrCode url={url} />
+            <p className="w-full break-all rounded-md bg-white/80 px-3 py-2 text-center text-xs text-sky-950">
+              {url}
+            </p>
           </div>
+        )}
+
+        {url && (
+          <Button type="button" className="w-full" onClick={() => void copyLink()}>
+            <Copy className="size-4" />
+            Copy link
+          </Button>
         )}
       </div>
     </Modal>

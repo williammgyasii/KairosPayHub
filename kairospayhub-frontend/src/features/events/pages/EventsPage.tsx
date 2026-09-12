@@ -121,7 +121,7 @@ export function EventsPage() {
   }
 
   return (
-    <div className="-mx-4 -my-5 flex h-[calc(100dvh-3.5rem)] flex-col gap-1.5 overflow-hidden px-4 sm:-mx-6 sm:-my-6 sm:gap-2 sm:px-6">
+    <div className="-mx-4 -my-5 flex h-[calc(100dvh-8.5rem-env(safe-area-inset-bottom))] min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-3 lg:h-[calc(100dvh-4.5rem)] sm:-mx-6 sm:-my-6 sm:gap-2 sm:px-6">
       <div className="flex shrink-0 items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Events</h1>
@@ -150,7 +150,7 @@ export function EventsPage() {
       {loading && events.length === 0 ? (
         <Spinner label="Loading calendar…" />
       ) : (
-        <div className="min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col">
           <EventsCalendarGrid
             month={month}
             onMonthChange={setMonth}

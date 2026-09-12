@@ -13,12 +13,13 @@ A leader whose scope is a unit on the deepest template layer SHALL be able to cr
 - **WHEN** a deepest-layer leader generates a join link and chooses 7 days
 - **THEN** they receive a URL and QR for that unit
 - **AND** the token expires after 7 days
+- **AND** the dialog stacks duration, QR, then a Copy link action at the bottom
 
 #### Scenario: Mid-layer leader cannot generate
 
 - **WHEN** a fellowship (or other non-deepest) leader tries to mint a join token
 - **THEN** the request is rejected
-- **AND** Membership does not offer Generate join link
+- **AND** Membership does not offer Add invite
 
 #### Scenario: New token replaces the old one
 

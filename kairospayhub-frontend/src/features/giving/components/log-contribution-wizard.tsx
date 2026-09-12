@@ -39,8 +39,9 @@ import {
   givingScopePolicy,
   leadershipFromProfile,
 } from '@/features/giving/lib/giving-scope-policy'
+import type { LogGivingMode } from '@/features/giving/components/log-giving-menu'
 
-type LogMode = 'single' | 'bulk'
+type LogMode = LogGivingMode
 
 type MemberLine = {
   memberId: string
@@ -71,6 +72,7 @@ interface LogContributionWizardProps {
   className?: string
   onCancel?: () => void
   onLogged: () => void | Promise<void>
+  initialMode?: LogMode
 }
 
 const SINGLE_STEPS = ['Member', 'Payment'] as const
@@ -88,6 +90,7 @@ export function LogContributionWizard({
   className,
   onCancel,
   onLogged,
+  initialMode,
 }: LogContributionWizardProps) {
   const actorLeadership = leadershipFromProfile(leadershipProfile, meRole)
   const canBulkLog = tree
@@ -99,7 +102,9 @@ export function LogContributionWizard({
     : actorLeadership === 'churchWide' || actorLeadership === 'intermediate'
   const currency = getChurchDefaultCurrency()
 
-  const [mode, setMode] = useState<LogMode | null>(canBulkLog ? null : 'single')
+  const [mode, setMode] = useState<LogMode | null>(
+    initialMode ?? (canBulkLog ? null : 'single'),
+  )
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [busy, setBusy] = useState(false)
@@ -273,7 +278,7 @@ export function LogContributionWizard({
     setReceipts([])
     setDirection('forward')
     setStep(0)
-    setMode(canBulkLog ? null : 'single')
+    setMode(initialMode ?? (canBulkLog ? null : 'single'))
   }
 
   function handleNext() {

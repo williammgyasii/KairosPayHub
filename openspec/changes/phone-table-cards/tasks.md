@@ -13,6 +13,7 @@
 
 - [x] 3.1 Wire Membership (`structure-member-table`) and verify phone cards + details include omitted profile columns
 - [x] 3.2 Wire Units (`structure-unit-node-table`) and verify name / parent / members on the card and in details
+- [x] 3.3 Membership phone list opts into `PhoneList` flush: no nested cards, New on the bottom row (light / squared), `tel:` on the number without opening details; Units stay on cards
 
 ## 4. Attendance
 

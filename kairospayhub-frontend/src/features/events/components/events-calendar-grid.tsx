@@ -54,7 +54,7 @@ export function EventsCalendarGrid({
   }, [month])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/60 bg-background">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background lg:rounded-xl lg:border lg:border-border/60">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-2.5 py-1.5 sm:px-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold tracking-tight sm:text-base">{format(month, 'MMMM yyyy')}</h2>
@@ -72,7 +72,7 @@ export function EventsCalendarGrid({
         </div>
       </div>
 
-      <div className="grid shrink-0 grid-cols-7 border-b border-border/60 bg-muted/20 text-center text-[9px] font-medium uppercase tracking-wide text-muted-foreground sm:text-[10px]">
+      <div className="grid shrink-0 grid-cols-7 border-b border-border/60 bg-muted/20 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-[11px]">
         {WEEKDAY_LABELS.map((label) => (
           <div key={label} className="px-0.5 py-1 sm:px-1 sm:py-1.5">
             {label}

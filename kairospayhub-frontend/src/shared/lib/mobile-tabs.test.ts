@@ -35,44 +35,45 @@ function overflowLabels(entries: NavEntry[], pathname = '/') {
 }
 
 describe('createMobileTabs', () => {
-  it('promotes Home, Attendance, Givings, Roster, More for a church manager', () => {
+  it('promotes Home, Attendance, Givings, Membership, More for a church manager', () => {
     const tree = navForRole(me('Pastor'))
-    expect(tabLabels(tree)).toEqual(['Home', 'Attendance', 'Givings', 'Roster', 'More'])
+    expect(tabLabels(tree)).toEqual(['Home', 'Attendance', 'Givings', 'Membership', 'More'])
     expect(overflowLabels(tree)).toEqual(
       expect.arrayContaining([
         'Structure',
         'Settings',
         'Events',
         'Access',
-        'Membership',
+        'Units',
         'Metrics',
+        'Share files',
         'Transactions',
       ]),
     )
     expect(overflowLabels(tree)).not.toEqual(
-      expect.arrayContaining(['Units', 'Campaigns', 'Meeting types']),
+      expect.arrayContaining(['Membership', 'Campaigns', 'Meeting types']),
     )
   })
 
-  it('puts Membership in More instead of hiding it under the Roster tab', () => {
+  it('puts Units in More instead of hiding it under the Membership tab', () => {
     const tree = navForRole(me('Pastor'))
     const overflow = createMobileTabs(tree, '/').overflow
-    expect(overflow.some((item) => item.to === 'roster/membership')).toBe(true)
-    expect(overflow.some((item) => item.to === 'roster' && item.label === 'Units')).toBe(false)
+    expect(overflow.some((item) => item.to === 'roster' && item.label === 'Units')).toBe(true)
+    expect(overflow.some((item) => item.to === 'roster/membership')).toBe(false)
   })
 
-  it('includes Roster for a cell leader when the tree has Roster, never Structure as a tab', () => {
+  it('includes Membership for a cell leader when the tree has Roster, never Structure as a tab', () => {
     const tree = navForRole(me('CellLeader', { canMarkAttendance: true }))
-    expect(tabIds(tree)).toEqual(['home', 'attendance', 'givings', 'roster', 'more'])
+    expect(tabIds(tree)).toEqual(['home', 'attendance', 'givings', 'membership', 'more'])
     expect(tabLabels(tree)).not.toContain('Structure')
     expect(overflowLabels(tree)).toContain('Events')
     expect(overflowLabels(tree)).not.toContain('Structure')
   })
 
-  it('omits Roster when the tree has no Roster group', () => {
+  it('omits Membership when the tree has no Roster group', () => {
     const tree = navForRole(me('Leader'))
     expect(tabIds(tree)).toEqual(['home', 'attendance', 'givings', 'more'])
-    expect(tabLabels(tree)).not.toContain('Roster')
+    expect(tabLabels(tree)).not.toContain('Membership')
     expect(overflowLabels(tree)).toEqual(expect.arrayContaining(['Transactions', 'Overall givings']))
     expect(overflowLabels(tree)).not.toContain('Campaigns')
   })
@@ -82,6 +83,15 @@ describe('createMobileTabs', () => {
     const { tabs } = createMobileTabs(tree, '/attendance/overview')
     const active = tabs.filter((tab) => tab.active).map((tab) => tab.id)
     expect(active).toEqual(['attendance'])
+  })
+
+  it('marks Membership active on membership, More on Units', () => {
+    const tree = navForRole(me('Pastor'))
+    const membership = createMobileTabs(tree, '/roster/membership')
+    expect(membership.tabs.filter((tab) => tab.active).map((tab) => tab.id)).toEqual(['membership'])
+
+    const units = createMobileTabs(tree, '/roster')
+    expect(units.tabs.filter((tab) => tab.active).map((tab) => tab.id)).toEqual(['more'])
   })
 
   it('marks More active on Settings', () => {
@@ -96,7 +106,7 @@ describe('createMobileTabs', () => {
     expect(pastor.tabs.find((tab) => tab.id === 'home')?.to).toBe('.')
     expect(pastor.tabs.find((tab) => tab.id === 'attendance')?.to).toBe('attendance')
     expect(pastor.tabs.find((tab) => tab.id === 'givings')?.to).toBe('givings')
-    expect(pastor.tabs.find((tab) => tab.id === 'roster')?.to).toBe('roster')
+    expect(pastor.tabs.find((tab) => tab.id === 'membership')?.to).toBe('roster/membership')
     expect(pastor.tabs.find((tab) => tab.id === 'more')?.to).toBeUndefined()
 
     const cell = createMobileTabs(navForRole(me('CellLeader', { canMarkAttendance: true })), '/')

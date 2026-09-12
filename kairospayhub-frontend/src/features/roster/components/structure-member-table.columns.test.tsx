@@ -162,4 +162,30 @@ describe('membership phone list', () => {
 
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: previous })
   })
+
+  it('flush membership rows put New on the bottom and keep tel off the details tap', () => {
+    const previous = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    render(
+      <StructureMemberTable
+        rows={[{ ...row, phone: '+1 202 555 1001', createdAt: new Date().toISOString() }]}
+        structureLayers={layers}
+        phoneChrome="flush"
+        showSearch={false}
+        hideHeader
+      />,
+    )
+
+    const flushRow = screen.getByTestId('phone-list-row')
+    expect(flushRow.getAttribute('data-variant')).toBe('flush')
+    expect(flushRow.className).not.toMatch(/rounded-xl/)
+    expect(screen.getByText('New')).toBeTruthy()
+
+    const call = screen.getByRole('link', { name: '+1 202 555 1001' })
+    expect(call.getAttribute('href')).toBe('tel:+12025551001')
+    expect(call.closest('button')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: previous })
+  })
 })

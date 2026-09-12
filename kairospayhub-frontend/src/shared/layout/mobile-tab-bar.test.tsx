@@ -43,6 +43,7 @@ function renderBar(role: Extract<Me, { onboarded: true }>['role'] = 'Pastor', pa
           <Route path="attendance" element={<p>attendance landing</p>} />
           <Route path="attendance/submissions" element={<p>mark attendance</p>} />
           <Route path="givings" element={<p>givings page</p>} />
+          <Route path="roster/membership" element={<p>membership page</p>} />
           <Route path="settings" element={<p>settings page</p>} />
         </Route>
       </Routes>
@@ -51,6 +52,14 @@ function renderBar(role: Extract<Me, { onboarded: true }>['role'] = 'Pastor', pa
 }
 
 describe('MobileTabBar', () => {
+  it('navigates to Membership from the bottom tab', async () => {
+    const user = userEvent.setup()
+    renderBar('Pastor')
+
+    await user.click(screen.getByRole('link', { name: 'Membership' }))
+    expect(screen.getByText('membership page')).toBeTruthy()
+  })
+
   it('navigates to the role’s Attendance landing', async () => {
     const user = userEvent.setup()
     renderBar('Pastor')
@@ -70,9 +79,10 @@ describe('MobileTabBar', () => {
     const sheet = screen.getByRole('dialog', { name: 'More' })
     expect(sheet.textContent).toMatch(/Structure/)
     expect(sheet.textContent).toMatch(/Settings/)
-    expect(sheet.textContent).toMatch(/Membership/)
+    expect(sheet.textContent).toMatch(/Units/)
+    expect(sheet.textContent).toMatch(/Share files/)
     expect(sheet.textContent).not.toMatch(/Home/)
-    expect(sheet.textContent).not.toMatch(/Units/)
+    expect(sheet.textContent).not.toMatch(/Membership/)
     expect(sheet.textContent).not.toMatch(/Campaigns/)
   })
 

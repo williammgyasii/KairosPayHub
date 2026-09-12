@@ -10,6 +10,8 @@ interface SideSheetProps {
   description?: string
   children: React.ReactNode
   className?: string
+  /** page = full viewport below lg; rail = right drawer (default). */
+  cover?: 'rail' | 'page'
 }
 
 export function SideSheet({
@@ -19,6 +21,7 @@ export function SideSheet({
   description,
   children,
   className,
+  cover = 'rail',
 }: SideSheetProps) {
   useEffect(() => {
     if (!open) return
@@ -36,7 +39,7 @@ export function SideSheet({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-[60]">
       <button
         type="button"
         className="absolute inset-0 bg-black/40"
@@ -47,8 +50,12 @@ export function SideSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby="side-sheet-title"
+        data-cover={cover}
         className={cn(
-          'absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l bg-background shadow-xl',
+          'absolute flex flex-col bg-background shadow-xl',
+          cover === 'page'
+            ? 'inset-0 z-10 w-full max-w-none pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:left-auto lg:right-0 lg:w-full lg:max-w-md lg:border-l lg:pb-0'
+            : 'inset-y-0 right-0 w-full max-w-md border-l',
           className,
         )}
       >

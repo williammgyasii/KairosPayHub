@@ -103,5 +103,9 @@ describe('isSidebarNavItemActive', () => {
     expect(isSidebarNavItemActive('/attendance/approvals', { to: 'attendance/overview' })).toBe(
       false,
     )
+    expect(isSidebarNavItemActive('/attendance/packs', { to: 'attendance/packs', end: true })).toBe(
+      true,
+    )
+    expect(isSidebarNavItemActive('/attendance/packs', { to: 'attendance', end: true })).toBe(false)
   })
 })

@@ -225,6 +225,7 @@ export function MemberTableToolbar({
               variant={filtersOpen ? 'secondary' : 'outline'}
               size="sm"
               className="h-9 gap-1.5"
+              aria-label="Filters"
               onClick={() => {
                 if (filtersOpen && rules.length === 0) {
                   addRule()
@@ -234,7 +235,7 @@ export function MemberTableToolbar({
               }}
             >
               <Filter className="size-3.5" />
-              Filters
+              <span className="hidden sm:inline">Filters</span>
               {activeCount > 0 && (
                 <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
                   {activeCount}
@@ -245,9 +246,15 @@ export function MemberTableToolbar({
             {showColumnToggles && columnVisibility && onColumnVisibilityChange ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-9 gap-1.5"
+                    aria-label="Columns"
+                  >
                     <Columns3 className="size-3.5" />
-                    Columns
+                    <span className="hidden sm:inline">Columns</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="max-h-80 w-56 overflow-y-auto">

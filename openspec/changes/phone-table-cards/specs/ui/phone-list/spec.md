@@ -12,9 +12,36 @@ A product list table is any roster, attendance, or giving screen that today show
 
 #### Scenario: Phone shows cards
 
-- **WHEN** a leader opens Membership, Units, Attendance All, Attendance by units, Approvals, or a Giving list on a phone-width viewport
+- **WHEN** a leader opens Units, Attendance All, Attendance by units, Approvals, or a Giving list on a phone-width viewport
 - **THEN** each row is a card with a title, up to two secondary lines, and any existing row badges (You, New, Pending)
 - **AND** the page does not require horizontal scrolling to read those card fields
+
+### Requirement: Membership phone list is flush, not nested cards
+
+On a phone-width viewport, Membership SHALL render as edge-to-edge divider rows instead of a bordered table card wrapping bordered row cards. Other phone lists MAY keep stacked cards until they opt into the same chrome.
+
+The Membership row SHALL use a grid: name and actions on the first row, unit and role on the second, and a bottom row with a callable phone number and any New / You / Pending mark. The New mark MUST use a light green, not-fully-pill badge.
+
+Tapping the phone number SHALL start a call (`tel:`) and MUST NOT open the details modal. Tapping the rest of the row SHALL still open details.
+
+#### Scenario: Membership uses the viewport, not cards in cards
+
+- **WHEN** a leader opens Membership on a phone-width viewport
+- **THEN** the member list has no outer rounded card and no per-row rounded card
+- **AND** rows are separated by dividers and span the content width
+- **AND** Units and other phone lists still show stacked cards
+
+#### Scenario: New sits on the bottom row in a light badge
+
+- **WHEN** a recently added member appears on the Membership phone list
+- **THEN** New is on the bottom row of that item, not beside the name
+- **AND** the badge is light green and less rounded than a pill
+
+#### Scenario: Phone number can be called from the row
+
+- **WHEN** a member row shows a phone number on the Membership phone list
+- **THEN** that number is a `tel:` link
+- **AND** tapping it does not open the details modal
 
 #### Scenario: Tablet keeps the grid
 
@@ -31,6 +58,13 @@ Tapping a phone card (outside the row actions control) SHALL open a details moda
 - **WHEN** a leader taps a Membership card on a phone
 - **THEN** a details modal opens titled with the row name
 - **AND** each desktop column for that member appears as a label and value (including columns the phone card omitted)
+
+#### Scenario: Sub-campaign card opens the campaign page
+
+- **WHEN** a leader taps a sub-campaign row on the Sub-campaigns tab on a phone
+- **THEN** they navigate to that sub-campaign’s existing page
+- **AND** a column-dump details modal is not shown
+- **AND** the tab does not repeat a Sub givings heading above the list
 
 #### Scenario: Row actions stay on the menu
 

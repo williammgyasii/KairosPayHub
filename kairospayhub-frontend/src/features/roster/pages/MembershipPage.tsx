@@ -56,7 +56,7 @@ export function MembershipPage() {
 
   if (!hasTemplate(displayTree)) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-3 sm:space-y-5">
         <DashboardPageHeader
           breadcrumbs={[
             { label: 'Dashboard', to: '/' },
@@ -78,7 +78,7 @@ export function MembershipPage() {
   const membershipMode = resolveMemberWizardMode(displayTree, scopeParentNodeId)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 sm:space-y-5">
       <DashboardPageHeader
         breadcrumbs={[
           { label: 'Dashboard', to: '/' },

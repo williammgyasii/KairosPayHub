@@ -1,5 +1,6 @@
 export { AttendanceApproverRoute, AttendanceOverviewRoute } from './AttendanceRoute'
 export { AttendanceApprovalsPage } from './pages/AttendanceApprovalsPage'
+export { AttendanceMeetingPacksPage } from './pages/AttendanceMeetingPacksPage'
 export { AttendanceMeetingTypesPage } from './pages/AttendanceMeetingTypesPage'
 export { AttendanceOverviewPage } from './pages/AttendanceOverviewPage'
 export { AttendanceSubmissionsPage } from './pages/AttendanceSubmissionsPage'

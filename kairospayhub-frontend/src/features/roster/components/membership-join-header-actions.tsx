@@ -1,4 +1,4 @@
-import { Link2 } from 'lucide-react'
+import { Link2, UserRound, Users } from 'lucide-react'
 import type { MembershipRosterTab } from '@/lib/join-link-policy'
 import { Button } from '@/shared/ui/button'
 
@@ -16,33 +16,37 @@ export function MembershipJoinHeaderActions({
   onGenerateJoinLink,
 }: MembershipJoinHeaderActionsProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="inline-flex rounded-lg border border-border/70 bg-muted/40 p-0.5">
+    <div className="flex w-full items-center gap-2">
+      <div className="inline-flex rounded-md border border-border/70 bg-muted/40 p-0.5">
         <Button
           type="button"
-          size="sm"
+          size="icon"
           variant={tab === 'all' ? 'secondary' : 'ghost'}
+          className="size-8"
+          aria-label="All"
           onClick={() => onTabChange('all')}
         >
-          All
+          <Users className="size-4" />
         </Button>
         <Button
           type="button"
-          size="sm"
+          size="icon"
           variant={tab === 'pending' ? 'secondary' : 'ghost'}
+          className="relative size-8"
+          aria-label="Pending members"
           onClick={() => onTabChange('pending')}
         >
-          Pending members
+          <UserRound className="size-4" />
           {pendingCount > 0 ? (
-            <span className="ml-1.5 rounded-full bg-amber-200 px-1.5 text-[11px] font-semibold text-amber-950">
+            <span className="absolute -right-0.5 -top-0.5 min-w-3.5 rounded-md bg-amber-200 px-1 text-[10px] font-semibold leading-4 text-amber-950">
               {pendingCount}
             </span>
           ) : null}
         </Button>
       </div>
-      <Button type="button" size="sm" onClick={onGenerateJoinLink}>
+      <Button type="button" size="sm" className="ml-auto shrink-0" onClick={onGenerateJoinLink}>
         <Link2 className="size-4" />
-        Generate join link
+        Add invite
       </Button>
     </div>
   )

@@ -60,6 +60,7 @@ describe('navForRole', () => {
         label: 'Attendance',
         children: [
           { to: 'attendance', label: 'Meeting types' },
+          { to: 'attendance/packs', label: 'Share files' },
           { to: 'attendance/overview', label: 'Metrics' },
         ],
       },

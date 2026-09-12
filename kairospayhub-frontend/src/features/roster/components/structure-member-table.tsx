@@ -34,6 +34,7 @@ import { Badge } from '@/shared/ui/badge'
 import { PhoneList } from '@/shared/ui/phone-list'
 import { isPhoneListViewport } from '@/shared/lib/phone-list'
 import { membershipPhoneCard } from '@/features/roster/lib/phone-cards'
+import { MemberPhoneLink } from '@/features/roster/components/member-phone-link'
 import { cn } from '@/shared/lib/utils'
 import {
   MemberRowMenu,
@@ -70,6 +71,8 @@ interface StructureMemberTableProps {
   sorting?: SortingState
   onSortingChange?: OnChangeFn<SortingState>
   readOnly?: boolean
+  /** Membership phone list uses flush rows; unit drill-in keeps cards. */
+  phoneChrome?: 'cards' | 'flush'
 }
 
 function formatMemberDob(value: string) {
@@ -108,6 +111,7 @@ export function StructureMemberTable({
   sorting: sortingProp,
   onSortingChange: onSortingChangeProp,
   readOnly = false,
+  phoneChrome = 'cards',
 }: StructureMemberTableProps) {
   const [localSorting, setLocalSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
@@ -190,26 +194,33 @@ export function StructureMemberTable({
       memberId: row.original.id,
       currentMemberId,
     })
-    const card = membershipPhoneCard(row.original, structureLayers)
+    const flush = phoneChrome === 'flush'
+    const card = membershipPhoneCard(row.original, structureLayers, {
+      includePhoneLine: !flush,
+    })
+    const badges = (
+      <>
+        {tone === 'pending' ? (
+          <Badge className="shrink-0 border-amber-200 bg-amber-100 text-amber-950 hover:bg-amber-100">
+            Pending
+          </Badge>
+        ) : null}
+        {tone === 'you' ? (
+          <Badge className={cn('shrink-0', membershipYouBadgeClass())}>You</Badge>
+        ) : null}
+        {tone === 'new' ? (
+          <Badge className={cn('shrink-0', membershipNewBadgeClass())}>New</Badge>
+        ) : null}
+      </>
+    )
     return {
       id: row.original.id,
       ...card,
       toneClassName: membershipRowToneClass(tone),
-      badges: (
-        <>
-          {tone === 'pending' ? (
-            <Badge className="shrink-0 border-amber-200 bg-amber-100 text-amber-950 hover:bg-amber-100">
-              Pending
-            </Badge>
-          ) : null}
-          {tone === 'you' ? (
-            <Badge className={cn('shrink-0', membershipYouBadgeClass())}>You</Badge>
-          ) : null}
-          {tone === 'new' ? (
-            <Badge className={cn('shrink-0', membershipNewBadgeClass())}>New</Badge>
-          ) : null}
-        </>
-      ),
+      badges,
+      footer: flush ? (
+        <MemberPhoneLink phone={row.original.phone} className="min-w-0 truncate text-xs" />
+      ) : undefined,
       actions: showRowActions ? (
         <MemberRowMenu
           member={row.original}
@@ -253,10 +264,14 @@ export function StructureMemberTable({
     }
   }
 
+  const phone = isPhoneListViewport(viewportWidth)
+  const flushPhone = phone && phoneChrome === 'flush'
+
   return (
     <section
       className={cn(
-        'w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-background',
+        'w-full min-w-0 max-w-full overflow-hidden bg-background',
+        !flushPhone && 'rounded-xl border border-border/60',
         className,
       )}
     >
@@ -287,7 +302,8 @@ export function StructureMemberTable({
       )}
 
       <PhoneList
-        phone={isPhoneListViewport(viewportWidth)}
+        phone={phone}
+        variant={phoneChrome}
         items={phoneItems}
         empty={emptyMessage}
       >
@@ -528,7 +544,7 @@ function createMemberColumns(
         helper.accessor('phone', {
           header: 'Phone',
           cell: ({ getValue }) => (
-            <span className="whitespace-nowrap text-muted-foreground">{getValue() || '—'}</span>
+            <MemberPhoneLink phone={getValue()} className="whitespace-nowrap text-sm" />
           ),
         }),
         helper.accessor('age', {

@@ -70,6 +70,49 @@ describe('PhoneList', () => {
     expect(screen.getByText('12 Mar 1994')).toBeTruthy()
   })
 
+  it('flush rows span the list and keep footer links off the details tap', async () => {
+    const user = userEvent.setup()
+    const onCall = vi.fn()
+
+    render(
+      <PhoneList
+        phone
+        variant="flush"
+        items={[
+          {
+            ...items[0],
+            badges: <span>New</span>,
+            footer: (
+              <a
+                href="tel:+12025551001"
+                onClick={(event) => {
+                  event.preventDefault()
+                  onCall()
+                }}
+              >
+                +1 202 555 1001
+              </a>
+            ),
+          },
+        ]}
+      >
+        <table />
+      </PhoneList>,
+    )
+
+    const row = screen.getByTestId('phone-list-row')
+    expect(row.getAttribute('data-variant')).toBe('flush')
+    expect(row.className).not.toMatch(/rounded-xl/)
+    expect(screen.getByText('New')).toBeTruthy()
+
+    await user.click(screen.getByRole('link', { name: '+1 202 555 1001' }))
+    expect(onCall).toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /Ama Mensah/ }))
+    expect(screen.getByRole('dialog', { name: 'Ama Mensah' })).toBeTruthy()
+  })
+
   it('delegates card tap when onItemOpen is set', async () => {
     const user = userEvent.setup()
     const onItemOpen = vi.fn()

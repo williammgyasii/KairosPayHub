@@ -163,7 +163,7 @@ export function EventsDaySheet({
       onOpenChange={onOpenChange}
       title={format(date, 'EEEE, MMM d')}
       description={`${events.length} ${events.length === 1 ? 'item' : 'items'}`}
-      className="max-w-sm"
+      cover="page"
     >
       <div className="flex min-h-full flex-col gap-4">
         {canCreate ? (

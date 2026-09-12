@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using KairosPayHub.Api.Notifications;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace KairosPayHub.Tests.Integration;
 
@@ -93,11 +97,31 @@ public class WebPushSubscriptionApiTests(PostgresFixture fx) : IAsyncLifetime
     [Fact]
     public async Task Missing_vapid_keys_return_503_not_500()
     {
-        var pastor = PastorClient();
+        await using var factory = new NoVapidApiFactory(fx.ConnectionString);
+        var pastor = factory.CreateClient();
+        pastor.DefaultRequestHeaders.Add("X-Test-Sub", Guid.NewGuid().ToString());
+        pastor.DefaultRequestHeaders.Add("X-Test-Email", "pastor@example.com");
+        pastor.DefaultRequestHeaders.Add("X-Test-Name", "Pastor");
         await pastor.PostAsJsonAsync("/api/onboarding", new { countryCode = "GH", churchName = "Vapid Church" });
 
         var response = await pastor.GetAsync("/api/notifications/push/vapid-key");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    private sealed class NoVapidApiFactory(string connectionString) : ApiFactory(connectionString)
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(services =>
+            {
+                services.PostConfigure<WebPushOptions>(options =>
+                {
+                    options.PublicKey = "";
+                    options.PrivateKey = "";
+                });
+            });
+        }
     }
 }

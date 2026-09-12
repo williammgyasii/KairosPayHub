@@ -30,6 +30,9 @@ describe('membershipPhoneCard', () => {
     const card = membershipPhoneCard(member, [{ id: 'cell', displayName: 'Cell' }])
     expect(card.title).toBe('Ada Lovelace')
     expect(card.lines).toEqual(['Cell 1 · Member', '+1 555'])
+    expect(membershipPhoneCard(member, [{ id: 'cell', displayName: 'Cell' }], { includePhoneLine: false }).lines).toEqual([
+      'Cell 1 · Member',
+    ])
     expect(card.details).toEqual(
       expect.arrayContaining([
         { label: 'Date of birth', value: '1990-01-15' },

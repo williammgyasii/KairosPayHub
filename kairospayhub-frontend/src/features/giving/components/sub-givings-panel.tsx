@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, Check, Eye, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { ApiClient } from '@/shared/api'
 import type { GivingProgram } from '@/features/giving/api'
 import { approveSubGiving, formatAmount, rejectSubGiving } from '@/features/giving/api'
@@ -52,6 +52,7 @@ export function SubGivingsPanel({
     meRole === 'PFCCManager' || meRole === 'FellowshipLeader' || Boolean(onCreateClick)
 
   const phone = usePhoneListViewport()
+  const navigate = useNavigate()
   const rows = useMemo(() => sortSubGivings(children), [children])
 
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -186,21 +187,15 @@ export function SubGivingsPanel({
     <div className="space-y-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <section className="overflow-hidden rounded-xl border border-border/60 bg-background">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-5 py-4">
-          <div>
-            <h3 className="text-sm font-semibold tracking-tight">Sub givings</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {rows.length} sub-giving{rows.length === 1 ? '' : 's'}
-              {isScopedLeader ? ' · locked rows are pastor-defined' : ''}
-            </p>
-          </div>
-          {onCreateClick && (
-            <Button type="button" size="sm" onClick={onCreateClick}>
-              Add sub-giving
-            </Button>
-          )}
+      {onCreateClick ? (
+        <div className="flex justify-end">
+          <Button type="button" size="sm" onClick={onCreateClick}>
+            Add sub-giving
+          </Button>
         </div>
+      ) : null}
+
+      <section className="overflow-hidden rounded-xl border border-border/60 bg-background">
 
         {rows.length === 0 ? (
           <p className="px-5 py-10 text-sm text-muted-foreground">
@@ -212,6 +207,7 @@ export function SubGivingsPanel({
           <PhoneList
             phone={phone}
             empty="No sub givings yet."
+            onItemOpen={(id) => navigate(`/givings/${id}`)}
             items={rows.map((row) => ({
               id: row.id,
               ...labeledPhoneCard(
@@ -225,6 +221,7 @@ export function SubGivingsPanel({
                   { label: 'Created by', value: programCreatorLabel(row) },
                 ],
               ),
+              actions: rowActions(row),
             }))}
           >
           <div className="grid w-full min-w-0 overflow-x-auto overscroll-x-contain">

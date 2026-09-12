@@ -38,7 +38,9 @@ Reuse `components/ui/modal.tsx`. Body is a definition list of every desktop colu
 
 ### Card chrome
 
-Card is a button-like row: title + badges, two muted lines, ⋯ absolutely not inside the tap target that opens details (`stopPropagation` on the actions slot). Pending tone reuses `membershipRowToneClass`.
+Default chrome is a button-like **card**: title + badges, two muted lines, ⋯ not inside the tap target that opens details (`stopPropagation` on the actions slot). Pending tone reuses `membershipRowToneClass`.
+
+Membership phone chrome is a `PhoneList` **`flush`** variant (engine), opted in by Membership only: full-width divider rows, no nested card, optional `footer` slot outside the row button so a `tel:` link can sit on the bottom row with New. Unit drill-in and other tables keep `cards`.
 
 ### Tables in scope
 

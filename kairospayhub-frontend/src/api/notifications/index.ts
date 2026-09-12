@@ -12,6 +12,7 @@ export type NotificationKind =
   | 'AttendanceRejected'
   | 'GivingCampaignOpened'
   | 'MeetingTypeCreated'
+  | 'AttendanceMeetingPackPublished'
   | string
 
 export type Notification = {

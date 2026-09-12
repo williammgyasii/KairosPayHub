@@ -61,6 +61,52 @@ public class NotificationRecipientResolver(KairosDbContext db, GivingScopeServic
     /// <summary>
     /// Next-hop recipients for attendance pending approval (same skip-missing-layers chain as giving).
     /// </summary>
+    /// <summary>
+    /// Leaders who should receive a meeting pack. Church-wide = all non-pastor leaders.
+    /// Scoped = leaders whose assignment intersects that unit. Not members, not pastors.
+    /// </summary>
+    public async Task<List<Guid>> ForMeetingPackLeadersAsync(
+        Guid churchId,
+        Guid? scopeNodeId,
+        Guid? excludeAuthUserId,
+        CancellationToken ct)
+    {
+        var recipients = new HashSet<Guid>();
+        var assignments = await db.RoleAssignments.AsNoTracking()
+            .Where(r =>
+                r.ChurchId == churchId
+                && r.Role != ChurchRole.Member
+                && r.Role != ChurchRole.Pastor
+                && r.Role != ChurchRole.ChurchAdmin)
+            .ToListAsync(ct);
+
+        if (scopeNodeId is null)
+        {
+            foreach (var assignment in assignments)
+                recipients.Add(assignment.AuthUserId);
+        }
+        else
+        {
+            foreach (var assignment in assignments)
+            {
+                if (assignment.ScopeNodeId is null)
+                    continue;
+                var viewerRoot = assignment.ScopeNodeId.Value;
+                if (viewerRoot == scopeNodeId.Value
+                    || await scope.IsNodeInSubtreeAsync(churchId, viewerRoot, scopeNodeId.Value, ct)
+                    || await scope.IsNodeInSubtreeAsync(churchId, scopeNodeId.Value, viewerRoot, ct))
+                {
+                    recipients.Add(assignment.AuthUserId);
+                }
+            }
+        }
+
+        if (excludeAuthUserId is Guid excluded)
+            recipients.Remove(excluded);
+
+        return recipients.ToList();
+    }
+
     public Task<List<Guid>> ForAttendanceApprovalAsync(
         Guid churchId,
         ChurchRole? enteredByRole,

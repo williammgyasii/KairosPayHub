@@ -25,6 +25,7 @@ import {
 } from '@/features/attendance/lib/report-policy'
 import { AttendanceReportStep } from '@/features/attendance/components/attendance-report-step'
 import { AttendanceMySubmissionsList } from '@/features/attendance/components/attendance-my-submissions-list'
+import { AttendanceMeetingPackPanel } from '@/features/attendance/components/attendance-meeting-pack-panel'
 import {
   AttendanceRollCallSheet,
   buildEntryValues,
@@ -82,6 +83,7 @@ export function AttendanceSubmissionsPage() {
   const [busyAction, setBusyAction] = useState<'save' | 'submit' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [packReady, setPackReady] = useState(true)
 
   const markableTypes = useMemo(
     () => markableMeetingTypes(meetingTypes, rollCallScopes),
@@ -326,8 +328,14 @@ export function AttendanceSubmissionsPage() {
     return detail.entries.filter((entry) => entry.memberScopeNodeId === selectedScopeNodeId)
   }, [detail, selectedScopeNodeId])
 
+  useEffect(() => {
+    setPackReady(churchManager)
+  }, [churchManager, selectedOccurrenceId])
+
   const canContinue =
-    Boolean(selectedTypeId && selectedOccurrenceId) && selectableOccurrenceRows.length > 0
+    Boolean(selectedTypeId && selectedOccurrenceId) &&
+    selectableOccurrenceRows.length > 0 &&
+    (churchManager || packReady)
 
   const pageDescription = canRollCall
     ? step === 'pick'
@@ -335,11 +343,9 @@ export function AttendanceSubmissionsPage() {
       : step === 'report'
         ? 'Complete the meeting report, then submit for approval.'
         : null
-    : churchManager
-      ? 'Unit leaders mark attendance. Use Meeting types and Metrics from here.'
-      : scopedLeader
-        ? 'If you also lead a submission unit, it appears below. Otherwise use Approvals to review child roll calls.'
-        : 'Unit leaders mark attendance here when the window is open.'
+    : scopedLeader
+      ? 'If you also lead a submission unit, it appears below. Otherwise use Approvals to review child roll calls.'
+      : 'Unit leaders mark attendance here when the window is open.'
 
   return (
     <div className="space-y-6">
@@ -383,17 +389,17 @@ export function AttendanceSubmissionsPage() {
       {!canRollCall ? (
         <AttendanceEmptyState
           title={
-            churchManager
-              ? 'Pastors don’t mark attendance'
-              : scopedLeader
-                ? 'No submission unit assigned'
+            scopedLeader
+              ? 'No submission unit assigned'
+              : churchManager
+                ? 'Pastors don’t mark attendance'
                 : 'Mark attendance is for unit leaders'
           }
           description={
-            churchManager
-              ? 'Leaders of the meeting’s submission layer mark attendance. Parent leaders approve.'
-              : scopedLeader
-                ? 'To approve roll calls from units below you, open Attendance → Approvals.'
+            scopedLeader
+              ? 'To approve roll calls from units below you, open Attendance → Approvals.'
+              : churchManager
+                ? 'Share notes and files from Attendance → Share files. Unit leaders mark attendance here.'
                 : 'Ask your pastor to assign you as leader of a submission unit in Structure.'
           }
         />
@@ -485,24 +491,46 @@ export function AttendanceSubmissionsPage() {
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              className="rounded-md"
-              disabled={!canContinue}
-              onClick={() => {
-                setMessage(null)
-                setError(null)
-                setStep('mark')
-              }}
-            >
-              Continue
-              <ArrowRight className="ml-1.5 size-3.5" />
-            </Button>
-          </div>
+          {!churchManager && selectedOccurrenceId ? (
+            <AttendanceMeetingPackPanel
+              occurrenceId={selectedOccurrenceId}
+              canManageChurch={false}
+              onViewerChange={setPackReady}
+            />
+          ) : null}
 
-          <AttendanceMySubmissionsList rows={mySubmissions} loading={loadingMySubmissions} />
+          {canRollCall ? (
+            <div className="flex flex-col items-end gap-1.5">
+              {!packReady && !churchManager ? (
+                <p className="text-xs text-sky-800 dark:text-sky-200">
+                  Download the meeting files before you continue.
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-md"
+                disabled={!canContinue}
+                title={
+                  !packReady && !churchManager
+                    ? 'Download the meeting files before you continue.'
+                    : undefined
+                }
+                onClick={() => {
+                  setMessage(null)
+                  setError(null)
+                  setStep('mark')
+                }}
+              >
+                Continue
+                <ArrowRight className="ml-1.5 size-3.5" />
+              </Button>
+            </div>
+          ) : null}
+
+          {canRollCall ? (
+            <AttendanceMySubmissionsList rows={mySubmissions} loading={loadingMySubmissions} />
+          ) : null}
         </section>
       ) : step === 'report' && selectedMeetingType ? (
         <AttendanceReportStep

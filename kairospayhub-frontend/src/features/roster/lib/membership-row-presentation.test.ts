@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  membershipCallHref,
   membershipNewBadgeClass,
   membershipYouBadgeClass,
   membershipRowTone,
@@ -95,9 +96,20 @@ describe('membershipRowToneClass', () => {
 })
 
 describe('membershipNewBadgeClass', () => {
-  it('uses a green badge with white text', () => {
-    expect(membershipNewBadgeClass()).toContain('emerald-600')
-    expect(membershipNewBadgeClass()).toContain('text-white')
+  it('uses a light green badge that is not a pill', () => {
+    expect(membershipNewBadgeClass()).toContain('emerald-100')
+    expect(membershipNewBadgeClass()).toContain('emerald-800')
+    expect(membershipNewBadgeClass()).toContain('rounded-md')
+    expect(membershipNewBadgeClass()).not.toContain('emerald-600')
+  })
+})
+
+describe('membershipCallHref', () => {
+  it('builds a tel link from a formatted number and rejects junk', () => {
+    expect(membershipCallHref('+1 202 555 1001')).toBe('tel:+12025551001')
+    expect(membershipCallHref('(202) 555-1001')).toBe('tel:2025551001')
+    expect(membershipCallHref('n/a')).toBeNull()
+    expect(membershipCallHref('')).toBeNull()
   })
 })
 
