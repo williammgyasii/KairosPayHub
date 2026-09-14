@@ -130,7 +130,14 @@ export function ServiceRecordingDetailPage() {
       </div>
 
       {access.canWatchPlayback ? (
-        <ServiceRecordingPlayer recordingId={recording.id} />
+        <ServiceRecordingPlayer
+          recordingId={recording.id}
+          viewer={{
+            name: me.name,
+            email: me.email,
+            id: me.onboarded ? me.id : null,
+          }}
+        />
       ) : (
         <div className="rounded-xl border bg-muted/20 p-6 text-sm text-muted-foreground">
           {recording.status === 'Processing'

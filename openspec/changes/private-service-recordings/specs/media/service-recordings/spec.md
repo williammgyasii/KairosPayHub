@@ -119,3 +119,12 @@ Private church service recordings (VOD) via Bunny Stream.
 
 - **WHEN** a manager receives a `ServiceRecordingPublished` inbox notification over SignalR
 - **THEN** the client MUST invalidate service recording caches so the grid reflects the new published state
+
+## Viewer watermark
+
+### Scenario: Playback shows a traceable viewer watermark
+
+- **WHEN** a logged-in user watches a recording with playback available
+- **THEN** the player MUST overlay their display name, email, and a short account id suffix on top of the video
+- **AND** the overlay MUST reposition periodically during playback so simple corner-cropping does not remove it
+- **AND** the overlay MUST NOT block player controls (`pointer-events: none`)

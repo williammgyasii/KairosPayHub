@@ -1,8 +1,16 @@
+import { ServiceRecordingWatermarkOverlay } from '@/features/media/components/service-recording-watermark-overlay'
+import type { ServiceRecordingWatermarkViewer } from '@/features/media/lib/service-recording-watermark-policy'
 import { useGetServiceRecordingPlaybackQuery } from '@/features/media/api/serviceRecordingsApi'
 import { formatRtkQueryError } from '@/store/baseQuery'
 import { Spinner } from '@/shared/ui/spinner'
 
-export function ServiceRecordingPlayer({ recordingId }: { recordingId: string }) {
+export function ServiceRecordingPlayer({
+  recordingId,
+  viewer,
+}: {
+  recordingId: string
+  viewer: ServiceRecordingWatermarkViewer
+}) {
   const { data, error, isLoading, isFetching } = useGetServiceRecordingPlaybackQuery(recordingId)
 
   if (isLoading || isFetching) {
@@ -22,7 +30,7 @@ export function ServiceRecordingPlayer({ recordingId }: { recordingId: string })
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-black shadow-sm">
+    <div className="relative overflow-hidden rounded-xl border bg-black shadow-sm">
       <iframe
         title="Service recording player"
         src={data.embedUrl}
@@ -31,6 +39,7 @@ export function ServiceRecordingPlayer({ recordingId }: { recordingId: string })
         allowFullScreen
         className="aspect-video w-full border-0"
       />
+      <ServiceRecordingWatermarkOverlay viewer={viewer} />
     </div>
   )
 }
