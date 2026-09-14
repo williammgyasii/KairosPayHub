@@ -43,6 +43,11 @@ import { JoinPage } from './pages/JoinPage'
 import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword, SetPassword } from './pages/PasswordPages'
 import { EventsPage, EventsRoute } from '@/features/events'
+import {
+  MediaRoute,
+  ServiceRecordingDetailPage,
+  ServiceRecordingsPage,
+} from '@/features/media'
 import { ConfirmEmail } from './pages/ConfirmEmail'
 import { SignUp } from './pages/SignUp'
 
@@ -144,6 +149,22 @@ export default function App() {
             <EventsRoute>
               <EventsPage />
             </EventsRoute>
+          }
+        />
+        <Route
+          path="media/recordings"
+          element={
+            <MediaRoute>
+              <ServiceRecordingsPage />
+            </MediaRoute>
+          }
+        />
+        <Route
+          path="media/recordings/:recordingId"
+          element={
+            <MediaRoute>
+              <ServiceRecordingDetailPage />
+            </MediaRoute>
           }
         />
         <Route path="givings/overall" element={<OverallGivingsPage />} />

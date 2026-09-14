@@ -6,6 +6,8 @@ import '@/store/notificationsApi'
 import '@/features/events/api/calendarApi'
 import '@/features/giving/api/givingApi'
 import '@/features/attendance/api/attendanceApi'
+import '@/features/media/api/serviceRecordingsApi'
+import '@/features/media/api/serviceRecordingCategoriesApi'
 
 describe('RTK Query baseApi injection', () => {
   it('registers core read endpoints on the shared api slice', () => {
@@ -18,5 +20,7 @@ describe('RTK Query baseApi injection', () => {
     expect(baseApi.endpoints.listNotifications).toBeDefined()
     expect(baseApi.endpoints.getCalendarFeed).toBeDefined()
     expect(baseApi.endpoints.listMeetingTypes).toBeDefined()
+    expect(baseApi.endpoints.listServiceRecordings).toBeDefined()
+    expect(baseApi.endpoints.listServiceRecordingCategories).toBeDefined()
   })
 })

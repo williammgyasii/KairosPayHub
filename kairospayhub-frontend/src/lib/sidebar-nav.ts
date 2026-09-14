@@ -63,6 +63,7 @@ const NAV_PATH_RULES: Record<string, NavPathRule> = {
   'attendance/approvals': { kind: 'exact', paths: ['/attendance/approvals'] },
   'attendance/overview': { kind: 'prefix', root: '/attendance/overview', extra: ['/attendance/overall'] },
   events: { kind: 'exact', paths: ['/events'] },
+  'media/recordings': { kind: 'prefix', root: '/media/recordings' },
   access: { kind: 'exact', paths: ['/access'] },
   settings: { kind: 'prefix', root: '/settings' },
 }

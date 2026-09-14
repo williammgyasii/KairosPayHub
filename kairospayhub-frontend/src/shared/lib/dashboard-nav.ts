@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   UserCheck,
   UsersRound,
+  Video,
 } from 'lucide-react'
 import {
   canApproveAttendance,
@@ -29,6 +30,7 @@ import {
 } from '@/api/auth'
 import { shouldShowAccessNav } from '@/features/access'
 import { canAccessEvents } from '@/features/events'
+import { serviceRecordingsVisible } from '@/features/media'
 
 export type NavChild = {
   to: string
@@ -136,12 +138,23 @@ const EVENTS_NAV_ITEM: NavEntry = {
   end: true,
 }
 
+const RECORDINGS_NAV_ITEM: NavEntry = {
+  kind: 'item',
+  to: 'media/recordings',
+  label: 'Recordings',
+  icon: Video,
+  end: true,
+}
+
 function navWithAttendance(entries: NavEntry[], me: Me & { onboarded: true }): NavEntry[] {
   const givingsIndex = entries.findIndex((entry) => entry.kind === 'group' && entry.label === 'Givings')
   const attendance = attendanceNavForRole(me)
   const afterAttendance: NavEntry[] = [attendance]
   if (canAccessEvents(me)) {
     afterAttendance.push(EVENTS_NAV_ITEM)
+  }
+  if (serviceRecordingsVisible(me)) {
+    afterAttendance.push(RECORDINGS_NAV_ITEM)
   }
   if (givingsIndex === -1) return [...entries, ...afterAttendance]
   return [...entries.slice(0, givingsIndex + 1), ...afterAttendance, ...entries.slice(givingsIndex + 1)]

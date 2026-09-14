@@ -72,6 +72,10 @@ export type Me =
       /** Packed CASL rules from API. */
       abilityRules?: AbilityRuleDto[]
       leadershipProfile?: string | null
+      /** Platform feature flags from API. */
+      features?: {
+        serviceRecordings?: boolean
+      }
     }
 
 export function needsOnboarding(me: Me): boolean {
