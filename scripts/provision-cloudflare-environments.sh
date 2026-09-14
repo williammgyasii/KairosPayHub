@@ -70,6 +70,15 @@ WEB_PUSH_PUBLIC_KEY=${WEB_PUSH_PUBLIC_KEY:-${WebPush__PublicKey:-}}
 WEB_PUSH_PRIVATE_KEY=${WEB_PUSH_PRIVATE_KEY:-${WebPush__PrivateKey:-}}
 WEB_PUSH_SUBJECT=${WEB_PUSH_SUBJECT:-${WebPush__Subject:-mailto:noreply@kairospayhub.com}}
 EOF
+  if [[ -n "${BunnyStream__ApiKey:-}" ]]; then
+    echo "BUNNY_STREAM_API_KEY=${BunnyStream__ApiKey}" >>"$secrets_file"
+  fi
+  if [[ -n "${BunnyStream__WebhookSecret:-}" ]]; then
+    echo "BUNNY_STREAM_WEBHOOK_SECRET=${BunnyStream__WebhookSecret}" >>"$secrets_file"
+  fi
+  if [[ -n "${BunnyStream__TokenSecurityKey:-}" ]]; then
+    echo "BUNNY_STREAM_TOKEN_SECURITY_KEY=${BunnyStream__TokenSecurityKey}" >>"$secrets_file"
+  fi
 
   wrangler secret bulk "$secrets_file" $env_flag 2>/dev/null || {
     echo "    (bulk upload unavailable — setting secrets individually)"
@@ -108,6 +117,14 @@ secrets = {
   "WEB_PUSH_PRIVATE_KEY": os.environ.get("WEB_PUSH_PRIVATE_KEY") or os.environ.get("WebPush__PrivateKey", ""),
   "WEB_PUSH_SUBJECT": os.environ.get("WEB_PUSH_SUBJECT") or os.environ.get("WebPush__Subject", "mailto:noreply@kairospayhub.com"),
 }
+for bunny_key, bunny_env in (
+  ("BUNNY_STREAM_API_KEY", "BunnyStream__ApiKey"),
+  ("BUNNY_STREAM_WEBHOOK_SECRET", "BunnyStream__WebhookSecret"),
+  ("BUNNY_STREAM_TOKEN_SECURITY_KEY", "BunnyStream__TokenSecurityKey"),
+):
+  value = os.environ.get(bunny_env, "")
+  if value:
+    secrets[bunny_key] = value
 with open(out, "w") as f:
   json.dump(secrets, f)
 PY

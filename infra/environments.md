@@ -13,6 +13,35 @@ Full design history: [`docs/superpowers/specs/2026-08-08-environments-design.md`
 | Prod | https://app.kairospayhub.com | same origin `/api/*`, `/auth/*`, `/hubs/*` | `/health` |
 | Dev | https://dev.app.kairospayhub.com | same origin | `/health` |
 | Local | http://127.0.0.1:5173 | http://localhost:5192 | `/health` |
+| Marketing | https://www.kairospayhub.com (apex `kairospayhub.com` same target) | — | Pages static export |
+
+## Marketing site DNS
+
+Public marketing site hostnames point at Cloudflare Pages project **`kairospayhub-marketing`** (Vite SPA from [KairosPayHub-Website](https://github.com/williammgyasii/KairosPayHub-Website)):
+
+| Hostname | DNS | Target |
+|----------|-----|--------|
+| `www.kairospayhub.com` | CNAME (proxied) | `kairospayhub-marketing.pages.dev` |
+| `kairospayhub.com` | CNAME (proxied, apex flatten) | same |
+
+Idempotent helper:
+
+```bash
+./scripts/setup-marketing-dns.sh
+```
+
+**Deploy:** push to `main` on [KairosPayHub-Website](https://github.com/williammgyasii/KairosPayHub-Website) (GitHub Actions → Cloudflare Pages).
+
+**Custom domains** (one-time after first deploy — DNS already points at Pages):
+
+```bash
+./scripts/attach-marketing-pages-domains.sh
+# or Dashboard → Workers & Pages → kairospayhub-marketing → Custom domains
+```
+
+Preview: https://kairospayhub-marketing.pages.dev
+
+Use `https://www.kairospayhub.com` as the Stripe **business website** once custom domains show Active.
 
 ## Cloudflare stack
 
@@ -73,6 +102,55 @@ Policy logic: `cloudflare/api/src/rate-limit-policy.ts`. Bindings: `cloudflare/a
 Local dev: leave `VITE_TURNSTILE_SITE_KEY` unset and `Turnstile__Secret` empty — verification is skipped.
 
 Cloudflare test keys (always pass): site `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`.
+
+## Service recordings (Bunny Stream)
+
+Private church VOD (upload → encode → in-app playback). **Prod feature flag is `false`** until GA (`FEATURE_FLAG_SERVICE_RECORDINGS_ENABLED` in `cloudflare/api/wrangler.jsonc`).
+
+| Config | Local `.env` | Dev Worker | Prod Worker |
+|--------|--------------|------------|-------------|
+| Feature flag | `FeatureFlags__ServiceRecordings__Enabled` | var `FEATURE_FLAG_SERVICE_RECORDINGS_*` | var (default **false**) |
+| Library id | `BunnyStream__LibraryId` | var `BUNNY_STREAM_LIBRARY_ID` (`752627`) | set when GA |
+| Library API key | `BunnyStream__ApiKey` | secret `BUNNY_STREAM_API_KEY` | secret (when GA) |
+| Webhook signing key | `BunnyStream__WebhookSecret` | secret `BUNNY_STREAM_WEBHOOK_SECRET` | secret (when GA) |
+| Embed token key | `BunnyStream__TokenSecurityKey` | secret `BUNNY_STREAM_TOKEN_SECURITY_KEY` | secret (when GA) |
+
+Passthrough to the .NET container: `cloudflare/api/src/env.ts` → `BunnyStream__*` / `FeatureFlags__ServiceRecordings__*`.
+
+### Bunny dashboard (one-time per library)
+
+1. **Stream → Libraries → KairosPayHub** (id `752627`).
+2. **API** — copy **Library API key** → `BunnyStream__ApiKey`; copy **Read-only API key** → `BunnyStream__WebhookSecret`.
+3. **Webhooks** — URL:
+   - Dev: `https://dev.app.kairospayhub.com/api/webhooks/bunny-stream`
+   - Prod (later): `https://app.kairospayhub.com/api/webhooks/bunny-stream`
+4. **Security → Embed view token authentication** — enable, copy **Token security key** → `BunnyStream__TokenSecurityKey`. Required for playback; uploads/webhooks work without it.
+
+### Push dev Worker secrets
+
+From repo root (reads `.env`, **development only**):
+
+```bash
+chmod +x scripts/setup-bunny-stream-dev-secrets.sh
+./scripts/setup-bunny-stream-dev-secrets.sh
+cd cloudflare/api && npx wrangler deploy --env development
+```
+
+Or full provision (includes Bunny secrets when set in `.env`):
+
+```bash
+./scripts/provision-cloudflare-environments.sh
+```
+
+### Local dev
+
+Copy keys into `.env` (see `.env.example`). API loads them on `dotnet run`; frontend uses `me.features.serviceRecordings` for nav.
+
+### Smoke test (dev)
+
+1. Log in on https://dev.app.kairospayhub.com — **Recordings** in sidebar when flag is on.
+2. Pastor uploads a short MP4 → Bunny encodes → webhook updates status → publish → member playback.
+3. If iframe shows 403, embed token auth or `BUNNY_STREAM_TOKEN_SECURITY_KEY` is missing/mismatched.
 
 ## Observability
 

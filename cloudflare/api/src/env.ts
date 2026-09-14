@@ -29,6 +29,12 @@ export interface Env {
   WEB_PUSH_SUBJECT?: string
   TURNSTILE_SECRET?: string
   TURNSTILE_ALLOWED_HOSTNAMES?: string
+  FEATURE_FLAG_SERVICE_RECORDINGS_ENABLED?: string
+  FEATURE_FLAG_SERVICE_RECORDINGS_ALLOWED_CHURCH_IDS?: string
+  BUNNY_STREAM_LIBRARY_ID?: string
+  BUNNY_STREAM_API_KEY?: string
+  BUNNY_STREAM_TOKEN_SECURITY_KEY?: string
+  BUNNY_STREAM_WEBHOOK_SECRET?: string
 }
 
 import type { KairosApiContainer } from './container'
@@ -68,6 +74,25 @@ export function buildContainerEnv(env: Env): Record<string, string> {
 
   if (env.CORS_ORIGIN_SECONDARY) {
     vars['Cors__Origins__1'] = env.CORS_ORIGIN_SECONDARY
+  }
+
+  vars['FeatureFlags__ServiceRecordings__Enabled'] =
+    env.FEATURE_FLAG_SERVICE_RECORDINGS_ENABLED ?? 'false'
+  if (env.FEATURE_FLAG_SERVICE_RECORDINGS_ALLOWED_CHURCH_IDS) {
+    vars['FeatureFlags__ServiceRecordings__AllowedChurchIds'] =
+      env.FEATURE_FLAG_SERVICE_RECORDINGS_ALLOWED_CHURCH_IDS
+  }
+  if (env.BUNNY_STREAM_LIBRARY_ID) {
+    vars.BunnyStream__LibraryId = env.BUNNY_STREAM_LIBRARY_ID
+  }
+  if (env.BUNNY_STREAM_API_KEY) {
+    vars.BunnyStream__ApiKey = env.BUNNY_STREAM_API_KEY
+  }
+  if (env.BUNNY_STREAM_TOKEN_SECURITY_KEY) {
+    vars.BunnyStream__TokenSecurityKey = env.BUNNY_STREAM_TOKEN_SECURITY_KEY
+  }
+  if (env.BUNNY_STREAM_WEBHOOK_SECRET) {
+    vars.BunnyStream__WebhookSecret = env.BUNNY_STREAM_WEBHOOK_SECRET
   }
 
   return vars

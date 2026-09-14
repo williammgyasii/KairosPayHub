@@ -99,7 +99,10 @@
         "R2_BUCKET_NAME": "kairospayhub-assets-dev",
         "CORS_ORIGIN_PRIMARY": "https://dev.app.kairospayhub.com",
         "CORS_ORIGIN_SECONDARY": "http://127.0.0.1:5173",
-        "TURNSTILE_ALLOWED_HOSTNAMES": "dev.app.kairospayhub.com,127.0.0.1,localhost"
+        "TURNSTILE_ALLOWED_HOSTNAMES": "dev.app.kairospayhub.com,127.0.0.1,localhost",
+        "FEATURE_FLAG_SERVICE_RECORDINGS_ENABLED": "true",
+        "FEATURE_FLAG_SERVICE_RECORDINGS_ALLOWED_CHURCH_IDS": "",
+        "BUNNY_STREAM_LIBRARY_ID": "752627"
       }
     },
     "production": {
@@ -183,7 +186,9 @@
         "R2_BUCKET_NAME": "kairospayhub-assets",
         "CORS_ORIGIN_PRIMARY": "https://app.kairospayhub.com",
         "CORS_ORIGIN_SECONDARY": "http://127.0.0.1:5173",
-        "TURNSTILE_ALLOWED_HOSTNAMES": "app.kairospayhub.com"
+        "TURNSTILE_ALLOWED_HOSTNAMES": "app.kairospayhub.com",
+        "FEATURE_FLAG_SERVICE_RECORDINGS_ENABLED": "false",
+        "FEATURE_FLAG_SERVICE_RECORDINGS_ALLOWED_CHURCH_IDS": ""
       }
     }
   }
