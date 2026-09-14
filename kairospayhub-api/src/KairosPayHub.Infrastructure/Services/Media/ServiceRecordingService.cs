@@ -14,8 +14,10 @@ public record ServiceRecordingCreateResult(
     string Title,
     ServiceRecordingStatus Status,
     string BunnyVideoGuid,
-    string UploadUrl,
-    string UploadAccessKey);
+    string TusEndpoint,
+    long TusLibraryId,
+    string TusSignature,
+    long TusExpiresUnix);
 
 public record ServiceRecordingCategorySummaryDto(Guid Id, string Name);
 
@@ -65,6 +67,8 @@ public class ServiceRecordingService(
     GivingScopeService scope,
     ServiceRecordingCategoryService categories,
     ServiceRecordingSeriesService series,
+    NotificationService notifications,
+    IServiceRecordingRealtimePublisher recordingRealtime,
     IBunnyStreamClient bunny,
     IOptions<BunnyStreamOptions> bunnyOptions,
     IOptions<ServiceRecordingsFeatureOptions> featureOptions)
@@ -101,6 +105,15 @@ public class ServiceRecordingService(
             await series.ValidateSeriesForChurchAsync(churchId, seriesId.Value, ct);
 
         var trimmedTitle = title.Trim();
+        if (trimmedTitle.Length > 200)
+            throw new BadRequestException("Title must be 200 characters or fewer");
+
+        var trimmedDescription = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        if (trimmedDescription?.Length > 2000)
+            throw new BadRequestException("Description must be 2000 characters or fewer");
+
+        await EnsureUniqueTitleAsync(churchId, trimmedTitle, excludeRecordingId: null, ct);
+
         var bunnyVideo = await bunny.CreateVideoAsync(trimmedTitle, ct);
         if (string.IsNullOrWhiteSpace(bunnyVideo.Guid))
             throw new InvalidOperationException("Bunny did not return a video id");
@@ -112,7 +125,7 @@ public class ServiceRecordingService(
             CategoryId = categoryId,
             SeriesId = seriesId,
             Title = trimmedTitle,
-            Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+            Description = trimmedDescription,
             ServiceDate = serviceDate,
             BunnyVideoGuid = bunnyVideo.Guid,
             Status = ServiceRecordingStatus.Draft,
@@ -125,14 +138,30 @@ public class ServiceRecordingService(
         db.ChurchServiceRecordings.Add(recording);
         await db.SaveChangesAsync(ct);
 
-        var options = bunnyOptions.Value;
+        var tus = CreateTusUploadCredentials(recording.BunnyVideoGuid);
         return new ServiceRecordingCreateResult(
             recording.Id,
             recording.Title,
             recording.Status,
             recording.BunnyVideoGuid,
-            options.UploadUrlFor(recording.BunnyVideoGuid),
-            options.ApiKey!);
+            tus.Endpoint,
+            tus.LibraryId,
+            tus.Signature,
+            tus.ExpiresUnix);
+    }
+
+    public async Task<BunnyStreamTusUploadCredentials> GetUploadCredentialsAsync(
+        Actor actor,
+        Guid recordingId,
+        CancellationToken ct = default)
+    {
+        var recording = await LoadManageableAsync(actor, recordingId, ct);
+        EnsureFeatureEnabled(recording.ChurchId);
+
+        if (recording.Status is not (ServiceRecordingStatus.Draft or ServiceRecordingStatus.Processing))
+            throw new BadRequestException("Upload credentials are only available for draft recordings");
+
+        return CreateTusUploadCredentials(recording.BunnyVideoGuid);
     }
 
     public async Task ApplyWebhookAsync(
@@ -152,6 +181,7 @@ public class ServiceRecordingService(
         if (recording is null)
             return;
 
+        var previousStatus = recording.Status;
         var mapped = ServiceRecordingPolicy.MapBunnyStatus(bunnyStatus);
         var now = DateTimeOffset.UtcNow;
         recording.Status = mapped;
@@ -165,6 +195,15 @@ public class ServiceRecordingService(
         }
 
         await db.SaveChangesAsync(ct);
+
+        if (previousStatus != mapped)
+        {
+            await recordingRealtime.PublishStatusChangedAsync(
+                recording.ChurchId,
+                recording.Id,
+                mapped,
+                ct);
+        }
     }
 
     public async Task<ServiceRecordingListPageDto> ListAsync(
@@ -263,6 +302,8 @@ public class ServiceRecordingService(
         if (seriesId.HasValue)
             await series.ValidateSeriesForChurchAsync(recording.ChurchId, seriesId.Value, ct);
 
+        await EnsureUniqueTitleAsync(recording.ChurchId, trimmedTitle, recording.Id, ct);
+
         recording.Title = trimmedTitle;
         recording.Description = trimmedDescription;
         recording.ServiceDate = serviceDate;
@@ -302,6 +343,7 @@ public class ServiceRecordingService(
 
     public async Task<ServiceRecordingDetailDto> PublishAsync(
         Actor actor,
+        Guid publishedByAuthUserId,
         Guid recordingId,
         CancellationToken ct = default)
     {
@@ -315,6 +357,7 @@ public class ServiceRecordingService(
         recording.PublishedAt = now;
         recording.UpdatedAt = now;
         await db.SaveChangesAsync(ct);
+        await notifications.NotifyServiceRecordingPublishedAsync(recording, publishedByAuthUserId, ct);
         return ToDetail(recording, canManage: true);
     }
 
@@ -528,10 +571,39 @@ public class ServiceRecordingService(
             recording.ThumbnailUrl = info.ThumbnailUrl;
     }
 
+    private BunnyStreamTusUploadCredentials CreateTusUploadCredentials(string videoGuid)
+    {
+        var options = bunnyOptions.Value;
+        if (!options.IsConfigured)
+            throw new InvalidOperationException("Bunny Stream is not configured");
+
+        return BunnyStreamTusTokens.CreateUploadCredentials(
+            options.LibraryId,
+            options.ApiKey!,
+            videoGuid,
+            DateTimeOffset.UtcNow.AddHours(BunnyStreamTusTokens.DefaultUploadHours));
+    }
+
     private void EnsureFeatureEnabled(Guid churchId)
     {
         if (!ServiceRecordingFeaturePolicy.IsEnabled(featureOptions.Value, churchId))
             throw new ForbiddenException("Service recordings are not enabled for this church");
+    }
+
+    private async Task EnsureUniqueTitleAsync(
+        Guid churchId,
+        string title,
+        Guid? excludeRecordingId,
+        CancellationToken ct)
+    {
+        var normalized = title.ToLower();
+        var duplicate = await db.ChurchServiceRecordings.AnyAsync(
+            r => r.ChurchId == churchId
+                && r.Title.ToLower() == normalized
+                && (excludeRecordingId == null || r.Id != excludeRecordingId.Value),
+            ct);
+        if (duplicate)
+            throw new BadRequestException("A recording with this title already exists");
     }
 
 }

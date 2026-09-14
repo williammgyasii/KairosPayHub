@@ -1,6 +1,7 @@
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain.Attendance;
 using KairosPayHub.Api.Domain.Giving;
+using KairosPayHub.Api.Domain.Media;
 using KairosPayHub.Api.Domain.Notifications;
 using KairosPayHub.Api.Domain.Structure;
 using KairosPayHub.Api.Web;
@@ -743,5 +744,33 @@ public class NotificationService(
             ChurchRole.Pastor => "Pastor",
             _ => role.ToString(),
         };
+
+    public async Task NotifyServiceRecordingPublishedAsync(
+        ChurchServiceRecording recording,
+        Guid publishedByAuthUserId,
+        CancellationToken ct = default)
+    {
+        var recipients = await recipientResolver.ForChurchMembersWithLoginAsync(
+            recording.ChurchId,
+            publishedByAuthUserId,
+            ct);
+        if (recipients.Count == 0)
+            return;
+
+        var body = $"\"{recording.Title}\" is ready to watch.";
+        if (recording.ServiceDate is DateOnly serviceDate)
+            body += $" Service date: {serviceDate:dddd, d MMMM yyyy}.";
+
+        await engine.DeliverAsync(
+            recording.ChurchId,
+            recipients,
+            NotificationKind.ServiceRecordingPublished,
+            "New service recording",
+            body,
+            LinkPath: $"media/recordings/{recording.Id}",
+            programId: null,
+            relatedEntityId: recording.Id,
+            ct);
+    }
 
 }

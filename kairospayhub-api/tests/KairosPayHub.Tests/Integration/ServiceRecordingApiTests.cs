@@ -40,11 +40,12 @@ public class ServiceRecordingApiTests(PostgresFixture fx) : IAsyncLifetime
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Sunday Service", body.GetProperty("title").GetString());
         Assert.Equal("Draft", body.GetProperty("status").GetString());
-        Assert.StartsWith(
-            $"https://video.bunnycdn.com/library/{LibraryId}/videos/",
-            body.GetProperty("uploadUrl").GetString());
         Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("bunnyVideoGuid").GetString()));
-        Assert.Equal("test-library-key", body.GetProperty("uploadAccessKey").GetString());
+        Assert.Equal("https://video.bunnycdn.com/tusupload", body.GetProperty("tusEndpoint").GetString());
+        Assert.Equal(LibraryId, body.GetProperty("tusLibraryId").GetInt64());
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("tusSignature").GetString()));
+        Assert.True(body.GetProperty("tusExpiresUnix").GetInt64() > DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        Assert.False(body.TryGetProperty("uploadAccessKey", out _));
     }
 
     [Fact]
@@ -106,6 +107,31 @@ public class ServiceRecordingApiTests(PostgresFixture fx) : IAsyncLifetime
 
         memberList = await seed.CellClient.GetFromJsonAsync<JsonElement>("/api/service-recordings");
         Assert.Equal(1, memberList.GetProperty("recordings").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Publish_notifies_members_with_login_not_publisher()
+    {
+        var seed = await AttendanceTestSeed.CreateAsync(_factory, fx);
+        var create = await seed.PastorClient.PostAsJsonAsync("/api/service-recordings", new { title = "Sunday Service" });
+        var created = await create.Content.ReadFromJsonAsync<JsonElement>();
+        var recordingId = created.GetProperty("id").GetGuid();
+        await MarkReadyViaWebhookAsync(created.GetProperty("bunnyVideoGuid").GetString()!);
+
+        var publish = await seed.PastorClient.PostAsync($"/api/service-recordings/{recordingId}/publish", null);
+        Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
+
+        var memberInbox = await seed.CellClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        var notification = memberInbox.GetProperty("notifications").EnumerateArray()
+            .First(n => n.GetProperty("kind").GetString() == "ServiceRecordingPublished");
+        Assert.Equal("New service recording", notification.GetProperty("title").GetString());
+        Assert.Contains("Sunday Service", notification.GetProperty("body").GetString());
+        Assert.Equal($"media/recordings/{recordingId}", notification.GetProperty("linkPath").GetString());
+
+        var pastorInbox = await seed.PastorClient.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.DoesNotContain(
+            pastorInbox.GetProperty("notifications").EnumerateArray(),
+            n => n.GetProperty("kind").GetString() == "ServiceRecordingPublished");
     }
 
     [Fact]
@@ -290,6 +316,31 @@ public class ServiceRecordingApiTests(PostgresFixture fx) : IAsyncLifetime
         var updated = await patch.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Week 1 — Faith Over Fear", updated.GetProperty("title").GetString());
         Assert.Equal("Updated notes", updated.GetProperty("description").GetString());
+    }
+
+    [Fact]
+    public async Task Pastor_cannot_create_duplicate_title()
+    {
+        var pastor = await SeedPastorAsync();
+        var first = await pastor.Client.PostAsJsonAsync("/api/service-recordings", new { title = "Sunday Service" });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        var duplicate = await pastor.Client.PostAsJsonAsync("/api/service-recordings", new { title = "sunday service" });
+        Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pastor_cannot_rename_to_existing_title()
+    {
+        var pastor = await SeedPastorAsync();
+        var first = await pastor.Client.PostAsJsonAsync("/api/service-recordings", new { title = "Week 1" });
+        var second = await pastor.Client.PostAsJsonAsync("/api/service-recordings", new { title = "Week 2" });
+        var secondId = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var patch = await pastor.Client.PatchAsJsonAsync(
+            $"/api/service-recordings/{secondId}",
+            new { title = "week 1" });
+        Assert.Equal(HttpStatusCode.BadRequest, patch.StatusCode);
     }
 
     [Fact]

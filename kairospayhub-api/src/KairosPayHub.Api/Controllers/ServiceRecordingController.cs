@@ -118,6 +118,32 @@ public class ServiceRecordingController(
         }
     }
 
+    [HttpPost("{recordingId:guid}/upload-credentials")]
+    public async Task<IActionResult> GetUploadCredentials(Guid recordingId, CancellationToken ct)
+    {
+        var actor = await current.RequireAsync(ct);
+        try
+        {
+            var credentials = await recordings.GetUploadCredentialsAsync(actor, recordingId, ct);
+            return Ok(new
+            {
+                tusEndpoint = credentials.Endpoint,
+                tusLibraryId = credentials.LibraryId,
+                videoId = credentials.VideoId,
+                tusSignature = credentials.Signature,
+                tusExpiresUnix = credentials.ExpiresUnix,
+            });
+        }
+        catch (ForbiddenException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (BadRequestException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpPatch("{recordingId:guid}")]
     public async Task<IActionResult> Update(
         Guid recordingId,
@@ -152,9 +178,11 @@ public class ServiceRecordingController(
     public async Task<IActionResult> Publish(Guid recordingId, CancellationToken ct)
     {
         var actor = await current.RequireAsync(ct);
+        if (!Guid.TryParse(current.Sub, out var authUserId))
+            return Unauthorized();
         try
         {
-            var published = await recordings.PublishAsync(actor, recordingId, ct);
+            var published = await recordings.PublishAsync(actor, authUserId, recordingId, ct);
             return Ok(published);
         }
         catch (ForbiddenException ex)

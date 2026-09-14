@@ -468,6 +468,11 @@ public record NotificationDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? ReadAt);
 
+public record ServiceRecordingStatusChangedDto(
+    Guid RecordingId,
+    string Status,
+    Guid ChurchId);
+
 public record NotificationListResponse(
     IReadOnlyList<NotificationDto> Notifications,
     int UnreadCount);

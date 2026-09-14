@@ -65,6 +65,42 @@ public class NotificationRecipientResolver(KairosDbContext db, GivingScopeServic
     /// Leaders who should receive a meeting pack. Church-wide = all non-pastor leaders.
     /// Scoped = leaders whose assignment intersects that unit. Not members, not pastors.
     /// </summary>
+    /// <summary>
+    /// All church users with a login — role assignments plus roster members linked to an auth account.
+    /// </summary>
+    public async Task<List<Guid>> ForChurchManagersAsync(Guid churchId, CancellationToken ct) =>
+        await db.RoleAssignments.AsNoTracking()
+            .Where(r =>
+                r.ChurchId == churchId
+                && (r.Role == ChurchRole.Pastor || r.Role == ChurchRole.ChurchAdmin))
+            .Select(r => r.AuthUserId)
+            .Distinct()
+            .ToListAsync(ct);
+
+    public async Task<List<Guid>> ForChurchMembersWithLoginAsync(
+        Guid churchId,
+        Guid? excludeAuthUserId,
+        CancellationToken ct)
+    {
+        var recipients = new HashSet<Guid>(
+            await db.RoleAssignments.AsNoTracking()
+                .Where(r => r.ChurchId == churchId)
+                .Select(r => r.AuthUserId)
+                .ToListAsync(ct));
+
+        var memberAuthIds = await db.ChurchMembers.AsNoTracking()
+            .Where(m => m.ChurchId == churchId && m.AuthUserId != null)
+            .Select(m => m.AuthUserId!.Value)
+            .ToListAsync(ct);
+        foreach (var id in memberAuthIds)
+            recipients.Add(id);
+
+        if (excludeAuthUserId is Guid excluded)
+            recipients.Remove(excluded);
+
+        return recipients.ToList();
+    }
+
     public async Task<List<Guid>> ForMeetingPackLeadersAsync(
         Guid churchId,
         Guid? scopeNodeId,

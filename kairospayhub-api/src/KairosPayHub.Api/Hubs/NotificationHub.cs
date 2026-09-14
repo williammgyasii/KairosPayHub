@@ -8,6 +8,7 @@ namespace KairosPayHub.Api.Hubs;
 public interface INotificationClient
 {
     Task NotificationReceived(NotificationDto notification);
+    Task ServiceRecordingStatusChanged(ServiceRecordingStatusChangedDto payload);
 }
 
 [Authorize]

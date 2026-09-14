@@ -16,6 +16,7 @@ public enum NotificationKind
     GivingCampaignOpened,
     MeetingTypeCreated,
     AttendanceMeetingPackPublished,
+    ServiceRecordingPublished,
 }
 
 public class Notification

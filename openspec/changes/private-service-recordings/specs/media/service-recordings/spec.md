@@ -62,6 +62,13 @@ Private church service recordings (VOD) via Bunny Stream.
 - **WHEN** a member requests detail or playback for an unpublished recording
 - **THEN** the API MUST respond with 404
 
+### Scenario: Publish notifies church members
+
+- **WHEN** a church manager publishes a ready recording
+- **THEN** every other church user with a login MUST receive an inbox notification
+- **AND** subscribed devices MUST receive a web push with the same title, body, and link
+- **AND** the publisher MUST NOT receive the notification
+
 ## Categories
 
 ### Scenario: Pastor creates a recording category
@@ -98,3 +105,17 @@ Private church service recordings (VOD) via Bunny Stream.
 
 - **WHEN** a recording has both a Bunny-generated thumbnail and a pastor-uploaded custom thumbnail
 - **THEN** the API MUST return the custom thumbnail for display
+
+## Encoding status (realtime)
+
+### Scenario: Webhook updates encoding status for open managers
+
+- **WHEN** Bunny Stream sends a webhook that changes a recording's status (e.g. Processing → Ready)
+- **THEN** the API MUST persist the new status
+- **AND** every connected church manager (Pastor or ChurchAdmin) MUST receive a SignalR `ServiceRecordingStatusChanged` event
+- **AND** the client MUST invalidate service recording list/detail caches so the grid encoding overlay clears without navigation or polling
+
+### Scenario: Publish notification also refreshes recordings
+
+- **WHEN** a manager receives a `ServiceRecordingPublished` inbox notification over SignalR
+- **THEN** the client MUST invalidate service recording caches so the grid reflects the new published state

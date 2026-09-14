@@ -36,6 +36,7 @@ builder.Services.AddHttpClient(nameof(TurnstileVerifier));
 builder.Services.AddSingleton<ITurnstileVerifier, TurnstileVerifier>();
 builder.Services.AddScoped<CurrentActor>();
 builder.Services.AddScoped<INotificationPublisher, SignalRNotificationPublisher>();
+builder.Services.AddScoped<IServiceRecordingRealtimePublisher, SignalRServiceRecordingPublisher>();
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Jwt configuration is missing");
