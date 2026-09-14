@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Search, Video } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import { canManageChurch } from '@/api/auth'
@@ -21,6 +21,10 @@ import { DashboardPageHeader } from '@/shared/layout/dashboard-page-header'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Spinner } from '@/shared/ui/spinner'
+import {
+  serviceRecordingListHasInFlight,
+  serviceRecordingListPollingIntervalMs,
+} from '@/features/media/lib/service-recording-list-sync-policy'
 import { uploadServiceRecordingThumbnail } from '@/features/media/lib/service-recording-thumbnail-upload'
 import { formatRtkQueryError } from '@/store/baseQuery'
 import { invalidateServiceRecordingTags } from '@/features/media/api/serviceRecordingsApi'
@@ -50,23 +54,38 @@ export function ServiceRecordingsPage() {
     setPage(1)
   }, [debouncedSearch, selectedCategoryId, selectedSeriesId])
 
+  const recordingsQueryArgs = {
+    q: debouncedSearch || undefined,
+    categoryId: selectedCategoryId ?? undefined,
+    seriesId: selectedSeriesId ?? undefined,
+    page,
+    pageSize: PAGE_SIZE,
+  }
+
+  const lastRecordingsRef = useRef<ServiceRecordingListItem[]>([])
+  const pollingInterval = serviceRecordingListPollingIntervalMs(
+    canManage && serviceRecordingListHasInFlight(lastRecordingsRef.current),
+  )
+
   const {
     data,
     error,
     isLoading,
     isFetching,
     refetch,
-  } = useListServiceRecordingsQuery({
-    q: debouncedSearch || undefined,
-    categoryId: selectedCategoryId ?? undefined,
-    seriesId: selectedSeriesId ?? undefined,
-    page,
-    pageSize: PAGE_SIZE,
+  } = useListServiceRecordingsQuery(recordingsQueryArgs, {
+    pollingInterval,
+    refetchOnMountOrArgChange: true,
   })
 
   const recordings = data?.recordings ?? []
+  lastRecordingsRef.current = recordings
   const total = data?.total ?? 0
   const hasMore = recordings.length < total
+  const existingTitles = useMemo(
+    () => recordings.map((recording) => recording.title),
+    [recordings],
+  )
 
   const [publishRecording, { isLoading: publishing }] = usePublishServiceRecordingMutation()
   const [unpublishRecording, { isLoading: unpublishing }] = useUnpublishServiceRecordingMutation()
@@ -214,6 +233,7 @@ export function ServiceRecordingsPage() {
             open={uploadOpen}
             onOpenChange={setUploadOpen}
             onComplete={() => void refetch()}
+            existingTitles={existingTitles}
           />
           <ServiceRecordingEditModal
             recording={editingRecording}
@@ -222,6 +242,7 @@ export function ServiceRecordingsPage() {
               if (!open) setEditingRecording(null)
             }}
             onSaved={() => void refetch()}
+            existingTitles={existingTitles}
           />
         </>
       )}

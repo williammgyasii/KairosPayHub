@@ -88,13 +88,23 @@ export type CreateServiceRecordingInput = {
   seriesId?: string | null
 }
 
+export type ServiceRecordingTusUpload = {
+  tusEndpoint: string
+  tusLibraryId: number
+  tusSignature: string
+  tusExpiresUnix: number
+  videoId: string
+}
+
 export type CreateServiceRecordingResult = {
   id: string
   title: string
   status: ServiceRecordingStatus
   bunnyVideoGuid: string
-  uploadUrl: string
-  uploadAccessKey: string
+  tusEndpoint: string
+  tusLibraryId: number
+  tusSignature: string
+  tusExpiresUnix: number
 }
 
 export type ServiceRecordingPlayback = {
@@ -102,31 +112,5 @@ export type ServiceRecordingPlayback = {
   expiresAtUnix: number
 }
 
-export async function uploadServiceRecordingVideo(
-  uploadUrl: string,
-  uploadAccessKey: string,
-  file: File,
-  onProgress?: (percent: number) => void,
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('PUT', uploadUrl)
-    xhr.setRequestHeader('AccessKey', uploadAccessKey)
-
-    xhr.upload.onprogress = (event) => {
-      if (!event.lengthComputable || !onProgress) return
-      onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
-    }
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve()
-        return
-      }
-      reject(new Error(`Upload failed (${xhr.status})`))
-    }
-
-    xhr.onerror = () => reject(new Error('Upload failed'))
-    xhr.send(file)
-  })
-}
+export type { ServiceRecordingUploadProgress } from '@/features/media/lib/service-recording-tus-upload'
+export { uploadServiceRecordingWithTus } from '@/features/media/lib/service-recording-tus-upload'

@@ -14,6 +14,7 @@ function notificationKindBadge(kind: Notification['kind']): string | null {
   if (kind.startsWith('Attendance')) return 'Attendance'
   if (kind.startsWith('Contribution')) return 'Giving'
   if (kind.startsWith('SubGiving') || kind.startsWith('Giving')) return 'Giving'
+  if (kind.startsWith('ServiceRecording')) return 'Recording'
   return null
 }
 

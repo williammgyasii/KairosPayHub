@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ServiceRecordingListItem } from '@/features/media/api'
 import { ServiceRecordingCategoryPicker } from '@/features/media/components/service-recording-category-picker'
 import { ServiceRecordingSeriesPicker } from '@/features/media/components/service-recording-series-picker'
 import { useUpdateServiceRecordingMutation } from '@/features/media/api/serviceRecordingsApi'
+import {
+  validateServiceRecordingDescription,
+  validateServiceRecordingTitle,
+} from '@/features/media/lib/service-recording-form-policy'
 import { formatRtkQueryError } from '@/store/baseQuery'
 import { Modal } from '@/shared/ui/modal'
 import { Input } from '@/shared/ui/input'
@@ -14,6 +18,7 @@ type ServiceRecordingEditModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved?: () => void
+  existingTitles: readonly string[]
 }
 
 export function ServiceRecordingEditModal({
@@ -21,15 +26,26 @@ export function ServiceRecordingEditModal({
   open,
   onOpenChange,
   onSaved,
+  existingTitles,
 }: ServiceRecordingEditModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [serviceDate, setServiceDate] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [seriesId, setSeriesId] = useState<string | null>(null)
+  const [titleError, setTitleError] = useState<string | null>(null)
+  const [descriptionError, setDescriptionError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const [updateRecording, { isLoading }] = useUpdateServiceRecordingMutation()
+
+  const formOptions = useMemo(
+    () => ({
+      existingTitles,
+      excludeTitle: recording?.title ?? null,
+    }),
+    [existingTitles, recording?.title],
+  )
 
   useEffect(() => {
     if (!recording || !open) return
@@ -38,6 +54,8 @@ export function ServiceRecordingEditModal({
     setServiceDate(recording.serviceDate ?? '')
     setCategoryId(recording.category?.id ?? null)
     setSeriesId(recording.series?.id ?? null)
+    setTitleError(null)
+    setDescriptionError(null)
     setSubmitError(null)
   }, [recording, open])
 
@@ -46,8 +64,16 @@ export function ServiceRecordingEditModal({
     onOpenChange(false)
   }
 
+  function validateForm() {
+    const nextTitleError = validateServiceRecordingTitle(title, formOptions)
+    const nextDescriptionError = validateServiceRecordingDescription(description)
+    setTitleError(nextTitleError)
+    setDescriptionError(nextDescriptionError)
+    return !nextTitleError && !nextDescriptionError
+  }
+
   async function handleSave() {
-    if (!recording || !title.trim()) return
+    if (!recording || !validateForm()) return
     setSubmitError(null)
 
     try {
@@ -81,10 +107,18 @@ export function ServiceRecordingEditModal({
           <Input
             id="edit-recording-title"
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              setTitle(event.target.value)
+              if (titleError) {
+                setTitleError(validateServiceRecordingTitle(event.target.value, formOptions))
+              }
+            }}
+            onBlur={() => setTitleError(validateServiceRecordingTitle(title, formOptions))}
             disabled={isLoading}
             autoFocus
+            aria-invalid={Boolean(titleError)}
           />
+          {titleError && <p className="text-sm text-destructive">{titleError}</p>}
         </div>
 
         <div className="space-y-1.5">
@@ -106,10 +140,20 @@ export function ServiceRecordingEditModal({
           <Input
             id="edit-recording-description"
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={(event) => {
+              setDescription(event.target.value)
+              if (descriptionError) {
+                setDescriptionError(validateServiceRecordingDescription(event.target.value))
+              }
+            }}
+            onBlur={() =>
+              setDescriptionError(validateServiceRecordingDescription(description))
+            }
             placeholder="Optional notes for your team"
             disabled={isLoading}
+            aria-invalid={Boolean(descriptionError)}
           />
+          {descriptionError && <p className="text-sm text-destructive">{descriptionError}</p>}
         </div>
 
         <div className="space-y-1.5">
@@ -142,7 +186,7 @@ export function ServiceRecordingEditModal({
           </Button>
           <Button
             type="button"
-            disabled={isLoading || !title.trim()}
+            disabled={isLoading || !title.trim() || Boolean(titleError || descriptionError)}
             onClick={() => void handleSave()}
           >
             {isLoading ? 'Saving…' : 'Save changes'}

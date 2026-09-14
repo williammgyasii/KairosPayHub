@@ -6,7 +6,7 @@ export const SERVICE_RECORDING_VIDEO_TYPES = [
   'video/x-m4v',
 ] as const
 
-export const MAX_SERVICE_RECORDING_BYTES = 2 * 1024 * 1024 * 1024
+export const MAX_SERVICE_RECORDING_BYTES = 6 * 1024 * 1024 * 1024
 
 export function serviceRecordingVideoAllowed(contentType: string) {
   return (SERVICE_RECORDING_VIDEO_TYPES as readonly string[]).includes(contentType)
@@ -20,7 +20,8 @@ export function validateServiceRecordingFile(file: File): string | null {
     return 'The selected file is empty.'
   }
   if (file.size > MAX_SERVICE_RECORDING_BYTES) {
-    return 'Video must be 2 GB or smaller.'
+    const sizeGb = (file.size / (1024 * 1024 * 1024)).toFixed(1)
+    return `This file is ${sizeGb} GB. Videos must be 6 GB or smaller.`
   }
   return null
 }

@@ -10,6 +10,8 @@ import {
 import { useAppDispatch } from '@/store/hooks'
 import { invalidateAttendanceApprovalQueue } from '@/features/attendance/api/attendanceApi'
 import { invalidateGivingTags } from '@/features/giving/api/givingApi'
+import { invalidateServiceRecordingTags } from '@/features/media/api/serviceRecordingsApi'
+import { normalizeServiceRecordingStatusChanged } from '@/features/media/lib/service-recording-realtime'
 import { notificationsApi } from '@/store/notificationsApi'
 
 const LOG_PREFIX = '[KairosPayHub notifications]'
@@ -98,6 +100,7 @@ export function useNotificationsRealtime({
         dispatch(notificationsApi.util.invalidateTags(['Notifications']))
         dispatch(invalidateAttendanceApprovalQueue())
         dispatch(invalidateGivingTags())
+        dispatch(invalidateServiceRecordingTags())
       })
 
       connection.onclose((err) => {
@@ -128,6 +131,20 @@ export function useNotificationsRealtime({
         ) {
           dispatch(invalidateGivingTags())
         }
+
+        if (notification.kind === 'ServiceRecordingPublished') {
+          dispatch(invalidateServiceRecordingTags())
+        }
+      })
+
+      connection.on('ServiceRecordingStatusChanged', (raw: unknown) => {
+        const payload = normalizeServiceRecordingStatusChanged(raw)
+        if (!payload) {
+          dispatch(invalidateServiceRecordingTags())
+          return
+        }
+
+        dispatch(invalidateServiceRecordingTags(payload.recordingId))
       })
 
       connectionRef.current = connection

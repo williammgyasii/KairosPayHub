@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { canManageChurch, displayName, type Me } from '@/api/auth'
 import { useAuth } from '@/auth/AuthContext'
+import { ServiceRecordingUploadBell } from '@/features/media/components/service-recording-upload-bell'
 import { ChurchBrand } from '@/shared/layout/church-brand'
 import { NotificationsBell } from '@/shared/layout/notifications-bell'
 import { RoleBadge } from '@/shared/layout/role-badge'
@@ -28,6 +29,7 @@ import { cn, initials } from '@/shared/lib/utils'
 
 interface DashboardTopbarProps {
   me: Me & { onboarded: true }
+  showRecordingUploads?: boolean
 }
 
 function MenuLink({
@@ -59,7 +61,7 @@ function MenuLink({
   )
 }
 
-export function DashboardTopbar({ me }: DashboardTopbarProps) {
+export function DashboardTopbar({ me, showRecordingUploads = false }: DashboardTopbarProps) {
   const { email, signOut } = useAuth()
   const name = displayName(me, email)
   const churchManager = canManageChurch(me.role)
@@ -84,6 +86,7 @@ export function DashboardTopbar({ me }: DashboardTopbarProps) {
         <RoleBadge me={me} className="hidden lg:flex" />
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {showRecordingUploads ? <ServiceRecordingUploadBell /> : null}
           <NotificationsBell />
 
           <DropdownMenu>

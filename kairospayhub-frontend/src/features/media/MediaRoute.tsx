@@ -5,8 +5,9 @@ import type { DashboardOutletContext } from '@/shared/layout/dashboard-layout'
 
 export function MediaRoute({ children }: { children: ReactNode }) {
   const { me } = useOutletContext<DashboardOutletContext>()
-  if (me.onboarded && serviceRecordingsVisible(me)) {
-    return <>{children}</>
+  if (!me.onboarded || !serviceRecordingsVisible(me)) {
+    return <Navigate to="/" replace />
   }
-  return <Navigate to="/" replace />
+
+  return children
 }

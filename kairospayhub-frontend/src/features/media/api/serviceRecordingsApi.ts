@@ -6,6 +6,7 @@ import type {
   ServiceRecordingListPage,
   ServiceRecordingListQuery,
   ServiceRecordingPlayback,
+  ServiceRecordingTusUpload,
   UpdateServiceRecordingInput,
 } from '@/features/media/api/index'
 
@@ -107,6 +108,15 @@ export const serviceRecordingsApi = baseApi.injectEndpoints({
       query: (recordingId) => `/api/service-recordings/${recordingId}/playback`,
       keepUnusedDataFor: 60,
     }),
+    getServiceRecordingUploadCredentials: builder.mutation<
+      ServiceRecordingTusUpload,
+      string
+    >({
+      query: (recordingId) => ({
+        url: `/api/service-recordings/${recordingId}/upload-credentials`,
+        method: 'POST',
+      }),
+    }),
   }),
 })
 
@@ -119,6 +129,7 @@ export const {
   useUnpublishServiceRecordingMutation,
   useDeleteServiceRecordingMutation,
   useGetServiceRecordingPlaybackQuery,
+  useGetServiceRecordingUploadCredentialsMutation,
 } = serviceRecordingsApi
 
 export function invalidateServiceRecordingTags(recordingId?: string) {
