@@ -1,9 +1,11 @@
 using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Email;
+using KairosPayHub.Api.FeatureFlags;
 using KairosPayHub.Api.Infrastructure;
 using KairosPayHub.Api.Services;
 using KairosPayHub.Api.Storage;
+using KairosPayHub.Api.Streaming;
 using KairosPayHub.Application.Structure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -44,6 +46,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<Notifications.WebPushOptions>(
             configuration.GetSection(Notifications.WebPushOptions.SectionName));
         services.Configure<R2Options>(configuration.GetSection(R2Options.SectionName));
+        services.Configure<ServiceRecordingsFeatureOptions>(
+            configuration.GetSection(ServiceRecordingsFeatureOptions.SectionName));
+        services.Configure<BunnyStreamOptions>(configuration.GetSection(BunnyStreamOptions.SectionName));
         services.PostConfigure<R2Options>(o =>
         {
             o.AccessKeyId ??= configuration["CLOUDFLARE_R2_ACCESS_KEY_ID"];
@@ -51,7 +56,9 @@ public static class InfrastructureServiceCollectionExtensions
             o.Endpoint ??= configuration["CLOUDFLARE_R2_ENDPOINT"];
         });
 
+        services.AddHttpClient(nameof(BunnyStreamClient));
         services.AddSingleton<IObjectStorage, R2ObjectStorage>();
+        services.AddScoped<IBunnyStreamClient, BunnyStreamClient>();
         services.AddSingleton<SmtpEmailSender>();
         services.AddSingleton<IEmailSender, LoggingEmailSender>();
         services.AddMemoryCache();
@@ -98,6 +105,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<UserTablePreferenceService>();
         services.AddScoped<LeaderInviteService>();
         services.AddScoped<CalendarEventService>();
+        services.AddScoped<ServiceRecordingCategoryService>();
+        services.AddScoped<ServiceRecordingSeriesService>();
+        services.AddScoped<ServiceRecordingThumbnailService>();
+        services.AddScoped<ServiceRecordingService>();
 
         return services;
     }

@@ -63,6 +63,12 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         Set<Domain.Authorization.ChurchAbilityOverlay>();
     public DbSet<Domain.Account.UserTablePreference> UserTablePreferences =>
         Set<Domain.Account.UserTablePreference>();
+    public DbSet<Domain.Media.ChurchServiceRecording> ChurchServiceRecordings =>
+        Set<Domain.Media.ChurchServiceRecording>();
+    public DbSet<Domain.Media.ServiceRecordingCategory> ServiceRecordingCategories =>
+        Set<Domain.Media.ServiceRecordingCategory>();
+    public DbSet<Domain.Media.ServiceRecordingSeries> ServiceRecordingSeries =>
+        Set<Domain.Media.ServiceRecordingSeries>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -139,6 +145,63 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         ConfigureAbilityOverlays(b);
         ConfigureUserTablePreferences(b);
         ConfigureUnitJoinInvites(b);
+        ConfigureServiceRecordings(b);
+    }
+
+    private static void ConfigureServiceRecordings(ModelBuilder b)
+    {
+        b.Entity<Domain.Media.ServiceRecordingCategory>(e =>
+        {
+            e.ToTable("service_recording_categories");
+            e.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            e.HasIndex(x => x.ChurchId);
+            e.HasIndex(x => new { x.ChurchId, x.Name }).IsUnique();
+            e.HasOne(x => x.Church)
+                .WithMany()
+                .HasForeignKey(x => x.ChurchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Media.ServiceRecordingSeries>(e =>
+        {
+            e.ToTable("service_recording_series");
+            e.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.HasIndex(x => x.ChurchId);
+            e.HasIndex(x => new { x.ChurchId, x.Name }).IsUnique();
+            e.HasOne(x => x.Church)
+                .WithMany()
+                .HasForeignKey(x => x.ChurchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Domain.Media.ChurchServiceRecording>(e =>
+        {
+            e.ToTable("church_service_recordings");
+            e.Property(x => x.Title).IsRequired().HasMaxLength(200);
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.BunnyVideoGuid).IsRequired().HasMaxLength(64);
+            e.Property(x => x.ThumbnailUrl).HasMaxLength(512);
+            e.Property(x => x.CustomThumbnailUrl).HasMaxLength(512);
+            e.Property(x => x.Status).HasConversion<string>().IsRequired();
+            e.HasIndex(x => x.ChurchId);
+            e.HasIndex(x => x.BunnyVideoGuid).IsUnique();
+            e.HasIndex(x => new { x.ChurchId, x.PublishedAt });
+            e.HasIndex(x => x.CategoryId);
+            e.HasIndex(x => x.SeriesId);
+            e.HasOne(x => x.Church)
+                .WithMany()
+                .HasForeignKey(x => x.ChurchId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Category)
+                .WithMany(c => c.Recordings)
+                .HasForeignKey(x => x.CategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Series)
+                .WithMany(s => s.Recordings)
+                .HasForeignKey(x => x.SeriesId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
     }
 
     private static void ConfigureUnitJoinInvites(ModelBuilder b)

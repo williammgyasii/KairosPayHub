@@ -3,6 +3,7 @@ using KairosPayHub.Api.Authorization;
 using KairosPayHub.Api.Data;
 using KairosPayHub.Api.Domain;
 using KairosPayHub.Api.Domain.Structure;
+using KairosPayHub.Api.FeatureFlags;
 using KairosPayHub.Api.Services;
 using KairosPayHub.Api.Storage;
 using KairosPayHub.Api.Web;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace KairosPayHub.Api.Controllers;
 
@@ -23,7 +25,8 @@ public class MeController(
     LayerAccessService layerAccess,
     UserManager<ApplicationUser> users,
     ChurchReadCache readCache,
-    UserAvatarService avatars) : ControllerBase
+    UserAvatarService avatars,
+    IOptions<ServiceRecordingsFeatureOptions> serviceRecordingsFeature) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -178,6 +181,10 @@ public class MeController(
         if (Guid.TryParse(current.Sub, out var meAuthUserId))
             avatarUrl = await avatars.GetAvatarUrlAsync(meAuthUserId);
 
+        var serviceRecordingsEnabled = ServiceRecordingFeaturePolicy.IsEnabled(
+            serviceRecordingsFeature.Value,
+            churchId);
+
         return Ok(new
         {
             onboarded = true,
@@ -209,6 +216,7 @@ public class MeController(
             abilities = resolved.Abilities,
             abilityRules = resolved.Rules,
             leadershipProfile = resolved.Profile.ToString(),
+            features = new { serviceRecordings = serviceRecordingsEnabled },
         });
     }
 

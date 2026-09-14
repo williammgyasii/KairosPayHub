@@ -3,6 +3,7 @@ using System;
 using KairosPayHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace KairosPayHub.Api.Data.Migrations
 {
     [DbContext(typeof(KairosDbContext))]
-    partial class KairosDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260914004222_AddServiceRecordingPlayCount")]
+    partial class AddServiceRecordingPlayCount
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1145,9 +1148,6 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("RetentionExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("SeriesId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateOnly?>("ServiceDate")
                         .HasColumnType("date");
 
@@ -1178,8 +1178,6 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("ChurchId");
-
-                    b.HasIndex("SeriesId");
 
                     b.HasIndex("ChurchId", "PublishedAt");
 
@@ -1217,43 +1215,6 @@ namespace KairosPayHub.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("service_recording_categories", (string)null);
-                });
-
-            modelBuilder.Entity("KairosPayHub.Api.Domain.Media.ServiceRecordingSeries", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ChurchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChurchId");
-
-                    b.HasIndex("ChurchId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("service_recording_series", (string)null);
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.Notifications.Notification", b =>
@@ -2203,30 +2164,12 @@ namespace KairosPayHub.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("KairosPayHub.Api.Domain.Media.ServiceRecordingSeries", "Series")
-                        .WithMany("Recordings")
-                        .HasForeignKey("SeriesId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Category");
 
                     b.Navigation("Church");
-
-                    b.Navigation("Series");
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.Media.ServiceRecordingCategory", b =>
-                {
-                    b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
-                        .WithMany()
-                        .HasForeignKey("ChurchId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Church");
-                });
-
-            modelBuilder.Entity("KairosPayHub.Api.Domain.Media.ServiceRecordingSeries", b =>
                 {
                     b.HasOne("KairosPayHub.Api.Domain.Structure.Church", "Church")
                         .WithMany()
@@ -2503,11 +2446,6 @@ namespace KairosPayHub.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.Media.ServiceRecordingCategory", b =>
-                {
-                    b.Navigation("Recordings");
-                });
-
-            modelBuilder.Entity("KairosPayHub.Api.Domain.Media.ServiceRecordingSeries", b =>
                 {
                     b.Navigation("Recordings");
                 });
