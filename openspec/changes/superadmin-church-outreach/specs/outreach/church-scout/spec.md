@@ -110,3 +110,52 @@ The system SHALL send a message the operator writes to a saved church through th
 #### Scenario: Operator records the outcome by hand
 - **WHEN** the operator marks a reached lead Success, Failure, or Converted
 - **THEN** the saved lead shows that outcome
+
+### Requirement: Lead website link
+The leads table SHALL show each church website as a link labelled by its host. The link SHALL open the site in a new tab. Only http and https addresses SHALL be links.
+
+#### Scenario: Operator opens a church website
+- **WHEN** the operator clicks a website in the leads table
+- **THEN** the church site opens in a new tab
+
+#### Scenario: Stored website is not a web address
+- **WHEN** a stored website is empty or uses another scheme
+- **THEN** the table shows no link
+
+### Requirement: A reach out sends at most once
+Each send request SHALL carry an idempotency key chosen once per draft. The system SHALL send at most one email per key. A different key SHALL be treated as a deliberate follow-up.
+
+#### Scenario: Send without a key
+- **WHEN** the operator sends a message without an idempotency key
+- **THEN** the system refuses the request and sends nothing
+
+#### Scenario: The same key is sent again after success
+- **WHEN** a send with a key has succeeded and a request with the same key arrives
+- **THEN** no second email goes out and the response reports the original send
+
+#### Scenario: The same key arrives twice at once
+- **WHEN** two requests with the same key arrive together
+- **THEN** exactly one email goes out
+
+#### Scenario: The mailbox fails
+- **WHEN** the mailbox refuses a send
+- **THEN** the lead is not marked reached and a retry with the same key may send
+
+#### Scenario: A follow-up uses a new key
+- **WHEN** a reached lead is sent a message with a new key
+- **THEN** the new message goes out
+
+### Requirement: Sending feedback in the message panel
+The message panel SHALL show the recipient as a labelled badge. While a send is in flight the Reach out button SHALL be disabled and show a spinner. The operator SHALL see a toast when the send succeeds or fails. Clicking outside the panel SHALL NOT close it.
+
+#### Scenario: Operator clicks Reach out
+- **WHEN** the operator clicks Reach out
+- **THEN** the button is disabled with a spinner until the send finishes, and a second click sends nothing
+
+#### Scenario: The send finishes
+- **WHEN** the send succeeds or fails
+- **THEN** a toast says so, and a failed send may be retried with the same key
+
+#### Scenario: Operator clicks outside the panel
+- **WHEN** the operator clicks the backdrop
+- **THEN** the panel stays open; the close button and Escape still close it

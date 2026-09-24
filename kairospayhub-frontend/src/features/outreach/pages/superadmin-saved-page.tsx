@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { toast } from 'sonner'
 import { operatorGet, operatorPatch, operatorPost } from '@/features/outreach/lib/operator-session'
 import { OperatorShell } from '@/features/outreach/components/operator-shell'
 import { MessagePanel } from '@/features/outreach/components/message-panel'
 import { SearchLeadsTable, type SearchLead } from '@/features/outreach/components/search-leads-table'
+import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Modal } from '@/shared/ui/modal'
+import { InlineSpinner } from '@/shared/ui/spinner'
 
 type SavedPageResult = {
   churches: SearchLead[]
@@ -26,6 +29,8 @@ export function SuperadminSavedPage() {
   const [notice, setNotice] = useState('')
   const [drafting, setDrafting] = useState(false)
   const [sent, setSent] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendKey, setSendKey] = useState('')
   const [instruction, setInstruction] = useState('')
 
   async function openMessage(lead: SearchLead) {
@@ -34,6 +39,8 @@ export function SuperadminSavedPage() {
     setMessage('')
     setNotice('')
     setSent(false)
+    setSending(false)
+    setSendKey(crypto.randomUUID())
     setInstruction('')
     setDrafting(true)
     try {
@@ -75,18 +82,26 @@ export function SuperadminSavedPage() {
   }
 
   async function reachOut() {
-    if (!draftLead) return
+    if (!draftLead || sending || sent) return
     setNotice('')
-    await operatorPost(`/api/outreach/churches/${draftLead.id}/messages`, { subject, body: message })
-    const sentAt = new Date().toISOString()
-    setRows((current) =>
-      current.map((row) => (row.id === draftLead.id ? { ...row, sentAt, sentSubject: subject, sentBody: message } : row)),
-    )
-    setOpenLead((current) =>
-      current && current.id === draftLead.id ? { ...current, sentAt, sentSubject: subject, sentBody: message } : current,
-    )
-    setSent(true)
-    setNotice(`Sent to ${draftLead.email}. A reply comes back to your inbox.`)
+    setSending(true)
+    try {
+      const result = await operatorPost<{ sentAt?: string }>(
+        `/api/outreach/churches/${draftLead.id}/messages`,
+        { subject, body: message },
+        { idempotencyKey: sendKey },
+      )
+      const sentAt = result?.sentAt ?? new Date().toISOString()
+      const reached = { sentAt, sentSubject: subject, sentBody: message }
+      setRows((current) => current.map((row) => (row.id === draftLead.id ? { ...row, ...reached } : row)))
+      setOpenLead((current) => (current && current.id === draftLead.id ? { ...current, ...reached } : current))
+      setSent(true)
+      toast.success(`Sent to ${draftLead.email}. A reply comes back to your inbox.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The email could not be sent.')
+    } finally {
+      setSending(false)
+    }
   }
 
   async function mark(status: 'Success' | 'Failure' | 'Converted') {
@@ -185,7 +200,10 @@ export function SuperadminSavedPage() {
                   void reachOut()
                 }}
               >
-                <p className="text-sm text-muted-foreground">{draftLead.email}</p>
+                <div data-testid="recipient" className="flex items-center gap-2 text-sm">
+                  <Badge className="border-blue-200 bg-blue-50 text-blue-700">To</Badge>
+                  <Badge className="min-w-0 truncate border-violet-200 bg-violet-50 text-violet-700">{draftLead.email}</Badge>
+                </div>
                 <label className="block text-sm">
                   Subject
                   <input
@@ -205,9 +223,20 @@ export function SuperadminSavedPage() {
                     placeholder={drafting ? 'Writing a draft…' : ''}
                   />
                 </label>
-                <Button type="submit" disabled={drafting || sent || message.trim().length === 0}>
+                <Button type="submit" disabled={drafting || sending || sent || message.trim().length === 0}>
                   <AnimatePresence mode="wait" initial={false}>
-                    {sent ? (
+                    {sending ? (
+                      <motion.span
+                        key="sending"
+                        className="inline-flex items-center gap-2"
+                        initial={{ y: 8, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -8, opacity: 0 }}
+                      >
+                        <InlineSpinner />
+                        Sending…
+                      </motion.span>
+                    ) : sent ? (
                       <motion.span
                         key="sent"
                         initial={{ y: 8, opacity: 0 }}

@@ -16,6 +16,7 @@ public class OutreachController(
     ILocationGeocoder locations,
     ICityCatalog cities,
     IOutreachMailbox mailbox,
+    OutreachSendClaims claims,
     IOutreachDraftWriter drafts) : ControllerBase
 {
     [AllowAnonymous]
@@ -150,26 +151,43 @@ public class OutreachController(
     }
 
     [HttpPost("churches/{id:guid}/messages")]
-    public async Task<IActionResult> ReachOut(Guid id, [FromBody] OutreachMessageRequest body, CancellationToken ct)
+    public async Task<IActionResult> ReachOut(
+        Guid id,
+        [FromHeader(Name = "Idempotency-Key")] string? key,
+        [FromBody] OutreachMessageRequest body,
+        CancellationToken ct)
     {
         if (!await operators.IsOperatorAsync(User, ct)) return StatusCode(StatusCodes.Status403Forbidden);
+        if (string.IsNullOrWhiteSpace(key) || key.Length > 100)
+            return BadRequest(new { message = "An Idempotency-Key header is required." });
         if (string.IsNullOrWhiteSpace(body.Subject) || string.IsNullOrWhiteSpace(body.Body))
             return BadRequest(new { message = "Write a subject and a message." });
 
-        var row = await leads.FindSavedAsync(id, ct);
-        if (row is null) return NotFound();
+        var (outcome, row) = await claims.ClaimAsync(id, key, ct);
+        switch (outcome)
+        {
+            case Domain.Outreach.SendClaimOutcome.NotFound:
+                return NotFound();
+            case Domain.Outreach.SendClaimOutcome.Replay:
+                return Ok(new { sent = true, sentAt = row!.SentAt });
+            case Domain.Outreach.SendClaimOutcome.InProgress:
+                return Conflict(new { message = "A send for this church is already in progress." });
+        }
 
+        var subject = body.Subject.Trim();
+        var message = body.Body.Trim();
         try
         {
-            await mailbox.SendAsync(row.Email, body.Subject.Trim(), body.Body.Trim(), ct);
+            await mailbox.SendAsync(row!.Email, subject, message, CancellationToken.None);
         }
-        catch (InvalidOperationException)
+        catch (Exception)
         {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Outreach mail is not configured." });
+            await claims.ReleaseAsync(id, key, CancellationToken.None);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "The email could not be sent. Try again." });
         }
 
-        await leads.MarkSentAsync(row, body.Subject.Trim(), body.Body.Trim(), ct);
-        return Ok(new { sent = true, sentAt = row.SentAt });
+        var sentAt = await claims.CompleteAsync(id, key, subject, message, CancellationToken.None);
+        return Ok(new { sent = true, sentAt });
     }
 
     [HttpPatch("churches/{id:guid}")]

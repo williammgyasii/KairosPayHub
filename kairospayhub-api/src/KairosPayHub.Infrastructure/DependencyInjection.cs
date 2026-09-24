@@ -126,6 +126,7 @@ public static class InfrastructureServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(12));
         services.AddScoped<OutreachScoutService>();
         services.AddScoped<OutreachLeadService>();
+        services.AddScoped<OutreachSendClaims>();
         services.AddScoped<IOutreachMailbox, OutreachMailbox>();
         services.AddHttpClient<IOutreachDraftWriter, OutreachDraftWriter>();
 

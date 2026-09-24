@@ -31,14 +31,13 @@ export function MessagePanel({
     <AnimatePresence>
       {open ? (
         <div className="fixed inset-0 z-[100]">
-          <motion.button
-            type="button"
+          <motion.div
+            data-testid="message-panel-backdrop"
             className="absolute inset-0 bg-black/40"
-            aria-label="Close dialog"
+            aria-hidden
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => onOpenChange(false)}
           />
           <motion.div
             role="dialog"

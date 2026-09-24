@@ -41,15 +41,6 @@ public class OutreachLeadService(KairosDbContext db)
     public Task<OutreachChurch?> FindSavedAsync(Guid id, CancellationToken ct) =>
         db.OutreachChurches.FirstOrDefaultAsync(church => church.Id == id && church.Saved, ct);
 
-    public async Task MarkSentAsync(OutreachChurch row, string subject, string body, CancellationToken ct)
-    {
-        row.SentAt = DateTimeOffset.UtcNow;
-        row.SentSubject = subject;
-        row.SentBody = body;
-        row.UpdatedAt = row.SentAt.Value;
-        await db.SaveChangesAsync(ct);
-    }
-
     public async Task<OutreachChurch?> SaveAsync(Guid id, CancellationToken ct)
     {
         var row = await db.OutreachChurches.FirstOrDefaultAsync(church => church.Id == id, ct);

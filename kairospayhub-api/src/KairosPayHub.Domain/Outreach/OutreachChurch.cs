@@ -16,6 +16,8 @@ public class OutreachChurch
     public DateTimeOffset? SentAt { get; set; }
     public string? SentSubject { get; set; }
     public string? SentBody { get; set; }
+    public string? SendKey { get; set; }
+    public DateTimeOffset? SendingAt { get; set; }
     public string? EmailSourceUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

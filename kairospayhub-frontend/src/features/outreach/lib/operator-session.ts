@@ -27,8 +27,8 @@ export async function signInOperator(email: string, password: string, turnstileT
   saveOperatorToken(data.accessToken)
 }
 
-export async function operatorPost<T>(path: string, body: unknown): Promise<T> {
-  return operatorSend<T>('POST', path, body)
+export async function operatorPost<T>(path: string, body: unknown, options?: { idempotencyKey?: string }): Promise<T> {
+  return operatorSend<T>('POST', path, body, options?.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {})
 }
 
 export async function operatorGet<T>(path: string): Promise<T> {
@@ -39,13 +39,14 @@ export async function operatorPatch<T>(path: string, body: unknown): Promise<T> 
   return operatorSend<T>('PATCH', path, body)
 }
 
-async function operatorSend<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function operatorSend<T>(method: string, path: string, body?: unknown, extraHeaders: Record<string, string> = {}): Promise<T> {
   const token = operatorToken()
   const res = await fetch(`${apiBaseUrl()}${path}`, {
     method,
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...extraHeaders,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })

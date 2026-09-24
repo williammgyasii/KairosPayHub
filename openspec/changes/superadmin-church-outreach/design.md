@@ -37,6 +37,8 @@ Church roles in this app are tenant roles. This page is a Kairos operator tool. 
 
 7. **The saved row owns the lead status.** A new row starts as `Scouted`. The operator marks `Success`, `Failure`, or `Converted` by hand after a reply lands in the operator mailbox. The app sends from that mailbox and does not read the inbox. The dashboard reads `outreach_churches`; it does not recount the last search.
 
+8. **A send is claimed before it goes out.** The browser makes one `Idempotency-Key` per draft and reuses it on retry. The API runs one conditional `UPDATE` that sets `SendKey` and `SendingAt` only when no send is running and the key is new; Postgres re-checks that `WHERE` after a concurrent writer commits, so only one request wins. The winner sends, then records `SentAt` and clears `SendingAt`. A failed send clears the claim so the same key may retry. A losing request is a replay (same key, already sent → the original `sentAt`) or `409`. `OutreachSendClaim.ForLostClaim` is the pure manager for that choice. Claim-then-send is at most once: a crash between the two leaves `SendingAt` set, and the church stays blocked until the column is cleared by hand.
+
 ## Risks / Trade-offs
 
 - [Some contact pages are a form with no address] → those churches stay off the list.

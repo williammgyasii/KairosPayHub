@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { motion } from 'framer-motion'
-import { Check, Eye, Mail, Plus } from 'lucide-react'
+import { Check, ExternalLink, Eye, Mail, Plus } from 'lucide-react'
+import { websiteLink } from '@/features/outreach/lib/website-link'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { TablePagination } from '@/shared/ui/table-pagination'
@@ -51,6 +52,24 @@ export function SearchLeadsTable({
     () => [
       columnHelper.accessor('name', { header: 'Church' }),
       columnHelper.accessor('email', { header: 'Email' }),
+      columnHelper.accessor('website', {
+        header: 'Website',
+        cell: (info) => {
+          const link = websiteLink(info.getValue())
+          if (!link) return <span className="text-muted-foreground">None</span>
+          return (
+            <a
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+            >
+              {link.label}
+              <ExternalLink className="size-3" aria-hidden />
+            </a>
+          )
+        },
+      }),
       columnHelper.accessor('state', {
         header: 'State',
         cell: (info) => info.getValue() || 'Unknown',

@@ -41,3 +41,4 @@
 ## 8. Reach out
 
 - [x] 8.1 Send from the saved lead through the operator mailbox, record that it was reached, and let the operator mark Success, Failure, or Converted.
+- [x] 8.2 Send at most once per idempotency key (atomic claim), with a spinner, toasts, a recipient badge, and a panel that ignores outside clicks.
