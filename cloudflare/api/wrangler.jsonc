@@ -63,7 +63,10 @@
           "R2_ENDPOINT",
           "WEB_PUSH_PUBLIC_KEY",
           "WEB_PUSH_PRIVATE_KEY",
-          "WEB_PUSH_SUBJECT"
+          "WEB_PUSH_SUBJECT",
+          "OUTREACH_OPEN_PLACES_API_KEY",
+          "OUTREACH_OPENAI_API_KEY",
+          "OUTREACH_SMTP_PASSWORD"
         ]
       },
       "containers": [
@@ -102,7 +105,12 @@
         "TURNSTILE_ALLOWED_HOSTNAMES": "dev.app.kairospayhub.com,127.0.0.1,localhost",
         "FEATURE_FLAG_SERVICE_RECORDINGS_ENABLED": "true",
         "FEATURE_FLAG_SERVICE_RECORDINGS_ALLOWED_CHURCH_IDS": "",
-        "BUNNY_STREAM_LIBRARY_ID": "752627"
+        "BUNNY_STREAM_LIBRARY_ID": "752627",
+        "OUTREACH_SMTP_HOST": "smtp.gmail.com",
+        "OUTREACH_SMTP_PORT": "587",
+        "OUTREACH_SMTP_USERNAME": "william@kairospayhub.com",
+        "OUTREACH_FROM_ADDRESS": "william@kairospayhub.com",
+        "OUTREACH_FROM_NAME": "KairosPayHub"
       }
     },
     "production": {

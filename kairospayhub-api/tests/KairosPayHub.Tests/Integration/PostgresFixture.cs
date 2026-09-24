@@ -37,7 +37,8 @@ public sealed class PostgresFixture : IAsyncLifetime
     {
         await using var db = CreateContext();
         await db.Database.ExecuteSqlRawAsync("""
-            TRUNCATE contributions, giving_program_scope_nodes, giving_programs,
+            TRUNCATE superadmin_operators, outreach_area_caches, outreach_churches,
+              contributions, giving_program_scope_nodes, giving_programs,
               users, churches, organizations,
               role_assignments, church_members, structure_nodes, structure_layers,
               structure_templates, structure_cells,

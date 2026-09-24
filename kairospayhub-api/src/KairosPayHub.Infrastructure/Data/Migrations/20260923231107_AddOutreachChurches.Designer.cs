@@ -3,6 +3,7 @@ using System;
 using KairosPayHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace KairosPayHub.Api.Data.Migrations
 {
     [DbContext(typeof(KairosDbContext))]
-    partial class KairosDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260923231107_AddOutreachChurches")]
+    partial class AddOutreachChurches
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1372,34 +1375,6 @@ namespace KairosPayHub.Api.Data.Migrations
                     b.ToTable("organizations", (string)null);
                 });
 
-            modelBuilder.Entity("KairosPayHub.Api.Domain.Outreach.OutreachAreaCache", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("City")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<double>("RadiusMiles")
-                        .HasColumnType("double precision");
-
-                    b.Property<DateTimeOffset>("SearchedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("City", "State", "RadiusMiles")
-                        .IsUnique();
-
-                    b.ToTable("outreach_area_caches", (string)null);
-                });
-
             modelBuilder.Entity("KairosPayHub.Api.Domain.Outreach.OutreachChurch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1407,9 +1382,6 @@ namespace KairosPayHub.Api.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Address")
-                        .HasColumnType("text");
-
-                    b.Property<string>("City")
                         .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -1430,28 +1402,6 @@ namespace KairosPayHub.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<double?>("RadiusMiles")
-                        .HasColumnType("double precision");
-
-                    b.Property<bool>("Saved")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset?>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SentBody")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SentSubject")
-                        .HasColumnType("text");
-
-                    b.Property<string>("State")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1465,31 +1415,6 @@ namespace KairosPayHub.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("outreach_churches", (string)null);
-                });
-
-            modelBuilder.Entity("KairosPayHub.Api.Domain.Outreach.SuperadminOperator", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.ToTable("superadmin_operators", (string)null);
                 });
 
             modelBuilder.Entity("KairosPayHub.Api.Domain.Structure.Cell", b =>

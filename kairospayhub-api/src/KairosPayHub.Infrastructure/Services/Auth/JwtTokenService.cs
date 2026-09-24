@@ -31,4 +31,24 @@ public class JwtTokenService(IOptions<JwtOptions> options)
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    public string CreateOperatorToken(string email)
+    {
+        var cfg = options.Value;
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(cfg.SigningKey));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, email),
+            new(JwtRegisteredClaimNames.Email, email),
+            new("operator", "superadmin"),
+        };
+        var token = new JwtSecurityToken(
+            issuer: cfg.Issuer,
+            audience: cfg.Audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(cfg.AccessTokenMinutes),
+            signingCredentials: creds);
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
 }

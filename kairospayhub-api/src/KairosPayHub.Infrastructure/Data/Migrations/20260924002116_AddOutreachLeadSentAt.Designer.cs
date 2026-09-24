@@ -3,6 +3,7 @@ using System;
 using KairosPayHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace KairosPayHub.Api.Data.Migrations
 {
     [DbContext(typeof(KairosDbContext))]
-    partial class KairosDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260924002116_AddOutreachLeadSentAt")]
+    partial class AddOutreachLeadSentAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1438,12 +1441,6 @@ namespace KairosPayHub.Api.Data.Migrations
 
                     b.Property<DateTimeOffset?>("SentAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SentBody")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SentSubject")
-                        .HasColumnType("text");
 
                     b.Property<string>("State")
                         .HasColumnType("text");

@@ -1,5 +1,5 @@
 ---
-description: Split volatile policy (managers) from stable engines; reuse managers instead of type-name branches
+description: Managers decide policy, engines render or persist, accessors touch I/O; keep Clean Architecture boundaries
 alwaysApply: true
 ---
 
@@ -30,7 +30,35 @@ const policy = createUnitPolicy(tree, layer, scopeUnitId)
 
 ## Engines second
 
-An **engine** renders or persists. It reads the manager and stays layer-agnostic. Labels come from `displayName` / policy labels, not hardcoded “Fellowship” or “Cell”.
+An **engine** renders or persists. It reads the manager and stays layer-agnostic. Labels come from `displayName` / policy labels, not hardcoded “Fellowship” or “Cell”. An engine does not call `fetch`, the database, or the browser.
+
+## Accessors third
+
+An **accessor** is the only module that touches the outside: HTTP, the database, `navigator.geolocation`, `sessionStorage`. It returns plain data. It does not decide policy and it does not render.
+
+```ts
+// ❌ BAD — the page both decides and fetches
+if (permission === 'granted') hideButton()
+const rows = await fetch('/api/outreach/searches')
+
+// ✅ GOOD — manager decides, accessor reads, engine renders
+const form = searchFormPolicy({ permission, state, city })
+const page = await searchLeads({ state, city, radiusMiles, page, pageSize })
+<SearchLeadsTable rows={page.churches} showLocationButton={form.showLocationButton} />
+```
+
+## Clean Architecture
+
+Dependencies point inward. Domain and managers know nothing about HTTP, EF, React, or the browser.
+
+| Layer | Owns | Must not |
+|---|---|---|
+| Domain / manager | Rules and status meanings | JSX, `fetch`, `DbContext` |
+| Application | Use-case that calls a manager then an accessor | UI, SQL details |
+| Accessor (infrastructure or API client) | One I/O concern | Policy `if`s, JSX |
+| Engine (page, table, controller action) | Render or the HTTP edge | Business rules, raw queries |
+
+A controller or page is an engine at the edge: it calls the use-case. It does not reach into another system's database. A new `if` about churches, roles, or lead status belongs in a manager with a unit test, not in the screen.
 
 ## When a feature spans churches
 

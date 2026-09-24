@@ -35,6 +35,14 @@ export interface Env {
   BUNNY_STREAM_API_KEY?: string
   BUNNY_STREAM_TOKEN_SECURITY_KEY?: string
   BUNNY_STREAM_WEBHOOK_SECRET?: string
+  OUTREACH_OPEN_PLACES_API_KEY?: string
+  OUTREACH_OPENAI_API_KEY?: string
+  OUTREACH_SMTP_HOST?: string
+  OUTREACH_SMTP_PORT?: string
+  OUTREACH_SMTP_USERNAME?: string
+  OUTREACH_SMTP_PASSWORD?: string
+  OUTREACH_FROM_ADDRESS?: string
+  OUTREACH_FROM_NAME?: string
 }
 
 import type { KairosApiContainer } from './container'
@@ -93,6 +101,30 @@ export function buildContainerEnv(env: Env): Record<string, string> {
   }
   if (env.BUNNY_STREAM_WEBHOOK_SECRET) {
     vars.BunnyStream__WebhookSecret = env.BUNNY_STREAM_WEBHOOK_SECRET
+  }
+  if (env.OUTREACH_OPEN_PLACES_API_KEY) {
+    vars.Outreach__OpenPlacesApiKey = env.OUTREACH_OPEN_PLACES_API_KEY
+  }
+  if (env.OUTREACH_OPENAI_API_KEY) {
+    vars.Outreach__OpenAiApiKey = env.OUTREACH_OPENAI_API_KEY
+  }
+  if (env.OUTREACH_SMTP_HOST) {
+    vars.Outreach__Smtp__Host = env.OUTREACH_SMTP_HOST
+  }
+  if (env.OUTREACH_SMTP_PORT) {
+    vars.Outreach__Smtp__Port = env.OUTREACH_SMTP_PORT
+  }
+  if (env.OUTREACH_SMTP_USERNAME) {
+    vars.Outreach__Smtp__Username = env.OUTREACH_SMTP_USERNAME
+  }
+  if (env.OUTREACH_SMTP_PASSWORD) {
+    vars.Outreach__Smtp__Password = env.OUTREACH_SMTP_PASSWORD
+  }
+  if (env.OUTREACH_FROM_ADDRESS) {
+    vars.Outreach__FromAddress = env.OUTREACH_FROM_ADDRESS
+  }
+  if (env.OUTREACH_FROM_NAME) {
+    vars.Outreach__FromName = env.OUTREACH_FROM_NAME
   }
 
   return vars

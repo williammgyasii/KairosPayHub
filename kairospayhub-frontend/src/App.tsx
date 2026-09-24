@@ -50,6 +50,12 @@ import {
 } from '@/features/media'
 import { ConfirmEmail } from './pages/ConfirmEmail'
 import { SignUp } from './pages/SignUp'
+import { SuperadminOutreachPage } from '@/features/outreach/pages/superadmin-outreach-page'
+import { SuperadminSearchPage } from '@/features/outreach/pages/superadmin-search-page'
+import { SuperadminSavedPage } from '@/features/outreach/pages/superadmin-saved-page'
+import { SuperadminReachedPage } from '@/features/outreach/pages/superadmin-reached-page'
+import { SuperadminLoginPage } from '@/features/outreach/pages/superadmin-login-page'
+import { RequireOperator } from '@/features/outreach/components/require-operator'
 
 export default function App() {
   return (
@@ -61,6 +67,39 @@ export default function App() {
       <Route path="/set-password" element={<SetPassword />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/superadmin/login" element={<SuperadminLoginPage />} />
+      <Route
+        path="/superadmin"
+        element={
+          <RequireOperator>
+            <SuperadminOutreachPage />
+          </RequireOperator>
+        }
+      />
+      <Route
+        path="/superadmin/search"
+        element={
+          <RequireOperator>
+            <SuperadminSearchPage />
+          </RequireOperator>
+        }
+      />
+      <Route
+        path="/superadmin/saved"
+        element={
+          <RequireOperator>
+            <SuperadminSavedPage />
+          </RequireOperator>
+        }
+      />
+      <Route
+        path="/superadmin/reached"
+        element={
+          <RequireOperator>
+            <SuperadminReachedPage />
+          </RequireOperator>
+        }
+      />
       <Route
         path="/"
         element={

@@ -1,5 +1,7 @@
 using KairosPayHub.Api.Auth;
 using KairosPayHub.Api.Data;
+using KairosPayHub.Api.Domain.Outreach;
+using KairosPayHub.Api.Outreach;
 using KairosPayHub.Api.Email;
 using KairosPayHub.Api.FeatureFlags;
 using KairosPayHub.Api.Infrastructure;
@@ -43,6 +45,7 @@ public static class InfrastructureServiceCollectionExtensions
             .AddDefaultTokenProviders();
 
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.Configure<OutreachOptions>(configuration.GetSection(OutreachOptions.SectionName));
         services.Configure<Notifications.WebPushOptions>(
             configuration.GetSection(Notifications.WebPushOptions.SectionName));
         services.Configure<R2Options>(configuration.GetSection(R2Options.SectionName));
@@ -65,6 +68,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ChurchReadCache>();
         services.AddScoped<IChurchOperationalReset, EfChurchOperationalReset>();
         services.AddScoped<JwtTokenService>();
+        services.AddScoped<IPasswordHasher<SuperadminOperator>, PasswordHasher<SuperadminOperator>>();
+        services.AddScoped<SuperadminSignIn>();
         services.AddScoped<AuthService>();
         services.AddScoped<ChurchService>();
         services.AddScoped<StructureLeaderAccountService>();
@@ -109,6 +114,20 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ServiceRecordingSeriesService>();
         services.AddScoped<ServiceRecordingThumbnailService>();
         services.AddScoped<ServiceRecordingService>();
+        services.AddHttpClient<IAreaGeocoder, CensusAreaGeocoder>(client =>
+            client.Timeout = TimeSpan.FromSeconds(15));
+        services.AddHttpClient<ILocationGeocoder, CensusLocationGeocoder>(client =>
+            client.Timeout = TimeSpan.FromSeconds(15));
+        services.AddHttpClient<ICityCatalog, CensusCityCatalog>(client =>
+            client.Timeout = TimeSpan.FromSeconds(20));
+        services.AddHttpClient<IChurchPlaceSearch, OpenPlacesChurchSearch>(client =>
+            client.Timeout = TimeSpan.FromSeconds(30));
+        services.AddHttpClient<IChurchPageFetcher, HttpChurchPageFetcher>(client =>
+            client.Timeout = TimeSpan.FromSeconds(12));
+        services.AddScoped<OutreachScoutService>();
+        services.AddScoped<OutreachLeadService>();
+        services.AddScoped<IOutreachMailbox, OutreachMailbox>();
+        services.AddHttpClient<IOutreachDraftWriter, OutreachDraftWriter>();
 
         return services;
     }

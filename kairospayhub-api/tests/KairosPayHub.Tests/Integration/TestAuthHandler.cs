@@ -28,6 +28,8 @@ public class TestAuthHandler(
             claims.Add(new Claim("email", email!));
         if (Request.Headers.TryGetValue("X-Test-Name", out var name))
             claims.Add(new Claim("name", name!));
+        if (Request.Headers.TryGetValue("X-Test-Operator", out var op) && op == "superadmin")
+            claims.Add(new Claim("operator", "superadmin"));
 
         var ticket = new AuthenticationTicket(
             new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)),

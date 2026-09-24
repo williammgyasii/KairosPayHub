@@ -118,7 +118,20 @@ export function signOut(): void {
   }
 }
 
-async function refreshSession(): Promise<Session | null> {
+// Refresh tokens are single-use. A full page load (React StrictMode in dev
+// runs the session effect twice) must share one refresh, or the second call
+// revokes the login and RequireAuth sends the page back to /login.
+let refreshInFlight: Promise<Session | null> | null = null
+
+function refreshSession(): Promise<Session | null> {
+  if (refreshInFlight) return refreshInFlight
+  refreshInFlight = refreshSessionOnce().finally(() => {
+    refreshInFlight = null
+  })
+  return refreshInFlight
+}
+
+async function refreshSessionOnce(): Promise<Session | null> {
   const refresh = localStorage.getItem(REFRESH_KEY)
   if (!refresh) return null
 

@@ -69,6 +69,14 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
         Set<Domain.Media.ServiceRecordingCategory>();
     public DbSet<Domain.Media.ServiceRecordingSeries> ServiceRecordingSeries =>
         Set<Domain.Media.ServiceRecordingSeries>();
+    public DbSet<Domain.Outreach.OutreachChurch> OutreachChurches =>
+        Set<Domain.Outreach.OutreachChurch>();
+
+    public DbSet<Domain.Outreach.OutreachAreaCache> OutreachAreaCaches =>
+        Set<Domain.Outreach.OutreachAreaCache>();
+
+    public DbSet<Domain.Outreach.SuperadminOperator> SuperadminOperators =>
+        Set<Domain.Outreach.SuperadminOperator>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -702,6 +710,10 @@ public class KairosDbContext(DbContextOptions<KairosDbContext> options)
             e.HasIndex(x => new { x.ChurchId, x.EventDate });
             e.HasIndex(x => x.ScopeNodeId);
         });
+
+        b.ApplyConfiguration(new OutreachChurchConfiguration());
+        b.ApplyConfiguration(new OutreachAreaCacheConfiguration());
+        b.ApplyConfiguration(new SuperadminOperatorConfiguration());
     }
 
     public override int SaveChanges()
